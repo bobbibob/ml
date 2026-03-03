@@ -15,7 +15,7 @@ android {
     applicationId = "com.ml.app"
     minSdk = 26
     targetSdk = 34
-    versionCode = 1
+    versionCode = 2
     versionName = "1.0"
 
     val r2Endpoint = System.getenv("R2_ENDPOINT") ?: "https://REPLACE_ME.r2.cloudflarestorage.com"
