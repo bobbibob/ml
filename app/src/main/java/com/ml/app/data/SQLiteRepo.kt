@@ -97,7 +97,7 @@ class SQLiteRepo(private val context: Context) {
         val stockByColors = queryStockByColors(db, date, bag)
         val ads = queryAds(db, date, bag)
 
-        val totalOrders = ordersByColors.sumOf { it.value }
+        val totalOrders = queryTotalOrders(db, date, bag).let { tot -> if (tot > 0.0) tot else ordersByColors.sumOf { it.value } }
         val totalSpend = ads.first.spend + ads.second.spend
         val cpo = if (totalOrders > 0.0) totalSpend / totalOrders else 0.0
 
@@ -151,6 +151,22 @@ class SQLiteRepo(private val context: Context) {
         val hyp = if (c.isNull(ih)) null else c.getString(ih)
         price to hyp
       } else null to null
+    }
+  }
+
+  private fun queryTotalOrders(db: SQLiteDatabase, date: String, bag: String): Double {
+    val sql = """
+      SELECT SUM(COALESCE(orders,0)) AS v
+      FROM svodka
+      WHERE date=? AND bag=? AND color="__TOTAL__"
+      LIMIT 1
+    """.trimIndent()
+
+    db.rawQuery(sql, arrayOf(date, bag)).use { c ->
+      return if (c.moveToFirst()) {
+        val iv = c.getColumnIndexOrThrow("v")
+        c.getDouble(iv)
+      } else 0.0
     }
   }
 
