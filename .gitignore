@@ -2,3 +2,7 @@
 # backups
 *.bak
 *.bak.*
+
+# backups
+*.bak
+*.bak.*
