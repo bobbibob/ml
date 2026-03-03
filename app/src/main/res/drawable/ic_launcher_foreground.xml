@@ -1,22 +1,22 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-  android:width="108dp"
-  android:height="108dp"
-  android:viewportWidth="108"
-  android:viewportHeight="108">
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
 
-  <!-- Синяя обводка -->
-  <path
-    android:fillColor="#00000000"
-    android:strokeColor="#2D3277"
-    android:strokeWidth="7"
-    android:pathData="M54,9 A45,45 0 1,1 53.999,9 Z"/>
+    <!-- Круг с синей окантовкой -->
+    <path
+        android:fillColor="#FFE600"
+        android:strokeColor="#2D3277"
+        android:strokeWidth="10"
+        android:pathData="M54,10 A44,44 0 1,1 53.999,10 Z"/>
 
-  <!-- Надпись ml (синяя) -->
-  <path
-    android:fillColor="#2D3277"
-    android:pathData="M28,68 V40 h8 v4 q2,-3 6,-3 5,0 7,4 2,-4 8,-4 9,0 9,10 v17 h-8 V53 q0,-5 -4,-5 -4,0 -4,6 v14 h-8 V53 q0,-5 -4,-5 -4,0 -4,6 v14 Z"/>
+    <!-- Черные буквы ml -->
+    <path
+        android:fillColor="#000000"
+        android:pathData="M30,70 V40 h10 v5 q3,-4 8,-4 6,0 9,5 3,-5 11,-5 12,0 12,13 v16 h-10 V55 q0,-6 -5,-6 -5,0 -5,7 v14 h-10 V55 q0,-6 -5,-6 -5,0 -5,7 v14 Z"/>
 
-  <path
-    android:fillColor="#2D3277"
-    android:pathData="M78,68 V36 h8 v32 Z"/>
+    <path
+        android:fillColor="#000000"
+        android:pathData="M82,70 V36 h10 v34 Z"/>
 </vector>
