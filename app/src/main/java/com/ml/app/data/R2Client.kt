@@ -23,22 +23,25 @@ class R2Client(context: Context) {
 
   suspend fun downloadPackZip(): ByteArray = withContext(Dispatchers.IO) {
     val url = objectUrl()
-    val emptyHash = Crypto.hex(Crypto.sha256Raw(ByteArray(0)))
-    val signed = SigV4.sign("GET", url, region, "s3", accessKey, secretKey, emptyHash)
+    val payloadHash = "UNSIGNED-PAYLOAD"
+    val signed = SigV4.sign("GET", url, region, "s3", accessKey, secretKey, payloadHash)
 
     val req = Request.Builder().url(url).get().apply {
       for ((k, v) in signed.headers) header(k, v)
     }.build()
 
     http.newCall(req).execute().use { resp ->
-      if (!resp.isSuccessful) throw IllegalStateException("Download failed: HTTP ${resp.code}")
+      if (!resp.isSuccessful) {
+      val msg = resp.body?.string()?.take(800) ?: ""
+      throw IllegalStateException("Download failed: HTTP ${resp.code} ${resp.message} $msg")
+    }
       resp.body?.bytes() ?: throw IllegalStateException("Empty body")
     }
   }
 
   suspend fun uploadPackZip(bytes: ByteArray) = withContext(Dispatchers.IO) {
     val url = objectUrl()
-    val payloadHash = Crypto.hex(Crypto.sha256Raw(bytes))
+    val payloadHash = "UNSIGNED-PAYLOAD"
     val signed = SigV4.sign(
       "PUT", url, region, "s3", accessKey, secretKey, payloadHash,
       extraHeaders = mapOf("content-type" to "application/zip")
@@ -50,7 +53,10 @@ class R2Client(context: Context) {
     }.build()
 
     http.newCall(req).execute().use { resp ->
-      if (!resp.isSuccessful) throw IllegalStateException("Upload failed: HTTP ${resp.code}")
+      if (!resp.isSuccessful) {
+      val msg = resp.body?.string()?.take(800) ?: ""
+      throw IllegalStateException("Upload failed: HTTP ${resp.code} ${resp.message} $msg")
+    }
     }
   }
 }
