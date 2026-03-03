@@ -32,7 +32,6 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
   val state by vm.state.collectAsState()
   val ctx = LocalContext.current
 
-  // init once
   LaunchedEffect(Unit) { vm.init() }
 
   var openDatePicker by remember { mutableStateOf(false) }
@@ -45,19 +44,12 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
   Scaffold(
     topBar = {
       CenterAlignedTopAppBar(
-        title = {
-          Text(
-            "ml",
-            fontWeight = FontWeight.Bold,
-            color = TextBlack
-          )
-        },
+        title = { Text("ml", fontWeight = FontWeight.Bold, color = TextBlack) },
         colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.White)
       )
     },
     containerColor = Color.White
   ) { pad ->
-
     Column(
       modifier = Modifier
         .padding(pad)
@@ -66,7 +58,6 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
         .padding(14.dp)
     ) {
 
-      // Верхняя панель: дата + кнопки
       Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -153,6 +144,8 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
 @Composable
 private fun BagCardMercado(row: BagDayRow) {
   val context = LocalContext.current
+
+  // Важно: используем только поля, которые есть в BagDayRow (без stock/byColors/bySources)
   val imgFile: File? = row.imagePath?.let { rel -> File(PackPaths.packDir(context), rel) }
 
   Card(
@@ -171,24 +164,7 @@ private fun BagCardMercado(row: BagDayRow) {
         Column(Modifier.weight(1f)) {
           Text(row.bag, fontWeight = FontWeight.Bold, color = TextBlack)
           Text("Заказы: ${row.totalOrders}", color = TextBlack)
-          row.stock?.let { Text("Остаток: $it", color = TextBlack) }
           row.price?.let { Text("Цена: $it", color = TextBlack) }
-        }
-      }
-
-      // Источники (можно трактовать как расходы/каналы, пока показываем как есть)
-      if (row.bySources.isNotEmpty()) {
-        Text("Источники:", fontWeight = FontWeight.SemiBold, color = TextBlack)
-        row.bySources.take(6).forEach { s ->
-          Text("• ${s.source}: ${s.orders}", color = TextBlack)
-        }
-      }
-
-      // Цвета
-      if (row.byColors.isNotEmpty()) {
-        Text("По цветам:", fontWeight = FontWeight.SemiBold, color = TextBlack)
-        row.byColors.take(12).forEach { c ->
-          Text("• ${c.color}: ${c.orders}", color = TextBlack)
         }
       }
 
