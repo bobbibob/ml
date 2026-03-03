@@ -158,7 +158,7 @@ class SQLiteRepo(private val context: Context) {
     val sql = """
       SELECT SUM(COALESCE(orders,0)) AS v
       FROM svodka
-      WHERE date=? AND bag=? AND color="__TOTAL__"
+      WHERE date=? AND bag=? AND (color="__TOTAL__" OR color="TOTAL")
       LIMIT 1
     """.trimIndent()
 
@@ -230,7 +230,7 @@ class SQLiteRepo(private val context: Context) {
         COALESCE(ig_ctr,0) AS ig_ctr,
         COALESCE(ig_cpc,0) AS ig_cpc
       FROM svodka
-      WHERE date=? AND bag=? AND color="__TOTAL__"
+      WHERE date=? AND bag=? AND (color="__TOTAL__" OR color="TOTAL")
       LIMIT 1
     """.trimIndent()
 
