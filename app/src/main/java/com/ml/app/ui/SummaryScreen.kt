@@ -1,9 +1,5 @@
 package com.ml.app.ui
 
-@file:OptIn(androidx.compose.material.ExperimentalMaterialApi::class)
-
-package com.ml.app.ui
-
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -11,10 +7,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.ExperimentalMaterialApi
-import androidx.compose.material.pullrefresh.PullRefreshIndicator
-import androidx.compose.material.pullrefresh.pullRefresh
-import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -55,8 +47,6 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
         }
     }
 
-    val pullState = rememberPullRefreshState(refreshing = state.loading, onRefresh = { vm.syncIfChanged() })
-
     Scaffold(
         bottomBar = {
             if (state.mode is ScreenMode.Timeline || state.mode is ScreenMode.Details) {
@@ -70,35 +60,26 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
             }
         }
     ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding).pullRefresh(pullState)) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                Box(modifier = Modifier.fillMaxWidth().background(MercadoYellow).padding(14.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("ml", style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Black))
-                        Spacer(Modifier.weight(1f))
-                        if (state.mode !is ScreenMode.Timeline) {
-                            TextButton(onClick = { vm.backToTimeline() }) {
-                                Text("Назад", color = TextBlack, fontWeight = FontWeight.Bold)
-                            }
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            // Header
+            Box(modifier = Modifier.fillMaxWidth().background(MercadoYellow).padding(14.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("ml", style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Black))
+                    Spacer(Modifier.weight(1f))
+                    if (state.mode !is ScreenMode.Timeline) {
+                        TextButton(onClick = { vm.backToTimeline() }) {
+                            Text("Назад", color = TextBlack, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
-
-                when (val mode = state.mode) {
-                    is ScreenMode.Timeline -> TimelineView(state, vm)
-                    is ScreenMode.Details -> DetailsView(state, vm)
-                    is ScreenMode.ArticlePicker -> ArticleSelectionScreen(
-                        bags = state.bagsList,
-                        onAdd = { vm.openArticleEditor(null) },
-                        onEdit = { vm.openArticleEditor(it) }
-                    )
-                    is ScreenMode.ArticleEditor -> AddEditArticleScreen(
-                        bagId = mode.bagId,
-                        onDone = { vm.backFromArticleEditor() }
-                    )
-                }
             }
-            PullRefreshIndicator(state.loading, pullState, Modifier.align(Alignment.TopCenter))
+
+            when (val mode = state.mode) {
+                is ScreenMode.Timeline -> TimelineView(state, vm)
+                is ScreenMode.Details -> DetailsView(state, vm)
+                is ScreenMode.ArticlePicker -> ArticleSelectionScreen(state.bagsList, { vm.openArticleEditor(null) }, { vm.openArticleEditor(it) })
+                is ScreenMode.ArticleEditor -> AddEditArticleScreen(bagId = mode.bagId, onDone = { vm.backFromArticleEditor() })
+            }
         }
     }
 }
@@ -106,10 +87,11 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
 @Composable
 fun DetailsView(state: SummaryState, vm: SummaryViewModel) {
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Card(Modifier.weight(1f), shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = SoftGray)) {
-                Text("Дата: ${state.selectedDate}", Modifier.padding(vertical = 12.dp).fillMaxWidth(), textAlign = TextAlign.Center, fontWeight = FontWeight.Medium)
+                Text("Дата: ${state.selectedDate}", Modifier.padding(vertical = 12.dp).fillMaxWidth(), textAlign = TextAlign.Center)
             }
+            Spacer(Modifier.width(12.dp))
             Button(onClick = { vm.syncIfChanged() }, colors = ButtonDefaults.buttonColors(containerColor = MercadoBlue), shape = RoundedCornerShape(24.dp)) {
                 Text("Обновить")
             }
@@ -119,14 +101,25 @@ fun DetailsView(state: SummaryState, vm: SummaryViewModel) {
                 val type = state.cardTypes[row.bagId] ?: CardType.CLASSIC
                 val net = ProfitCalc.netProfit(type, row.totalOrders, row.price ?: 0.0, row.totalSpend, row.cogs)
                 Column(Modifier.padding(16.dp)) {
-                    Text(row.bagName, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        BagThumb(row.imagePath)
+                        Spacer(Modifier.width(12.dp))
+                        Text(row.bagName, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                    }
+                    Row(Modifier.padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         StaticTypePill("Классика", selected = type == CardType.CLASSIC)
                         StaticTypePill("Премиум", selected = type == CardType.PREMIUM)
                     }
                     MetricRow("Заказы: ${row.totalOrders.toInt()}", "Расход: ${fmtMoney(row.totalSpend)}")
-                    MetricRow("Чистая прибыль: ", fmtMoney(net), isNet = true)
-                    // ... (остальные метрики и списки цветов)
+                    MetricRow("Цена за заказ: ${fmtMoney(row.cpo)}", "CTR: ${fmtPct(row.totalAds.ctr)} • CPC: ${fmtMoney(row.totalAds.cpc)}")
+                    MetricRow("Себест.: ${fmtMoney(row.cogs)}", "Чистая прибыль: ${fmtMoney(net)}", isBold = true)
+                    Text("органика + инста • Цена: ${fmtMoney(row.price ?: 0.0)}", color = Color.Gray, fontSize = 14.sp)
+                    
+                    Spacer(Modifier.height(12.dp))
+                    ColorSection("Заказы по цветам", row.ordersByColors)
+                    Spacer(Modifier.height(12.dp))
+                    ColorSection("Остаток по цветам", row.stockByColors)
+                    HorizontalDivider(Modifier.padding(vertical = 16.dp), color = ChipGray)
                 }
             }
         }
@@ -134,17 +127,38 @@ fun DetailsView(state: SummaryState, vm: SummaryViewModel) {
 }
 
 @Composable
-fun MetricRow(left: String, right: String, isNet: Boolean = false) {
+fun MetricRow(left: String, right: String, isBold: Boolean = false) {
     Row(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
         Text(left, Modifier.weight(1f))
-        Text(right, fontWeight = if (isNet) FontWeight.Bold else FontWeight.Normal)
+        Text(right, fontWeight = if (isBold) FontWeight.Bold else FontWeight.Normal)
+    }
+}
+
+@Composable
+fun ColorSection(title: String, items: List<ColorValue>) {
+    Text(title, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+    items.forEach { cv ->
+        Row(Modifier.fillMaxWidth()) {
+            Text(cv.color, Modifier.weight(1f))
+            Text(cv.value.toInt().toString(), fontWeight = FontWeight.Bold)
+        }
     }
 }
 
 @Composable
 fun StaticTypePill(text: String, selected: Boolean) {
-    Box(Modifier.clip(RoundedCornerShape(8.dp)).background(if (selected) MercadoYellow else ChipGray).padding(horizontal = 12.dp, vertical = 6.dp)) {
-        Text(text, color = TextBlack, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+    Box(Modifier.clip(RoundedCornerShape(8.dp)).background(if (selected) MercadoYellow else ChipGray).padding(horizontal = 16.dp, vertical = 8.dp)) {
+        Text(text, color = TextBlack, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+fun BagThumb(path: String?) {
+    val size = 56.dp
+    if (!path.isNullOrBlank() && File(path).exists()) {
+        AsyncImage(model = File(path), contentDescription = null, modifier = Modifier.size(size).clip(RoundedCornerShape(8.dp)))
+    } else {
+        Box(Modifier.size(size).clip(RoundedCornerShape(8.dp)).background(ChipGray))
     }
 }
 
@@ -166,15 +180,11 @@ fun ArticleSelectionScreen(bags: List<Pair<String, String>>, onAdd: () -> Unit, 
     var showList by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         if (!showList) {
-            Button(onClick = onAdd, modifier = Modifier.fillMaxWidth().height(56.dp)) { Text("➕ Добавить новый артикул") }
+            Button(onClick = onAdd, Modifier.fillMaxWidth().height(56.dp)) { Text("➕ Добавить новый артикул") }
             Spacer(Modifier.height(16.dp))
-            OutlinedButton(onClick = { showList = true }, modifier = Modifier.fillMaxWidth().height(56.dp)) { Text("📝 Редактировать существующий") }
+            OutlinedButton(onClick = { showList = true }, Modifier.fillMaxWidth().height(56.dp)) { Text("📝 Редактировать существующий") }
         } else {
-            LazyColumn {
-                items(bags) { (id, name) ->
-                    ListItem(headlineContent = { Text(name) }, modifier = Modifier.clickable { onEdit(id) })
-                }
-            }
+            LazyColumn { items(bags) { (id, name) -> ListItem(headlineContent = { Text(name) }, modifier = Modifier.clickable { onEdit(id) }) } }
         }
     }
 }
