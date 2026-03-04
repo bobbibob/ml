@@ -2,37 +2,84 @@ name: Android CI
 
 on:
   push:
-    branches: [ "main", "master" ]
+    branches: [ "main" ]
   pull_request:
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
 
-      - uses: actions/setup-java@v4
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 17
+          java-version: '17'
 
-      - uses: gradle/actions/setup-gradle@v3
-
-      - name: Generate Gradle Wrapper
-        run: gradle wrapper
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
 
       - name: Build Debug APK
-        env:
-          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
-          R2_BUCKET: ${{ secrets.R2_BUCKET }}
-          R2_ACCESS_KEY: ${{ secrets.R2_ACCESS_KEY }}
-          R2_SECRET_KEY: ${{ secrets.R2_SECRET_KEY }}
-          R2_OBJECT_KEY: ${{ secrets.R2_OBJECT_KEY }}
-          R2_REGION: ${{ secrets.R2_REGION }}
-          UPDATED_BY: ${{ secrets.UPDATED_BY }}
         run: ./gradlew :app:assembleDebug
 
-      - uses: actions/upload-artifact@v4
+      - name: Install sqlite3
+        run: sudo apt-get update && sudo apt-get install -y sqlite3
+
+      - name: CI SQL checks on test database
+        run: |
+          test -f testdata/data.sqlite
+          echo "Tables:"
+          sqlite3 testdata/data.sqlite ".tables"
+
+          echo "svodka rows:"
+          sqlite3 testdata/data.sqlite "SELECT COUNT(*) FROM svodka;"
+
+          echo "bags schema:"
+          sqlite3 testdata/data.sqlite "PRAGMA table_info(bags);"
+
+          echo "svodka schema:"
+          sqlite3 testdata/data.sqlite "PRAGMA table_info(svodka);"
+
+          echo "Timeline query check:"
+          sqlite3 testdata/data.sqlite "
+            SELECT s.date AS date,
+                   s.bag_id AS bag_id,
+                   COALESCE(b.name, s.bag_id) AS bag_name,
+                   SUM(COALESCE(s.orders,0)) AS orders
+            FROM svodka s
+            LEFT JOIN bags b ON b.id = s.bag_id
+            WHERE s.date IS NOT NULL AND s.date != ''
+              AND s.bag_id IS NOT NULL AND s.bag_id != ''
+            GROUP BY s.date, s.bag_id
+            ORDER BY s.date DESC, orders DESC
+            LIMIT 5;
+          "
+
+          echo "Details query check (one date):"
+          sqlite3 testdata/data.sqlite "
+            SELECT date FROM svodka
+            WHERE date IS NOT NULL AND date != ''
+            ORDER BY date DESC LIMIT 1;
+          " | while read -r d; do
+            echo "Using date=$d"
+            sqlite3 testdata/data.sqlite "
+              SELECT s.bag_id AS bag_id,
+                     COALESCE(b.name, s.bag_id) AS bag_name,
+                     SUM(COALESCE(s.orders,0)) AS orders
+              FROM svodka s
+              LEFT JOIN bags b ON b.id = s.bag_id
+              WHERE s.date='$d' AND s.bag_id IS NOT NULL AND s.bag_id != ''
+              GROUP BY s.bag_id
+              ORDER BY orders DESC
+              LIMIT 5;
+            "
+          done
+
+      - name: Upload Debug APK artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: app-debug
+          name: app-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
