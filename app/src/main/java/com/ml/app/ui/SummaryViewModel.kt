@@ -8,6 +8,7 @@ import com.ml.app.data.PackPaths
 import com.ml.app.data.R2Client
 import com.ml.app.data.SQLiteRepo
 import com.ml.app.data.ZipUtil
+import com.ml.app.data.PackDbSync
 import com.ml.app.domain.BagDayRow
 import com.ml.app.domain.CardType
 import com.ml.app.domain.DaySummary
@@ -140,7 +141,9 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
         if (!hasLocal) {
           _state.value = _state.value.copy(status = "Downloading…")
           val zip = r2.downloadPackZip()
-          ZipUtil.unzipToDir(zip, PackPaths.packDir(ctx))
+          $1
+          PackDbSync.refreshMergedDb(ctx)
+)
           prefsPack.edit().putString("etag", remoteEtag).putString("pack_token", remoteToken).apply()
           _state.value = _state.value.copy(hasPack = true, loading = false, status = "Downloaded")
           refreshAfterSync()

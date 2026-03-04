@@ -14,6 +14,7 @@ import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.activity.compose.BackHandler
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -46,9 +47,12 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
   val state by vm.state.collectAsState()
   val ctx = LocalContext.current
 
-  LaunchedEffect(Unit) { vm.init() }
+  $1
 
-  fun openDatePicker(current: LocalDate, onPicked: (LocalDate) -> Unit) {
+  BackHandler(enabled = state.mode is ScreenMode.Details) {
+    vm.backToTimeline()
+  }
+fun openDatePicker(current: LocalDate, onPicked: (LocalDate) -> Unit) {
     DatePickerDialog(
       ctx,
       { _, y, m, d -> onPicked(LocalDate.of(y, m + 1, d)) },

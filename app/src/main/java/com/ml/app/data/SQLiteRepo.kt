@@ -11,7 +11,7 @@ import kotlin.math.roundToInt
 class SQLiteRepo(private val context: Context) {
 
   private fun openDbReadOnly(): SQLiteDatabase {
-    val dbFile: File = PackPaths.dbFile(context)
+    val dbFile: File = PackDbSync.dbFileToUse(context)
     return SQLiteDatabase.openDatabase(dbFile.absolutePath, null, SQLiteDatabase.OPEN_READONLY)
   }
 
