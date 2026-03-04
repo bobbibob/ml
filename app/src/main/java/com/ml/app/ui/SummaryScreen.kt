@@ -155,7 +155,12 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
           )
 
 
-        }
+        
+            is ScreenMode.ArticleEditor -> AddEditArticleScreen(
+              bagId = (state.mode as ScreenMode.ArticleEditor).bagId,
+              onDone = { vm.backFromArticleEditor() }
+            )
+}
 
         if (state.status.isNotBlank()) {
           Text(text = state.status, modifier = Modifier.padding(12.dp), color = Color.Gray)
