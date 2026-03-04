@@ -16,12 +16,28 @@ class R2Client(context: Context) {
   private val http = OkHttpClient()
   private val secrets = Secrets.load(context)
 
-  private val endpoint = secrets.endpoint.trimEnd { it == / }
-  private val bucket = secrets.bucket
-  private val accessKey = secrets.accessKey
-  private val secretKey = secrets.secretKey
-  private val region = secrets.region
-  private val objectKey = secrets.objectKey.trimStart { it == / }
+  private fun stripTrailingSlashes(s: String): String {
+    var x = s
+    while (x.endsWith("/")) {
+      x = x.substring(0, x.length - 1)
+    }
+    return x
+  }
+
+  private fun stripLeadingSlashes(s: String): String {
+    var x = s
+    while (x.startsWith("/")) {
+      x = x.substring(1)
+    }
+    return x
+  }
+
+  private val endpoint: String = stripTrailingSlashes(secrets.endpoint)
+  private val bucket: String = secrets.bucket
+  private val accessKey: String = secrets.accessKey
+  private val secretKey: String = secrets.secretKey
+  private val region: String = secrets.region
+  private val objectKey: String = stripLeadingSlashes(secrets.objectKey)
 
   private fun objectUrl(): String = "$endpoint/$bucket/$objectKey"
 
