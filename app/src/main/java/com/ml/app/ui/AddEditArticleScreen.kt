@@ -59,10 +59,10 @@ fun AddEditArticleScreen(
         priceText = u.price?.toString() ?: ""
         cogsText = u.cogs?.toString() ?: ""
         photoUri = u.photoPath
-        val t = u.cardType ?: typeStore.getType(realBagId)?.name
+        val t = u.cardType ?: (typeStore.getTypes(listOf(realBagId))[realBagId]?.name)
         cardType = if (t == "PREMIUM") CardType.PREMIUM else CardType.CLASSIC
       } else {
-        cardType = typeStore.getType(realBagId) ?: CardType.CLASSIC
+        cardType = (typeStore.getTypes(listOf(realBagId))[realBagId] ?: CardType.CLASSIC)
       }
       colors = repo.getBagUserColors(realBagId)
       status = ""
