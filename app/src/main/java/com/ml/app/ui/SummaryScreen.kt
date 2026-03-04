@@ -49,7 +49,12 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
 
   LaunchedEffect(Unit) { vm.init() }
 
-  BackHandler(enabled = state.mode is ScreenMode.Details) { vm.backToTimeline() }
+  BackHandler(enabled = (state.mode is ScreenMode.Details) || (state.mode is ScreenMode.ArticleEditor)) {
+    when (state.mode) {
+      is ScreenMode.ArticleEditor -> vm.backFromArticleEditor()
+      else -> vm.backToTimeline()
+    }
+  }
 
   fun openDatePicker(current: LocalDate, onPicked: (LocalDate) -> Unit) {
     DatePickerDialog(
@@ -149,7 +154,7 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
     }
 
     ArticleBottomBar(
-      onArticleClick = { vm.syncIfChanged() },
+      onArticleClick = { vm.openArticleEditor() },
       modifier = Modifier.align(Alignment.BottomCenter)
     )
 
@@ -409,7 +414,7 @@ private fun ArticleBottomBar(
         onClick = onArticleClick,
         modifier = Modifier.weight(1f)
       ) {
-        Text("Артикул")
+        Text("Add/Edit article")
       }
     }
   }

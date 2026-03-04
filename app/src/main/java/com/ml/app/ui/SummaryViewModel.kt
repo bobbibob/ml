@@ -22,6 +22,8 @@ import java.time.LocalDate
 sealed class ScreenMode {
   data object Timeline : ScreenMode()
   data class Details(val date: LocalDate) : ScreenMode()
+  data class ArticleEditor(val bagId: String? = null) : ScreenMode()
+
 }
 
 data class SummaryState(
@@ -87,7 +89,16 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
     _state.value = _state.value.copy(mode = ScreenMode.Timeline)
   }
 
-  fun setDateFromPicker(date: LocalDate) {
+  
+
+  fun openArticleEditor(bagId: String? = null) {
+    _state.value = _state.value.copy(mode = ScreenMode.ArticleEditor(bagId))
+  }
+
+  fun backFromArticleEditor() {
+    _state.value = _state.value.copy(mode = ScreenMode.Timeline)
+  }
+fun setDateFromPicker(date: LocalDate) {
     openDetails(date)
   }
 
