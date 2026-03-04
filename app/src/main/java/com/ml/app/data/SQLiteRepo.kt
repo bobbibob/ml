@@ -28,6 +28,7 @@ class SQLiteRepo(private val context: Context) {
 
     private fun totalColorWhere(): String = "AND s.color IN ('__TOTAL__','TOTAL')"
 
+    // Данные для таймлайна
     suspend fun loadTimeline(limitDays: Int = 180): List<DaySummary> = withContext(Dispatchers.IO) {
         openDbReadOnly().use { db ->
             val images = queryImagesByBagId(db)
@@ -93,6 +94,7 @@ class SQLiteRepo(private val context: Context) {
         }
     }
 
+    // Данные по конкретной дате
     suspend fun loadForDate(date: String): List<BagDayRow> = withContext(Dispatchers.IO) {
         openDbReadOnly().use { db ->
             val images = queryImagesByBagId(db)
@@ -209,10 +211,92 @@ class SQLiteRepo(private val context: Context) {
         return out
     }
 
+    // --------- USER DATA (merged DB) ----------
+    
+    data class BagUserRow(
+        val bagId: String,
+        val name: String?,
+        val hypothesis: String?,
+        val price: Double?,
+        val cogs: Double?,
+        val cardType: String?,
+        val photoPath: String?
+    )
+
+    suspend fun getBagUser(bagId: String): BagUserRow? = withContext(Dispatchers.IO) {
+        openDbReadWrite().use { db ->
+            db.rawQuery(
+                "SELECT bag_id,name,hypothesis,price,cogs,card_type,photo_path FROM bag_user WHERE bag_id=?",
+                arrayOf(bagId)
+            ).use { c ->
+                if (!c.moveToFirst()) return@withContext null
+                fun str(idx: Int) = if (c.isNull(idx)) null else c.getString(idx)
+                fun dbl(idx: Int) = if (c.isNull(idx)) null else c.getDouble(idx)
+
+                BagUserRow(
+                    bagId = c.getString(0),
+                    name = str(1),
+                    hypothesis = str(2),
+                    price = dbl(3),
+                    cogs = dbl(4),
+                    cardType = str(5),
+                    photoPath = str(6)
+                )
+            }
+        }
+    }
+
+    suspend fun getBagUserColors(bagId: String): List<String> = withContext(Dispatchers.IO) {
+        openDbReadWrite().use { db ->
+            val out = ArrayList<String>()
+            db.rawQuery("SELECT color FROM bag_user_colors WHERE bag_id=? ORDER BY color", arrayOf(bagId)).use { c ->
+                while (c.moveToNext()) out.add(c.getString(0))
+            }
+            out
+        }
+    }
+
+    suspend fun upsertBagUser(bagId: String, name: String?, hypothesis: String?, price: Double?, cogs: Double?, cardType: String?, photoPath: String?) = withContext(Dispatchers.IO) {
+        openDbReadWrite().use { db ->
+            db.execSQL(
+                """
+                INSERT INTO bag_user(bag_id,name,hypothesis,price,cogs,card_type,photo_path) VALUES(?,?,?,?,?,?,?) 
+                ON CONFLICT(bag_id) DO UPDATE SET 
+                name=excluded.name, hypothesis=excluded.hypothesis, price=excluded.price, 
+                cogs=excluded.cogs, card_type=excluded.card_type, photo_path=excluded.photo_path
+                """.trimIndent(),
+                arrayOf(bagId, name, hypothesis, price, cogs, cardType, photoPath)
+            )
+        }
+    }
+
+    suspend fun replaceBagUserColors(bagId: String, colors: List<String>) = withContext(Dispatchers.IO) {
+        openDbReadWrite().use { db ->
+            db.beginTransaction()
+            try {
+                db.execSQL("DELETE FROM bag_user_colors WHERE bag_id=?", arrayOf(bagId))
+                for (color in colors.distinct().filter { it.isNotBlank() }) {
+                    db.execSQL("INSERT OR IGNORE INTO bag_user_colors(bag_id,color) VALUES(?,?)", arrayOf(bagId, color))
+                }
+                db.setTransactionSuccessful()
+            } finally {
+                db.endTransaction()
+            }
+        }
+    }
+
     suspend fun listAllBags(): List<Pair<String, String>> = withContext(Dispatchers.IO) {
         openDbReadWrite().use { db ->
             val out = ArrayList<Pair<String, String>>()
-            db.rawQuery("SELECT bag_id, bag_name FROM bags ORDER BY bag_name", null).use { c ->
+            // Из основной базы
+            val hasBags = db.rawQuery("SELECT 1 FROM sqlite_master WHERE type='table' AND name='bags'", null).use { it.moveToFirst() }
+            if (hasBags) {
+                db.rawQuery("SELECT bag_id, bag_name FROM bags ORDER BY bag_name", null).use { c ->
+                    while (c.moveToNext()) out.add(c.getString(0) to c.getString(1))
+                }
+            }
+            // Из пользовательской (те, которых нет в основной)
+            db.rawQuery("SELECT bag_id, COALESCE(name, bag_id) FROM bag_user WHERE bag_id NOT IN (SELECT bag_id FROM bags)", null).use { c ->
                 while (c.moveToNext()) out.add(c.getString(0) to c.getString(1))
             }
             out
