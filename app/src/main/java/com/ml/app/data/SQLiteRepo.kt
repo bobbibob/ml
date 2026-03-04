@@ -21,44 +21,113 @@ class SQLiteRepo(private val context: Context) {
     return if (f.exists()) f.absolutePath else null
   }
 
-  suspend fun queryDates(): List<String> = withContext(Dispatchers.IO) {
+  suspend fun loadTimeline(limitDays: Int = 180): List<DaySummary> = withContext(Dispatchers.IO) {
     openDbReadOnly().use { db ->
-      val out = ArrayList<String>()
+      val out = ArrayList<DaySummary>()
       db.rawQuery(
         """
-          SELECT DISTINCT date
+          SELECT date,
+                 SUM(COALESCE(orders,0)) AS orders,
+                 SUM(COALESCE(spend,0)) AS spend,
+                 SUM(COALESCE(impressions,0)) AS impressions,
+                 SUM(COALESCE(clicks,0)) AS clicks
           FROM svodka
           WHERE date IS NOT NULL AND date != ''
+          GROUP BY date
           ORDER BY date DESC
+          LIMIT ?
         """.trimIndent(),
-        null
+        arrayOf(limitDays.toString())
       ).use { c ->
-        val i = c.getColumnIndexOrThrow("date")
-        while (c.moveToNext()) out.add(c.getString(i))
+        val iDate = c.getColumnIndexOrThrow("date")
+        val iOrders = c.getColumnIndexOrThrow("orders")
+        val iSpend = c.getColumnIndexOrThrow("spend")
+        val iImpr = c.getColumnIndexOrThrow("impressions")
+        val iClicks = c.getColumnIndexOrThrow("clicks")
+        while (c.moveToNext()) {
+          val date = c.getString(iDate)
+          val orders = c.getInt(iOrders)
+          val spend = c.getDouble(iSpend)
+          val impressions = c.getLong(iImpr)
+          val clicks = c.getLong(iClicks)
+          val ctr = if (impressions > 0) clicks.toDouble() / impressions.toDouble() else 0.0
+          val cpc = if (clicks > 0) spend / clicks.toDouble() else 0.0
+          out.add(
+            DaySummary(
+              date = date,
+              orders = orders,
+              ads = AdsMetrics(
+                spend = spend,
+                impressions = impressions,
+                clicks = clicks,
+                ctr = ctr,
+                cpc = cpc
+              )
+            )
+          )
+        }
       }
       out
     }
   }
 
-  suspend fun queryBagsForDate(date: String): List<BagShort> = withContext(Dispatchers.IO) {
+  suspend fun loadDayDetails(date: String): DayDetails = withContext(Dispatchers.IO) {
     openDbReadOnly().use { db ->
-      val sql = """
-        SELECT bag_id, MAX(bag_name) AS bag_name
-        FROM svodka
-        WHERE date=? AND bag_id IS NOT NULL AND bag_id != ''
-        GROUP BY bag_id
-        ORDER BY bag_name COLLATE NOCASE
-      """.trimIndent()
-
-      val out = ArrayList<BagShort>()
-      db.rawQuery(sql, arrayOf(date)).use { c ->
+      // orders per bag
+      val images = queryImagesByBagId(db)
+      val bags = ArrayList<BagOrdersSummary>()
+      db.rawQuery(
+        """
+          SELECT bag_id,
+                 MAX(bag_name) AS bag_name,
+                 SUM(COALESCE(orders,0)) AS orders
+          FROM svodka
+          WHERE date=? AND bag_id IS NOT NULL AND bag_id != ''
+          GROUP BY bag_id
+          ORDER BY orders DESC
+        """.trimIndent(),
+        arrayOf(date)
+      ).use { c ->
         val iId = c.getColumnIndexOrThrow("bag_id")
         val iName = c.getColumnIndexOrThrow("bag_name")
+        val iOrders = c.getColumnIndexOrThrow("orders")
         while (c.moveToNext()) {
-          out.add(BagShort(c.getString(iId), c.getString(iName)))
+          val id = c.getString(iId)
+          val name = c.getString(iName)
+          val orders = c.getInt(iOrders)
+          val image = images[id]
+          bags.add(BagOrdersSummary(id, name, orders, image))
         }
       }
-      out
+
+      // total ads metrics for the date
+      var spend = 0.0
+      var impressions = 0L
+      var clicks = 0L
+      db.rawQuery(
+        """
+          SELECT SUM(COALESCE(spend,0)) AS spend,
+                 SUM(COALESCE(impressions,0)) AS impressions,
+                 SUM(COALESCE(clicks,0)) AS clicks
+          FROM svodka
+          WHERE date=?
+        """.trimIndent(),
+        arrayOf(date)
+      ).use { c ->
+        if (c.moveToFirst()) {
+          spend = c.getDouble(c.getColumnIndexOrThrow("spend"))
+          impressions = c.getLong(c.getColumnIndexOrThrow("impressions"))
+          clicks = c.getLong(c.getColumnIndexOrThrow("clicks"))
+        }
+      }
+      val ctr = if (impressions > 0) clicks.toDouble() / impressions.toDouble() else 0.0
+      val cpc = if (clicks > 0) spend / clicks.toDouble() else 0.0
+
+      DayDetails(
+        date = date,
+        bags = bags,
+        ads = AdsMetrics(spend = spend, impressions = impressions, clicks = clicks, ctr = ctr, cpc = cpc)
+      )
     }
   }
 
@@ -83,104 +152,8 @@ class SQLiteRepo(private val context: Context) {
     return out
   }
 
-  private fun queryBase(db: SQLiteDatabase, date: String, bagId: String): Pair<Double?, String?> {
-    val sql = """
-      SELECT MAX(price) AS price, MAX(hypothesis) AS hypothesis
-      FROM svodka
-      WHERE date=? AND bag_id=?
-    """.trimIndent()
-
-    var price: Double? = null
-    var hyp: String? = null
-    db.rawQuery(sql, arrayOf(date, bagId)).use { c ->
-      if (c.moveToFirst()) {
-        if (!c.isNull(c.getColumnIndexOrThrow("price"))) price = c.getDouble(c.getColumnIndexOrThrow("price"))
-        if (!c.isNull(c.getColumnIndexOrThrow("hypothesis"))) hyp = c.getString(c.getColumnIndexOrThrow("hypothesis"))
-      }
-    }
-    return price to hyp
-  }
-
-  fun queryOrdersByColors(db: SQLiteDatabase, date: String, bagId: String): List<ColorValue> {
-    val sql = """
-      SELECT s.color, SUM(COALESCE(s.orders,0)) AS v
-      FROM svodka s
-      LEFT JOIN colors c ON c.color = s.color
-      WHERE s.date=? AND s.bag_id=? AND s.color NOT IN ("__TOTAL__","TOTAL")
-      GROUP BY s.color
-      ORDER BY v DESC
-    """.trimIndent()
-
-    val out = ArrayList<ColorValue>()
-    db.rawQuery(sql, arrayOf(date, bagId)).use { c2 ->
-      val ic = c2.getColumnIndexOrThrow("color")
-      val iv = c2.getColumnIndexOrThrow("v")
-      while (c2.moveToNext()) {
-        val color = c2.getString(ic)
-        val v = c2.getDouble(iv)
-        if (v <= 0.0) continue
-        out.add(ColorValue(color, v))
-      }
-    }
-    return out
-  }
-
-  fun queryStockByColors(db: SQLiteDatabase, date: String, bagId: String): List<ColorValue> {
-    val sql = """
-      SELECT s.color, SUM(COALESCE(s.stock,0)) AS v
-      FROM svodka s
-      LEFT JOIN colors c ON c.color = s.color
-      WHERE s.date=? AND s.bag_id=? AND s.color NOT IN ("__TOTAL__","TOTAL")
-      GROUP BY s.color
-      ORDER BY v DESC
-    """.trimIndent()
-
-    val out = ArrayList<ColorValue>()
-    db.rawQuery(sql, arrayOf(date, bagId)).use { c2 ->
-      val ic = c2.getColumnIndexOrThrow("color")
-      val iv = c2.getColumnIndexOrThrow("v")
-      while (c2.moveToNext()) {
-        val color = c2.getString(ic)
-        val v = c2.getDouble(iv)
-        if (v <= 0.0) continue
-        out.add(ColorValue(color, v))
-      }
-    }
-    return out
-  }
-
-  suspend fun querySummary(date: String, bagId: String): BagSummary = withContext(Dispatchers.IO) {
-    openDbReadOnly().use { db ->
-      val images = queryImagesByBagId(db)
-      val (price, hypothesis) = queryBase(db, date, bagId)
-      val orders = queryOrdersByColors(db, date, bagId)
-      val stock = queryStockByColors(db, date, bagId)
-
-      // total orders/stock for quick top cards
-      val totalOrders = orders.sumOf { it.v }
-      val totalStock = stock.sumOf { it.v }
-
-      // pick a representative image for the bag (by bagId key)
-      val image = images[bagId]
-
-      BagSummary(
-        date = date,
-        bagId = bagId,
-        price = price,
-        hypothesis = hypothesis,
-        imagePath = image,
-        totalOrders = totalOrders,
-        totalStock = totalStock,
-        ordersByColor = orders,
-        stockByColor = stock
-      )
-    }
-  }
-
-  // Simple helper for UI numbers: pretty rounding
-  fun fmt(v: Double?): String {
-    if (v == null) return "—"
+  suspend fun fmtMoney(v: Double): String = withContext(Dispatchers.Default) {
     val r = (v * 100.0).roundToInt() / 100.0
-    return if (r == r.toLong().toDouble()) r.toLong().toString() else r.toString()
+    if (r == r.toLong().toDouble()) r.toLong().toString() else r.toString()
   }
 }

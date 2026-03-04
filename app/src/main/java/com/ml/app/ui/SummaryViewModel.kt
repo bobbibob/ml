@@ -1,50 +1,86 @@
 package com.ml.app.ui
 
+import android.app.Application
 import android.content.Context
-import android.content.SharedPreferences
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ml.app.data.PackPaths
 import com.ml.app.data.R2Client
 import com.ml.app.data.SQLiteRepo
 import com.ml.app.data.ZipUtil
-import com.ml.app.domain.BagShort
-import com.ml.app.domain.BagSummary
+import com.ml.app.domain.DayDetails
+import com.ml.app.domain.DaySummary
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 
-data class SummaryState(
+enum class ScreenMode { Timeline, Details }
+
+data class UiState(
   val loading: Boolean = false,
   val status: String = "",
   val hasPack: Boolean = false,
-  val dates: List<String> = emptyList(),
-  val selectedDate: String? = null,
-  val bags: List<BagShort> = emptyList(),
-  val selectedBagId: String? = null,
-  val summary: BagSummary? = null
+  val mode: ScreenMode = ScreenMode.Timeline,
+  val timeline: List<DaySummary> = emptyList(),
+  val selectedDate: LocalDate? = null,
+  val details: DayDetails? = null
 )
 
-class SummaryViewModel(
-  private val ctx: Context,
-  private val prefs: SharedPreferences
-) : ViewModel() {
+class SummaryViewModel(app: Application) : AndroidViewModel(app) {
+  private val ctx: Context = app.applicationContext
+  private val prefs = ctx.getSharedPreferences("ml", Context.MODE_PRIVATE)
 
   private val r2 = R2Client(ctx)
   private val repo = SQLiteRepo(ctx)
 
-  private val _state = MutableStateFlow(SummaryState())
-  val state: StateFlow<SummaryState> = _state
+  private val _state = MutableStateFlow(UiState())
+  val state: StateFlow<UiState> = _state
 
   fun init() {
     viewModelScope.launch(Dispatchers.IO) {
       val hasLocal = PackPaths.dbFile(ctx).exists() && PackPaths.imagesDir(ctx).exists()
       _state.value = _state.value.copy(hasPack = hasLocal)
-      if (hasLocal) {
-        loadDates()
+
+      // check updates (or download on first start)
+      syncIfChanged()
+
+      // then show timeline
+      if (_state.value.hasPack) refreshTimeline()
+    }
+  }
+
+  fun refreshTimeline() {
+    viewModelScope.launch(Dispatchers.IO) {
+      try {
+        _state.value = _state.value.copy(loading = true, status = "Loading…", mode = ScreenMode.Timeline)
+        val t = repo.loadTimeline(limitDays = 180)
+        _state.value = _state.value.copy(timeline = t, loading = false, status = "OK")
+      } catch (t: Throwable) {
+        _state.value = _state.value.copy(loading = false, status = "DB error: ${t.message ?: t.javaClass.simpleName}")
       }
     }
+  }
+
+  fun openDetails(date: LocalDate) {
+    viewModelScope.launch(Dispatchers.IO) {
+      try {
+        _state.value = _state.value.copy(loading = true, status = "Loading…", mode = ScreenMode.Details, selectedDate = date)
+        val d = repo.loadDayDetails(date.toString())
+        _state.value = _state.value.copy(details = d, loading = false, status = "OK")
+      } catch (t: Throwable) {
+        _state.value = _state.value.copy(loading = false, status = "DB error: ${t.message ?: t.javaClass.simpleName}")
+      }
+    }
+  }
+
+  fun backToTimeline() {
+    _state.value = _state.value.copy(mode = ScreenMode.Timeline, details = null)
+  }
+
+  fun setDateFromPicker(date: LocalDate) {
+    openDetails(date)
   }
 
   fun syncIfChanged() {
@@ -55,8 +91,7 @@ class SummaryViewModel(
         val remote = r2.headPack()
         val remoteEtag = remote.etag?.trim()?.trim('"') ?: ""
 
-        // Some proxies/CDNs may not return ETag consistently.
-        // Fallback to Last-Modified / Content-Length so updates still work.
+        // Some setups may not return ETag reliably. Use a fallback token so sync still works.
         val remoteToken = when {
           remoteEtag.isNotBlank() -> "etag:$remoteEtag"
           !remote.lastModified.isNullOrBlank() -> "lm:${remote.lastModified}"
@@ -64,9 +99,9 @@ class SummaryViewModel(
           else -> ""
         }
 
-        val legacyLocalEtag = prefs.getString("etag", "") ?: ""
+        val localEtag = prefs.getString("etag", "") ?: ""
         val localToken = prefs.getString("pack_token", "")?.ifBlank {
-          if (legacyLocalEtag.isNotBlank()) "etag:$legacyLocalEtag" else ""
+          if (localEtag.isNotBlank()) "etag:$localEtag" else ""
         } ?: ""
 
         val hasLocal = PackPaths.dbFile(ctx).exists() && PackPaths.imagesDir(ctx).exists()
@@ -78,8 +113,6 @@ class SummaryViewModel(
           ZipUtil.unzipToDir(zip, PackPaths.packDir(ctx))
           prefs.edit().putString("etag", remoteEtag).putString("pack_token", remoteToken).apply()
           _state.value = _state.value.copy(hasPack = true, loading = false, status = "Downloaded")
-          // refresh current screen
-          refreshAfterSync()
           return@launch
         }
 
@@ -89,66 +122,12 @@ class SummaryViewModel(
           ZipUtil.unzipToDir(zip, PackPaths.packDir(ctx))
           prefs.edit().putString("etag", remoteEtag).putString("pack_token", remoteToken).apply()
           _state.value = _state.value.copy(hasPack = true, loading = false, status = "Updated")
-          refreshAfterSync()
         } else {
           _state.value = _state.value.copy(loading = false, status = "No changes")
-          // still refresh visible screen (fast)
-          refreshAfterSync()
         }
       } catch (t: Throwable) {
         _state.value = _state.value.copy(loading = false, status = "Sync error: ${t.message ?: t.javaClass.simpleName}")
       }
-    }
-  }
-
-  private fun refreshAfterSync() {
-    viewModelScope.launch(Dispatchers.IO) {
-      loadDates()
-      val d = _state.value.selectedDate
-      val b = _state.value.selectedBagId
-      if (!d.isNullOrBlank()) {
-        loadBags(d)
-        if (!b.isNullOrBlank()) loadSummary(d, b)
-      }
-    }
-  }
-
-  private suspend fun loadDates() {
-    val dates = repo.queryDates()
-    val selected = _state.value.selectedDate ?: dates.firstOrNull()
-    _state.value = _state.value.copy(dates = dates, selectedDate = selected)
-    if (!selected.isNullOrBlank()) loadBags(selected)
-  }
-
-  fun selectDate(date: String) {
-    viewModelScope.launch(Dispatchers.IO) {
-      _state.value = _state.value.copy(selectedDate = date, selectedBagId = null, summary = null)
-      loadBags(date)
-    }
-  }
-
-  private suspend fun loadBags(date: String) {
-    val bags = repo.queryBagsForDate(date)
-    val selected = _state.value.selectedBagId ?: bags.firstOrNull()?.id
-    _state.value = _state.value.copy(bags = bags, selectedBagId = selected)
-    if (!selected.isNullOrBlank()) loadSummary(date, selected)
-  }
-
-  fun selectBag(bagId: String) {
-    val date = _state.value.selectedDate ?: return
-    viewModelScope.launch(Dispatchers.IO) {
-      _state.value = _state.value.copy(selectedBagId = bagId)
-      loadSummary(date, bagId)
-    }
-  }
-
-  private suspend fun loadSummary(date: String, bagId: String) {
-    try {
-      _state.value = _state.value.copy(loading = true, status = "Loading…")
-      val s = repo.querySummary(date, bagId)
-      _state.value = _state.value.copy(summary = s, loading = false, status = "")
-    } catch (t: Throwable) {
-      _state.value = _state.value.copy(loading = false, status = "DB error: ${t.message ?: t.javaClass.simpleName}")
     }
   }
 }
