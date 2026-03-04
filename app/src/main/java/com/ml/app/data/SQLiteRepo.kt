@@ -272,4 +272,100 @@ class SQLiteRepo(private val context: Context) {
     val r = (v * 100.0).roundToInt() / 100.0
     if (r == r.toLong().toDouble()) r.toLong().toString() else r.toString()
   }
+
+  // --------- USER DATA (merged DB) ----------
+  private fun openDbReadWrite(): SQLiteDatabase {
+    val dbFile: File = PackDbSync.dbFileToUse(context)
+    return SQLiteDatabase.openDatabase(dbFile.absolutePath, null, SQLiteDatabase.OPEN_READWRITE)
+  }
+
+  data class BagUserRow(
+    val bagId: String,
+    val name: String?,
+    val hypothesis: String?,
+    val price: Double?,
+    val cogs: Double?,
+    val cardType: String?,
+    val photoPath: String?
+  )
+
+  suspend fun getBagUser(bagId: String): BagUserRow? = withContext(Dispatchers.IO) {
+    openDbReadWrite().use { db ->
+      db.rawQuery(
+        "SELECT bag_id,name,hypothesis,price,cogs,card_type,photo_path FROM bag_user WHERE bag_id=?",
+        arrayOf(bagId)
+      ).use { c ->
+        if (!c.moveToFirst()) return@withContext null
+        fun str(col: String) = c.getString(c.getColumnIndexOrThrow(col))
+        fun nstr(col: String) = if (c.isNull(c.getColumnIndexOrThrow(col))) null else str(col)
+        fun ndbl(col: String) = if (c.isNull(c.getColumnIndexOrThrow(col))) null else c.getDouble(c.getColumnIndexOrThrow(col))
+
+        BagUserRow(
+          bagId = str("bag_id"),
+          name = nstr("name"),
+          hypothesis = nstr("hypothesis"),
+          price = ndbl("price"),
+          cogs = ndbl("cogs"),
+          cardType = nstr("card_type"),
+          photoPath = nstr("photo_path")
+        )
+      }
+    }
+  }
+
+  suspend fun getBagUserColors(bagId: String): List<String> = withContext(Dispatchers.IO) {
+    openDbReadWrite().use { db ->
+      val out = ArrayList<String>()
+      db.rawQuery(
+        "SELECT color FROM bag_user_colors WHERE bag_id=? ORDER BY color",
+        arrayOf(bagId)
+      ).use { c ->
+        val i = c.getColumnIndexOrThrow("color")
+        while (c.moveToNext()) out.add(c.getString(i))
+      }
+      out
+    }
+  }
+
+  suspend fun upsertBagUser(
+    bagId: String,
+    name: String?,
+    hypothesis: String?,
+    price: Double?,
+    cogs: Double?,
+    cardType: String?,
+    photoPath: String?
+  ) = withContext(Dispatchers.IO) {
+    openDbReadWrite().use { db ->
+      db.beginTransaction()
+      try {
+        db.execSQL(
+          "INSERT INTO bag_user(bag_id,name,hypothesis,price,cogs,card_type,photo_path) VALUES(?,?,?,?,?,?,?) " +
+            "ON CONFLICT(bag_id) DO UPDATE SET " +
+            "name=excluded.name, hypothesis=excluded.hypothesis, price=excluded.price, cogs=excluded.cogs, " +
+            "card_type=excluded.card_type, photo_path=excluded.photo_path",
+          arrayOf(bagId, name, hypothesis, price, cogs, cardType, photoPath)
+        )
+        db.setTransactionSuccessful()
+      } finally {
+        db.endTransaction()
+      }
+    }
+  }
+
+  suspend fun replaceBagUserColors(bagId: String, colors: List<String>) = withContext(Dispatchers.IO) {
+    openDbReadWrite().use { db ->
+      db.beginTransaction()
+      try {
+        db.execSQL("DELETE FROM bag_user_colors WHERE bag_id=?", arrayOf(bagId))
+        for (c in colors.distinct().filter { it.isNotBlank() }) {
+          db.execSQL("INSERT OR IGNORE INTO bag_user_colors(bag_id,color) VALUES(?,?)", arrayOf(bagId, c))
+        }
+        db.setTransactionSuccessful()
+      } finally {
+        db.endTransaction()
+      }
+    }
+  }
+
 }
