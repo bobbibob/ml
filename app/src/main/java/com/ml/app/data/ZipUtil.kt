@@ -14,7 +14,18 @@ object ZipUtil {
     ZipInputStream(BufferedInputStream(ByteArrayInputStream(zipBytes))).use { zis ->
       while (true) {
         val entry = zis.nextEntry ?: break
+
         val outFile = File(outDir, entry.name)
+
+        // Zip Slip protection: ensure the entry stays within outDir
+        val outDirPath = outDir.canonicalFile.toPath()
+        val outFilePath = outFile.canonicalFile.toPath()
+        if (!outFilePath.startsWith(outDirPath)) {
+          // Skip suspicious paths like ../../...
+          zis.closeEntry()
+          continue
+        }
+
         if (entry.isDirectory) outFile.mkdirs()
         else {
           outFile.parentFile?.mkdirs()
