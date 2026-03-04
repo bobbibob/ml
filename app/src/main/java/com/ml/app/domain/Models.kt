@@ -10,8 +10,22 @@ data class AdsMetrics(
   val cpc: Double = 0.0
 )
 
+data class BagOrdersSummary(
+  val bagId: String,
+  val bagName: String,
+  val orders: Int,
+  val imagePath: String?
+)
+
+data class DaySummary(
+  val date: String,
+  val totalOrders: Int,
+  val byBags: List<BagOrdersSummary>
+)
+
 data class BagDayRow(
-  val bag: String,
+  val bagId: String,
+  val bagName: String,
   val price: Double?,
   val hypothesis: String?,
   val imagePath: String?,
@@ -29,16 +43,4 @@ data class BagDayRow(
   val rk: AdsMetrics,
   val ig: AdsMetrics,
   val totalAds: AdsMetrics
-)
-
-data class BagOrders(
-  val bag: String,
-  val orders: Int,
-  val imagePath: String? = null
-)
-
-data class DaySummary(
-  val date: String,
-  val totalOrders: Int,
-  val byBags: List<BagOrders>
 )

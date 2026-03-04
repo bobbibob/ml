@@ -18,17 +18,13 @@ class R2Client(context: Context) {
 
   private fun stripTrailingSlashes(s: String): String {
     var x = s
-    while (x.endsWith("/")) {
-      x = x.substring(0, x.length - 1)
-    }
+    while (x.endsWith("/")) x = x.substring(0, x.length - 1)
     return x
   }
 
   private fun stripLeadingSlashes(s: String): String {
     var x = s
-    while (x.startsWith("/")) {
-      x = x.substring(1)
-    }
+    while (x.startsWith("/")) x = x.substring(1)
     return x
   }
 

@@ -1,27 +1,27 @@
 package com.ml.app.ui
 
 import android.app.DatePickerDialog
-import android.graphics.BitmapFactory
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.pullrefresh.PullRefreshIndicator
+import androidx.compose.material.pullrefresh.pullRefresh
+import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.ml.app.data.PackPaths
+import coil.compose.AsyncImage
 import com.ml.app.domain.BagDayRow
 import com.ml.app.domain.DaySummary
 import java.io.File
@@ -35,8 +35,7 @@ private val SoftGray = Color(0xFFF7F7F7)
 
 private fun fmtInt(v: Double): String = v.roundToInt().toString()
 private fun fmtMoney(v: Double): String = String.format("%.2f", v)
-private fun fmtLong(v: Long): String = v.toString()
-private fun fmtPct(v: Double): String = String.format("%.2f%%", v)
+private fun fmtPct(v: Double): String = String.format("%.2f%%", v * 100.0)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -54,94 +53,97 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
     ).show()
   }
 
-  Column(
+  val pullState = rememberPullRefreshState(
+    refreshing = state.loading,
+    onRefresh = { vm.syncIfChanged() }
+  )
+
+  Box(
     modifier = Modifier
       .fillMaxSize()
       .background(Color.White)
+      .pullRefresh(pullState)
   ) {
-    // Header
-    Box(
-      modifier = Modifier
-        .fillMaxWidth()
-        .background(MercadoYellow)
-        .padding(14.dp)
-    ) {
-      Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
+    Column(modifier = Modifier.fillMaxSize()) {
+
+      // Header
+      Box(
+        modifier = Modifier
+          .fillMaxWidth()
+          .background(MercadoYellow)
+          .padding(14.dp)
       ) {
-        Text(
-          text = "ml",
-          style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Black),
-          color = TextBlack
-        )
-        Spacer(Modifier.weight(1f))
-
-        if (state.mode is ScreenMode.Details) {
-          TextButton(onClick = { vm.backToTimeline() }) { Text("Назад", color = TextBlack) }
-        } else {
-          TextButton(onClick = { vm.syncIfChanged() }) { Text("Проверить", color = TextBlack) }
-        }
-      }
-    }
-
-    if (!state.hasPack) {
-      Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-          if (state.loading) {
-            LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp))
-            Spacer(Modifier.height(12.dp))
-          }
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          verticalAlignment = Alignment.CenterVertically
+        ) {
           Text(
-            text = if (state.status.isNotBlank()) state.status else "Скачиваем базу…",
+            text = "ml",
+            style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Black),
             color = TextBlack
           )
+          Spacer(Modifier.weight(1f))
+
+          if (state.mode is ScreenMode.Details) {
+            TextButton(onClick = { vm.backToTimeline() }) { Text("Назад", color = TextBlack) }
+          } else {
+            TextButton(onClick = { vm.syncIfChanged() }) { Text("Проверить", color = TextBlack) }
+          }
         }
       }
-      return@Column
-    }
 
-    // Top date picker
-    Row(
-      modifier = Modifier
-        .fillMaxWidth()
-        .padding(12.dp),
-      horizontalArrangement = Arrangement.spacedBy(12.dp),
-      verticalAlignment = Alignment.CenterVertically
-    ) {
-      Button(
-        onClick = { openDatePicker(state.selectedDate) { vm.setDateFromPicker(it) } },
-        colors = ButtonDefaults.buttonColors(containerColor = SoftGray, contentColor = TextBlack),
-        modifier = Modifier.weight(1f)
-      ) {
-        Text("Дата: ${state.selectedDate}", maxLines = 1, overflow = TextOverflow.Ellipsis)
+      if (!state.hasPack) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+          Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            if (state.loading) {
+              LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp))
+              Spacer(Modifier.height(12.dp))
+            }
+            Text(if (state.status.isNotBlank()) state.status else "Скачиваем базу…", color = TextBlack)
+          }
+        }
+      } else {
+        // Top date picker
+        Row(
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(12.dp),
+          horizontalArrangement = Arrangement.spacedBy(12.dp),
+          verticalAlignment = Alignment.CenterVertically
+        ) {
+          Button(
+            onClick = { openDatePicker(state.selectedDate) { vm.setDateFromPicker(it) } },
+            colors = ButtonDefaults.buttonColors(containerColor = SoftGray, contentColor = TextBlack),
+            modifier = Modifier.weight(1f)
+          ) {
+            Text("Дата: ${state.selectedDate}", maxLines = 1, overflow = TextOverflow.Ellipsis)
+          }
+
+          Button(
+            onClick = { vm.syncIfChanged() },
+            colors = ButtonDefaults.buttonColors(containerColor = MercadoBlue, contentColor = Color.White)
+          ) { Text("Обновить") }
+        }
+
+        when (val mode = state.mode) {
+          is ScreenMode.Timeline -> TimelineList(
+            items = state.timeline,
+            onOpen = { vm.openDetails(LocalDate.parse(it.date)) }
+          )
+          is ScreenMode.Details -> DetailsList(rows = state.rows)
+        }
+
+        if (state.status.isNotBlank()) {
+          Text(text = state.status, modifier = Modifier.padding(12.dp), color = Color.Gray)
+        }
       }
-
-      Button(
-        onClick = { vm.syncIfChanged() },
-        colors = ButtonDefaults.buttonColors(containerColor = MercadoBlue, contentColor = Color.White)
-      ) { Text("Обновить") }
     }
 
-    if (state.loading) {
-      LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-    }
-
-    when (val mode = state.mode) {
-      is ScreenMode.Timeline -> TimelineList(
-        items = state.timeline,
-        onOpen = { vm.openDetails(LocalDate.parse(it.date)) }
-      )
-      is ScreenMode.Details -> DetailsList(rows = state.rows)
-    }
-
-    if (state.status.isNotBlank()) {
-      Text(
-        text = state.status,
-        modifier = Modifier.padding(12.dp),
-        color = Color.Gray
-      )
-    }
+    PullRefreshIndicator(
+      refreshing = state.loading,
+      state = pullState,
+      modifier = Modifier.align(Alignment.TopCenter)
+    )
   }
 }
 
@@ -174,14 +176,14 @@ private fun TimelineList(items: List<DaySummary>, onOpen: (DaySummary) -> Unit) 
             )
           }
 
-          Spacer(Modifier.height(8.dp))
+          Spacer(Modifier.height(10.dp))
 
           day.byBags.take(12).forEach { b ->
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
               BagThumb(b.imagePath)
               Spacer(Modifier.width(10.dp))
               Text(
-                text = b.bag,
+                text = b.bagName,
                 modifier = Modifier.weight(1f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -214,7 +216,7 @@ private fun DetailsList(rows: List<BagDayRow>) {
             BagThumb(r.imagePath)
             Spacer(Modifier.width(12.dp))
             Text(
-              text = r.bag,
+              text = r.bagName,
               style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
               color = TextBlack,
               maxLines = 2,
@@ -266,31 +268,32 @@ private fun DetailsList(rows: List<BagDayRow>) {
 
           Spacer(Modifier.height(10.dp))
 
-          Column {
-            if (r.rk.spend > 0.0) {
-              Text(
-                text = "РК: расход ${fmtMoney(r.rk.spend)} • показы ${fmtLong(r.rk.impressions)} • клики ${fmtLong(r.rk.clicks)} • CTR ${fmtPct(r.rk.ctr)} • CPC ${fmtMoney(r.rk.cpc)}",
-                color = Color.Gray
-              )
-            } else {
-              Text(text = "Нет РК", color = Color.Gray)
-            }
+          val rkEmpty = r.rk.spend == 0.0 && r.rk.impressions == 0L && r.rk.clicks == 0L
+          val igEmpty = r.ig.spend == 0.0 && r.ig.impressions == 0L && r.ig.clicks == 0L
 
-            if (r.ig.spend > 0.0) {
-              Text(
-                text = "Instagram: расход ${fmtMoney(r.ig.spend)} • показы ${fmtLong(r.ig.impressions)} • клики ${fmtLong(r.ig.clicks)} • CTR ${fmtPct(r.ig.ctr)} • CPC ${fmtMoney(r.ig.cpc)}",
-                color = Color.Gray
-              )
-            } else {
-              Text(text = "Нет Instagram", color = Color.Gray)
-            }
+          if (rkEmpty) {
+            Text("Нет РК", color = Color.Gray)
+          } else {
+            Text(
+              "РК: расход ${fmtMoney(r.rk.spend)} • показы ${r.rk.impressions} • клики ${r.rk.clicks} • CTR ${fmtPct(r.rk.ctr)} • CPC ${fmtMoney(r.rk.cpc)}",
+              color = Color.Gray
+            )
+          }
 
-            if (r.totalAds.spend > 0.0) {
-              Text(
-                text = "Итого: расход ${fmtMoney(r.totalAds.spend)} • показы ${fmtLong(r.totalAds.impressions)} • клики ${fmtLong(r.totalAds.clicks)} • CTR ${fmtPct(r.totalAds.ctr)} • CPC ${fmtMoney(r.totalAds.cpc)} • CPO ${fmtMoney(r.cpo)}",
-                color = Color.Gray
-              )
-            }
+          if (igEmpty) {
+            Text("Нет Instagram", color = Color.Gray)
+          } else {
+            Text(
+              "Instagram: расход ${fmtMoney(r.ig.spend)} • показы ${r.ig.impressions} • клики ${r.ig.clicks} • CTR ${fmtPct(r.ig.ctr)} • CPC ${fmtMoney(r.ig.cpc)}",
+              color = Color.Gray
+            )
+          }
+
+          if (r.totalAds.spend > 0.0) {
+            Text(
+              "Итого: расход ${fmtMoney(r.totalAds.spend)} • показы ${r.totalAds.impressions} • клики ${r.totalAds.clicks} • CTR ${fmtPct(r.totalAds.ctr)} • CPC ${fmtMoney(r.totalAds.cpc)} • CPO ${fmtMoney(r.cpo)}",
+              color = Color.Gray
+            )
           }
         }
       }
@@ -299,31 +302,19 @@ private fun DetailsList(rows: List<BagDayRow>) {
 }
 
 @Composable
-private fun BagThumb(relativePath: String?) {
-  val ctx = LocalContext.current
-
-  val bmp = remember(relativePath) {
-    try {
-      if (relativePath.isNullOrBlank()) return@remember null
-      val f = File(PackPaths.packDir(ctx), relativePath)
-      if (!f.exists()) return@remember null
-      BitmapFactory.decodeFile(f.absolutePath)
-    } catch (_: Throwable) {
-      null
-    }
-  }
-
+private fun BagThumb(absPath: String?) {
   val shape = RoundedCornerShape(12.dp)
+  val size = 56.dp
 
-  if (bmp != null) {
-    Image(
-      bitmap = bmp.asImageBitmap(),
+  if (!absPath.isNullOrBlank() && File(absPath).exists()) {
+    AsyncImage(
+      model = File(absPath),
       contentDescription = null,
-      modifier = Modifier.size(56.dp).clip(shape)
+      modifier = Modifier.size(size).clip(shape)
     )
   } else {
     Box(
-      modifier = Modifier.size(56.dp).clip(shape).background(Color(0xFFEAEAEA))
+      modifier = Modifier.size(size).clip(shape).background(Color(0xFFEAEAEA))
     )
   }
 }
