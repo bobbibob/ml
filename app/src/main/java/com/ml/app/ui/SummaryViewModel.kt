@@ -174,6 +174,5 @@ fun setDateFromPicker(date: LocalDate) {
     when (state.value.mode) {
       is ScreenMode.Timeline -> refreshTimeline()
       is ScreenMode.Details -> refreshDetails()
-    }
-  }
-}
+    
+      is ScreenMode.ArticleEditor -> { }
