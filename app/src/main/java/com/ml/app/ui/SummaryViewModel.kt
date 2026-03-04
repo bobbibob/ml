@@ -21,10 +21,9 @@ import java.time.LocalDate
 
 sealed class ScreenMode {
   data object Timeline : ScreenMode()
+  data class Details(val date: LocalDate) : ScreenMode()
   data object ArticlePicker : ScreenMode()
-data class Details(val date: LocalDate) : ScreenMode()
-  data class ArticleEditor(val bagId: String? = null) : ScreenMode()
-
+  data class ArticleEditor(val bagId: String?) : ScreenMode()
 }
 
 data class SummaryState(
@@ -33,7 +32,6 @@ data class SummaryState(
 
   val timeline: List<DaySummary> = emptyList(),
   val rows: List<BagDayRow> = emptyList(),
-
   val cardTypes: Map<String, CardType> = emptyMap(),
 
   val status: String = "",
@@ -46,7 +44,6 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
   private val repo = SQLiteRepo(ctx)
   private val r2 = R2Client(ctx)
   private val typeStore = CardTypeStore(ctx)
-
   private val prefsPack = ctx.getSharedPreferences("ml_pack", Context.MODE_PRIVATE)
 
   private val _state = MutableStateFlow(SummaryState())
@@ -56,7 +53,6 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
     viewModelScope.launch(Dispatchers.IO) {
       val has = PackPaths.dbFile(ctx).exists() && PackPaths.imagesDir(ctx).exists()
       _state.value = _state.value.copy(hasPack = has)
-
       if (has) PackDbSync.refreshMergedDb(ctx)
 
       syncIfChanged()
@@ -70,10 +66,8 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
       try {
         _state.value = _state.value.copy(loading = true, status = "Loading…", mode = ScreenMode.Timeline)
         val t = repo.loadTimeline(limitDays = 180)
-
         val ids = t.flatMap { it.byBags }.map { it.bagId }.distinct()
         val types = typeStore.getTypes(ids)
-
         _state.value = _state.value.copy(timeline = t, cardTypes = types, loading = false, status = "OK")
       } catch (t: Throwable) {
         _state.value = _state.value.copy(loading = false, status = "Error: ${t.message}")
@@ -86,21 +80,12 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
     refreshDetails()
   }
 
+  fun setDateFromPicker(date: LocalDate) {
+    openDetails(date)
+  }
+
   fun backToTimeline() {
     _state.value = _state.value.copy(mode = ScreenMode.Timeline)
-  }
-
-  
-
-  fun openArticleEditor(bagId: String? = null) {
-    _state.value = _state.value.copy(mode = ScreenMode.ArticleEditor(bagId))
-  }
-
-  fun backFromArticlePicker() { _state.value = _state.value.copy(mode = ScreenMode.Timeline) }\n\n  fun backFromArticleEditor() {
-    _state.value = _state.value.copy(mode = ScreenMode.Timeline)
-  }
-fun setDateFromPicker(date: LocalDate) {
-    openDetails(date)
   }
 
   fun refreshDetails() {
@@ -108,15 +93,30 @@ fun setDateFromPicker(date: LocalDate) {
       try {
         _state.value = _state.value.copy(loading = true, status = "Loading…")
         val rows = repo.loadForDate(_state.value.selectedDate.toString())
-
         val ids = rows.map { it.bagId }.distinct()
         val types = typeStore.getTypes(ids)
-
         _state.value = _state.value.copy(rows = rows, cardTypes = types, loading = false, status = "OK")
       } catch (t: Throwable) {
         _state.value = _state.value.copy(loading = false, status = "Error: ${t.message}")
       }
     }
+  }
+
+  fun openArticlePicker() {
+    _state.value = _state.value.copy(mode = ScreenMode.ArticlePicker)
+  }
+
+  fun backFromArticlePicker() {
+    _state.value = _state.value.copy(mode = ScreenMode.Timeline)
+  }
+
+  fun openArticleEditor(bagId: String? = null) {
+    _state.value = _state.value.copy(mode = ScreenMode.ArticleEditor(bagId))
+  }
+
+  fun backFromArticleEditor() {
+    // возвращаемся в picker, чтобы можно было выбрать другой артикул
+    _state.value = _state.value.copy(mode = ScreenMode.ArticlePicker)
   }
 
   fun syncIfChanged() {
@@ -125,7 +125,7 @@ fun setDateFromPicker(date: LocalDate) {
         _state.value = _state.value.copy(loading = true, status = "Checking updates…")
 
         val remote = r2.headPack()
-        val remoteEtag = remote.etag?.trim()?.trim('"') ?: ""
+        val remoteEtag = remote.etag?.trim()?.trim(") ?: ""
         val remoteToken = when {
           remoteEtag.isNotBlank() -> "etag:$remoteEtag"
           !remote.lastModified.isNullOrBlank() -> "lm:${remote.lastModified}"
@@ -145,7 +145,6 @@ fun setDateFromPicker(date: LocalDate) {
           val zip = r2.downloadPackZip()
           ZipUtil.unzipToDir(zip, PackPaths.packDir(ctx))
           PackDbSync.refreshMergedDb(ctx)
-
           prefsPack.edit().putString("etag", remoteEtag).putString("pack_token", remoteToken).apply()
           _state.value = _state.value.copy(hasPack = true, loading = false, status = "Downloaded")
           refreshAfterSync()
@@ -157,7 +156,6 @@ fun setDateFromPicker(date: LocalDate) {
           val zip = r2.downloadPackZip()
           ZipUtil.unzipToDir(zip, PackPaths.packDir(ctx))
           PackDbSync.refreshMergedDb(ctx)
-
           prefsPack.edit().putString("etag", remoteEtag).putString("pack_token", remoteToken).apply()
           _state.value = _state.value.copy(hasPack = true, loading = false, status = "Updated")
           refreshAfterSync()
@@ -170,32 +168,12 @@ fun setDateFromPicker(date: LocalDate) {
       }
     }
   }
-  
-  fun openArticlePicker() {
-    _state.value = _state.value.copy(mode = ScreenMode.ArticlePicker)
-    refreshArticlePicker()
-  }
 
-  fun closeArticlePicker() {
-    _state.value = _state.value.copy(mode = ScreenMode.Timeline)
-  }
-
-  fun refreshArticlePicker() {
-    viewModelScope.launch(Dispatchers.IO) {
-      try {
-        val items = repo.listAllBags()
-        _state.value = _state.value.copy(bagsList = items)
-      } catch (t: Throwable) {
-        _state.value = _state.value.copy(status = "Error: ${'$'}{t.message}")
-      }
-    }
-  }
-
-private fun refreshAfterSync() {
+  private fun refreshAfterSync() {
     when (state.value.mode) {
       is ScreenMode.Timeline -> refreshTimeline()
       is ScreenMode.Details -> refreshDetails()
-      is ScreenMode.ArticlePicker -> refreshArticlePicker()
+      is ScreenMode.ArticlePicker -> { /* stay */ }
       is ScreenMode.ArticleEditor -> { /* stay */ }
     }
   }
