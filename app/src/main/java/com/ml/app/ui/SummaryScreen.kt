@@ -70,7 +70,7 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
       .background(Color.White)
       .pullRefresh(pullState)
   ) {
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(modifier = Modifier.fillMaxSize().padding(bottom = 72.dp)) {
 
       Box(
         modifier = Modifier
@@ -232,6 +232,8 @@ private fun TimelineList(
             Spacer(Modifier.height(6.dp))
           }
         }
+  }
+
       }
     }
   }
