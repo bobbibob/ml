@@ -169,10 +169,12 @@ fun setDateFromPicker(date: LocalDate) {
       }
     }
   }
-
   private fun refreshAfterSync() {
     when (state.value.mode) {
       is ScreenMode.Timeline -> refreshTimeline()
       is ScreenMode.Details -> refreshDetails()
-    
-      is ScreenMode.ArticleEditor -> { }
+      is ScreenMode.ArticleEditor -> { /* stay */ }
+    }
+  }
+
+}
