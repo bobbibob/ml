@@ -242,7 +242,6 @@ private fun TimelineList(
       }
     }
   }
-}
 
 @Composable
 private fun DetailsList(
