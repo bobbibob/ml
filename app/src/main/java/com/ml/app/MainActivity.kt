@@ -6,6 +6,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -21,17 +23,22 @@ class MainActivity : ComponentActivity() {
         try {
             setContent {
                 MlTheme {
-                    SummaryScreen()
+                    Surface(color = MaterialTheme.colorScheme.background) {
+                        SummaryScreen()
+                    }
                 }
             }
-        } catch (e: Exception) {
-            val errorLog = Log.getStackTraceString(e)
+        } catch (e: Throwable) {
+            Log.e("ML_CRASH", "Crash in MainActivity", e)
+            val stackTrace = Log.getStackTraceString(e)
             setContent {
-                LazyColumn(modifier = Modifier.padding(16.dp)) {
-                    item {
-                        Text("Критическая ошибка при запуске!", color = Color.Red)
-                        Text("\nПричина:\n${e.localizedMessage ?: "Неизвестна"}\n", fontWeight = FontWeight.Bold)
-                        Text("Полный лог:\n$errorLog", fontSize = 10.sp)
+                Surface(color = Color.White) {
+                    LazyColumn(modifier = Modifier.padding(16.dp)) {
+                        item {
+                            Text("Критическая ошибка!", color = Color.Red, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                            Text("\nПричина: ${e.message}\n", color = Color.Black, fontWeight = FontWeight.Medium)
+                            Text("Технический лог:\n$stackTrace", color = Color.DarkGray, fontSize = 10.sp)
+                        }
                     }
                 }
             }
