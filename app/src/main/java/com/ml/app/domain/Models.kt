@@ -17,7 +17,7 @@ data class BagDayRow(
   val imagePath: String?,
 
   // header stats
-  val totalOrders: Double,   // показываем как Int
+  val totalOrders: Double,
   val totalSpend: Double,
   val cpo: Double,
 
@@ -33,11 +33,12 @@ data class BagDayRow(
 
 data class BagOrders(
   val bag: String,
-  val orders: Int
+  val orders: Int,
+  val imagePath: String? = null
 )
 
 data class DaySummary(
-  val date: String,          // YYYY-MM-DD
+  val date: String,
   val totalOrders: Int,
   val byBags: List<BagOrders>
 )

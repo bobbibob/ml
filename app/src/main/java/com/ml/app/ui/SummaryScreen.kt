@@ -1,23 +1,29 @@
 package com.ml.app.ui
 
 import android.app.DatePickerDialog
+import android.graphics.BitmapFactory
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.ml.app.data.PackPaths
 import com.ml.app.domain.BagDayRow
 import com.ml.app.domain.DaySummary
+import java.io.File
 import java.time.LocalDate
 import kotlin.math.roundToInt
 
@@ -68,23 +74,43 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
         )
         Spacer(Modifier.weight(1f))
 
-        if (state.mode is ScreenMode.Details) {
-          TextButton(onClick = { vm.backToTimeline() }) { Text("Назад", color = TextBlack) }
-        } else {
-          TextButton(onClick = { vm.refreshTimeline() }) { Text("Обновить", color = TextBlack) }
+        when (state.mode) {
+          is ScreenMode.Details -> {
+            TextButton(onClick = { vm.backToTimeline() }) { Text("Назад", color = TextBlack) }
+          }
+          else -> {
+            TextButton(
+              onClick = { if (!state.hasPack) vm.syncDownload() else vm.refreshTimeline() }
+            ) { Text("Обновить", color = TextBlack) }
+          }
         }
       }
     }
 
     if (!state.hasPack) {
-      // если пакета нет — пока просто сообщение (скачивание у тебя было в другом VM, если нужно — вернем)
       Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text("Нет базы данных (pack). Сначала скачай/положи database_pack.", color = TextBlack)
+        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(16.dp)) {
+          Text(
+            "Нет базы данных (pack).\nНажми «Скачать», чтобы загрузить database_pack.zip",
+            color = TextBlack
+          )
+          Spacer(Modifier.height(12.dp))
+          Button(
+            onClick = { vm.syncDownload() },
+            colors = ButtonDefaults.buttonColors(containerColor = MercadoBlue, contentColor = Color.White)
+          ) { Text("Скачать") }
+        }
+      }
+      if (state.loading) {
+        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+      }
+      if (state.status.isNotBlank()) {
+        Text(state.status, modifier = Modifier.padding(12.dp), color = Color.Gray)
       }
       return@Column
     }
 
-    // Top date picker (и на таймлайне, и в деталях)
+    // Top date picker
     Row(
       modifier = Modifier
         .fillMaxWidth()
@@ -100,11 +126,15 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
         Text("Дата: ${state.selectedDate}", maxLines = 1, overflow = TextOverflow.Ellipsis)
       }
 
-      if (state.mode is ScreenMode.Details) {
-        Button(
+      when (state.mode) {
+        is ScreenMode.Details -> Button(
           onClick = { vm.refreshDetails() },
           colors = ButtonDefaults.buttonColors(containerColor = MercadoBlue, contentColor = Color.White)
         ) { Text("Обновить") }
+        else -> Button(
+          onClick = { vm.syncUploadWithConflictCheck() },
+          colors = ButtonDefaults.buttonColors(containerColor = MercadoBlue, contentColor = Color.White)
+        ) { Text("Сохранить") }
       }
     }
 
@@ -126,6 +156,39 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
         modifier = Modifier.padding(12.dp),
         color = Color.Gray
       )
+    }
+  }
+}
+
+@Composable
+private fun BagThumb(imagePath: String?, size: Int = 44) {
+  val ctx = LocalContext.current
+  val bmp = remember(imagePath) {
+    try {
+      if (imagePath.isNullOrBlank()) return@remember null
+      val f = File(PackPaths.packDir(ctx), imagePath)
+      if (!f.exists()) return@remember null
+      BitmapFactory.decodeFile(f.absolutePath)
+    } catch (_: Throwable) {
+      null
+    }
+  }
+
+  Box(
+    modifier = Modifier
+      .size(size.dp)
+      .background(Color.White, RoundedCornerShape(12.dp)),
+    contentAlignment = Alignment.Center
+  ) {
+    if (bmp != null) {
+      Image(
+        bitmap = bmp.asImageBitmap(),
+        contentDescription = null,
+        modifier = Modifier.fillMaxSize()
+      )
+    } else {
+      // placeholder
+      Box(modifier = Modifier.fillMaxSize().background(Color(0xFFEAEAEA), RoundedCornerShape(12.dp)))
     }
   }
 }
@@ -159,10 +222,15 @@ private fun TimelineList(items: List<DaySummary>, onOpen: (DaySummary) -> Unit) 
             )
           }
 
-          Spacer(Modifier.height(8.dp))
+          Spacer(Modifier.height(10.dp))
 
           day.byBags.take(12).forEach { b ->
-            Row(Modifier.fillMaxWidth()) {
+            Row(
+              Modifier.fillMaxWidth(),
+              verticalAlignment = Alignment.CenterVertically
+            ) {
+              BagThumb(b.imagePath, size = 40)
+              Spacer(Modifier.width(10.dp))
               Text(
                 text = b.bag,
                 modifier = Modifier.weight(1f),
@@ -172,6 +240,7 @@ private fun TimelineList(items: List<DaySummary>, onOpen: (DaySummary) -> Unit) 
               )
               Text(text = b.orders.toString(), color = TextBlack, fontWeight = FontWeight.SemiBold)
             }
+            Spacer(Modifier.height(8.dp))
           }
         }
       }
@@ -192,13 +261,21 @@ private fun DetailsList(rows: List<BagDayRow>) {
         modifier = Modifier.fillMaxWidth()
       ) {
         Column(Modifier.padding(14.dp)) {
-          Text(
-            text = r.bag,
-            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-            color = TextBlack
-          )
 
-          Spacer(Modifier.height(6.dp))
+          Row(verticalAlignment = Alignment.CenterVertically) {
+            BagThumb(r.imagePath, size = 48)
+            Spacer(Modifier.width(10.dp))
+            Text(
+              text = r.bag,
+              style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+              color = TextBlack,
+              maxLines = 1,
+              overflow = TextOverflow.Ellipsis,
+              modifier = Modifier.weight(1f)
+            )
+          }
+
+          Spacer(Modifier.height(8.dp))
 
           Row(Modifier.fillMaxWidth()) {
             Text("Заказы: ${fmtInt(r.totalOrders)}", modifier = Modifier.weight(1f), color = TextBlack)

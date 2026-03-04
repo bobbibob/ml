@@ -15,24 +15,47 @@ class SQLiteRepo(private val context: Context) {
     return SQLiteDatabase.openDatabase(dbFile.absolutePath, null, SQLiteDatabase.OPEN_READONLY)
   }
 
+  // bag -> relative image path (prefer thumbnail_path)
+  private fun queryImages(db: SQLiteDatabase): Map<String, String> {
+    val out = HashMap<String, String>()
+    try {
+      db.rawQuery(
+        """
+        SELECT entity_key, COALESCE(NULLIF(thumbnail_path,), image_path) AS p
+        FROM media
+        WHERE entity_type IN ("bag","BAG","product","PRODUCT")
+        """.trimIndent(),
+        null
+      ).use { c ->
+        val ik = c.getColumnIndexOrThrow("entity_key")
+        val ip = c.getColumnIndexOrThrow("p")
+        while (c.moveToNext()) {
+          val key = c.getString(ik)?.trim() ?: continue
+          val p = c.getString(ip)?.trim()
+          if (!p.isNullOrBlank()) out[key] = p
+        }
+      }
+    } catch (_: Throwable) {
+      // media table may be absent in early packs — ignore
+    }
+    return out
+  }
+
   private fun normalizeColor(raw: String?, bag: String?): String? {
     if (raw == null) return null
     val s = raw.trim()
     if (s.isEmpty()) return null
-
     val low = s.lowercase()
+
     if (low == "__total__" || low == "total") return null
-    if (low.contains("#")) return null
-    if (low.contains("div/")) return null
+    if (low.contains("#") || low.contains("div/")) return null
     if (low.matches(Regex("-?\\d+(\\.\\d+)?"))) return null
 
     val bad = listOf(
-      "сумка","рюкзак","органика","инста","instagram","внутренняя","рк",
-      "гипотеза","цена","заказы","остаток","расход","ставка","показы",
-      "клики","ctr","cpc","цвет"
+      "цвет","заказы","остаток","гипотеза","цена","расход","ставка",
+      "показы","клики","ctr","cpc","cpo","инста","instagram","органика","внутренняя","рк"
     )
     if (bad.any { low.contains(it) }) return null
-
     bag?.let { if (low == it.trim().lowercase()) return null }
 
     if (s.length > 25) return null
@@ -40,22 +63,10 @@ class SQLiteRepo(private val context: Context) {
   }
 
   // ---------- TIMELINE ----------
-  suspend fun listDatesDesc(limit: Int = 120): List<String> = withContext(Dispatchers.IO) {
+  suspend fun loadTimeline(limitDays: Int = 180): List<DaySummary> = withContext(Dispatchers.IO) {
     openDb().use { db ->
-      val out = ArrayList<String>()
-      db.rawQuery(
-        "SELECT DISTINCT date FROM svodka ORDER BY date DESC LIMIT $limit",
-        null
-      ).use { c ->
-        val i = c.getColumnIndexOrThrow("date")
-        while (c.moveToNext()) out.add(c.getString(i))
-      }
-      out
-    }
-  }
+      val images = queryImages(db)
 
-  suspend fun loadTimeline(limitDays: Int = 120): List<DaySummary> = withContext(Dispatchers.IO) {
-    openDb().use { db ->
       val dates = ArrayList<String>()
       db.rawQuery(
         "SELECT DISTINCT date FROM svodka ORDER BY date DESC LIMIT $limitDays",
@@ -84,7 +95,7 @@ class SQLiteRepo(private val context: Context) {
           while (c.moveToNext()) {
             val bag = c.getString(ib)?.trim() ?: continue
             val o = c.getInt(io)
-            byBags.add(BagOrders(bag, o))
+            byBags.add(BagOrders(bag = bag, orders = o, imagePath = images[bag]))
           }
         }
 
@@ -96,9 +107,11 @@ class SQLiteRepo(private val context: Context) {
     }
   }
 
-  // ---------- DETAILS (как раньше) ----------
+  // ---------- DETAILS ----------
   suspend fun loadForDate(date: String): List<BagDayRow> = withContext(Dispatchers.IO) {
     openDb().use { db ->
+      val images = queryImages(db)
+
       val bags = LinkedHashSet<String>()
       db.rawQuery(
         "SELECT DISTINCT bag FROM svodka WHERE date=? ORDER BY bag",
@@ -107,7 +120,7 @@ class SQLiteRepo(private val context: Context) {
         val i = c.getColumnIndexOrThrow("bag")
         while (c.moveToNext()) {
           val b = c.getString(i)
-          if (!b.isNullOrBlank()) bags.add(b)
+          if (!b.isNullOrBlank()) bags.add(b.trim())
         }
       }
 
@@ -121,11 +134,13 @@ class SQLiteRepo(private val context: Context) {
         var rk = AdsMetrics()
         var ig = AdsMetrics()
 
+        // TOTAL row (support both)
         db.rawQuery(
           """
           SELECT *
           FROM svodka
           WHERE date=? AND bag=? AND (color="__TOTAL__" OR color="TOTAL")
+          ORDER BY updated_at DESC
           LIMIT 1
           """.trimIndent(),
           arrayOf(date, bag)
@@ -140,20 +155,28 @@ class SQLiteRepo(private val context: Context) {
             val io = c.getColumnIndex("orders")
             if (io >= 0 && !c.isNull(io)) totalOrders = c.getDouble(io).roundToInt().toDouble()
 
-            // если колонок нет — сборка упадёт. Но у нас schema эталонная, так что ок.
+            fun getD(name: String): Double {
+              val idx = c.getColumnIndex(name)
+              return if (idx >= 0 && !c.isNull(idx)) c.getDouble(idx) else 0.0
+            }
+            fun getL(name: String): Long {
+              val idx = c.getColumnIndex(name)
+              return if (idx >= 0 && !c.isNull(idx)) c.getLong(idx) else 0L
+            }
+
             rk = AdsMetrics(
-              spend = c.getDouble(c.getColumnIndexOrThrow("rk_spend")),
-              impressions = c.getLong(c.getColumnIndexOrThrow("rk_impressions")),
-              clicks = c.getLong(c.getColumnIndexOrThrow("rk_clicks")),
-              ctr = c.getDouble(c.getColumnIndexOrThrow("rk_ctr")),
-              cpc = c.getDouble(c.getColumnIndexOrThrow("rk_cpc"))
+              spend = getD("rk_spend"),
+              impressions = getL("rk_impressions"),
+              clicks = getL("rk_clicks"),
+              ctr = getD("rk_ctr"),
+              cpc = getD("rk_cpc")
             )
             ig = AdsMetrics(
-              spend = c.getDouble(c.getColumnIndexOrThrow("ig_spend")),
-              impressions = c.getLong(c.getColumnIndexOrThrow("ig_impressions")),
-              clicks = c.getLong(c.getColumnIndexOrThrow("ig_clicks")),
-              ctr = c.getDouble(c.getColumnIndexOrThrow("ig_ctr")),
-              cpc = c.getDouble(c.getColumnIndexOrThrow("ig_cpc"))
+              spend = getD("ig_spend"),
+              impressions = getL("ig_impressions"),
+              clicks = getL("ig_clicks"),
+              ctr = getD("ig_ctr"),
+              cpc = getD("ig_cpc")
             )
           }
         }
@@ -202,7 +225,7 @@ class SQLiteRepo(private val context: Context) {
             bag = bag,
             price = price,
             hypothesis = hypothesis,
-            imagePath = null,
+            imagePath = images[bag],
             totalOrders = totalOrders,
             totalSpend = totalSpend,
             cpo = cpo,

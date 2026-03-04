@@ -3,14 +3,15 @@ package com.ml.app.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.ml.app.data.PackPaths
+import com.ml.app.BuildConfig
+import com.ml.app.data.*
 import com.ml.app.domain.BagDayRow
 import com.ml.app.domain.DaySummary
-import com.ml.app.data.SQLiteRepo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import java.io.File
 import java.time.LocalDate
 
 sealed class ScreenMode {
@@ -22,10 +23,7 @@ data class SummaryState(
   val mode: ScreenMode = ScreenMode.Timeline,
   val selectedDate: LocalDate = LocalDate.now(),
 
-  // timeline
   val timeline: List<DaySummary> = emptyList(),
-
-  // details
   val rows: List<BagDayRow> = emptyList(),
 
   val status: String = "",
@@ -36,14 +34,73 @@ data class SummaryState(
 class SummaryViewModel(app: Application) : AndroidViewModel(app) {
   private val ctx = app.applicationContext
   private val repo = SQLiteRepo(ctx)
+  private val r2 = R2Client(ctx)
 
   private val _state = MutableStateFlow(SummaryState())
   val state: StateFlow<SummaryState> = _state
 
   fun init() {
-    val has = PackPaths.dbFile(ctx).exists()
+    val has = PackPaths.dbFile(ctx).exists() && PackPaths.imagesDir(ctx).exists()
     _state.value = _state.value.copy(hasPack = has)
     if (has) refreshTimeline()
+  }
+
+  fun syncDownload() {
+    viewModelScope.launch(Dispatchers.IO) {
+      try {
+        _state.value = _state.value.copy(loading = true, status = "Downloading…")
+        val bytes = r2.downloadPackZip()
+        ZipUtil.unzipToDir(bytes, PackPaths.packDir(ctx))
+        ManifestUtil.ensureExists(PackPaths.manifestFile(ctx))
+        _state.value = _state.value.copy(hasPack = true, loading = false, status = "Downloaded", mode = ScreenMode.Timeline)
+        refreshTimeline()
+      } catch (t: Throwable) {
+        _state.value = _state.value.copy(loading = false, status = "Download error: ${t.message}")
+      }
+    }
+  }
+
+  fun syncUploadWithConflictCheck() {
+    viewModelScope.launch(Dispatchers.IO) {
+      try {
+        val packDir = PackPaths.packDir(ctx)
+        val localManifest = PackPaths.manifestFile(ctx)
+        ManifestUtil.ensureExists(localManifest)
+        val localVersion = ManifestUtil.readVersion(localManifest)
+
+        _state.value = _state.value.copy(loading = true, status = "Checking remote…")
+
+        val remoteZip = r2.downloadPackZip()
+        val tmp = PackPaths.tempDir(ctx)
+        ZipUtil.unzipToDir(remoteZip, tmp)
+
+        val remoteManifest = File(tmp, "manifest.json")
+        val remoteVersion = if (remoteManifest.exists()) ManifestUtil.readVersion(remoteManifest) else 0
+
+        if (remoteVersion != localVersion) {
+          _state.value = _state.value.copy(
+            loading = false,
+            status = "CONFLICT: remote=$remoteVersion local=$localVersion. Сначала обнови пакет."
+          )
+          return@launch
+        }
+
+        _state.value = _state.value.copy(status = "Packing…")
+
+        val dbHash = ManifestUtil.computeDbHash(PackPaths.dbFile(ctx))
+        val imagesHash = ManifestUtil.computeImagesHash(PackPaths.imagesDir(ctx))
+        ManifestUtil.bumpVersionAndUpdate(localManifest, BuildConfig.UPDATED_BY, dbHash, imagesHash)
+
+        val zipBytes = ZipUtil.zipDirToBytes(packDir)
+
+        _state.value = _state.value.copy(status = "Uploading…")
+        r2.uploadPackZip(zipBytes)
+
+        _state.value = _state.value.copy(loading = false, status = "Uploaded")
+      } catch (t: Throwable) {
+        _state.value = _state.value.copy(loading = false, status = "Upload error: ${t.message}")
+      }
+    }
   }
 
   fun refreshTimeline() {
@@ -68,7 +125,6 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
   }
 
   fun setDateFromPicker(date: LocalDate) {
-    // на таймлайне — сразу открываем детали
     openDetails(date)
   }
 
