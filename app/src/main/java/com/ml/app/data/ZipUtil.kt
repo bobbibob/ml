@@ -16,7 +16,7 @@ object ZipUtil {
         val entry = zis.nextEntry ?: break
         val outFile = File(outDir, entry.name)
 
-        // Zip Slip protection: ensure the entry stays within outDir
+        // Zip Slip protection
         val outDirPath = outDir.canonicalFile.toPath()
         val outFilePath = outFile.canonicalFile.toPath()
         if (!outFilePath.startsWith(outDirPath)) {
