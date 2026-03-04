@@ -16,12 +16,12 @@ class R2Client(context: Context) {
   private val http = OkHttpClient()
   private val secrets = Secrets.load(context)
 
-  private val endpoint = secrets.endpoint.trimEnd(/)
+  private val endpoint = secrets.endpoint.trimEnd { it == / }
   private val bucket = secrets.bucket
   private val accessKey = secrets.accessKey
   private val secretKey = secrets.secretKey
   private val region = secrets.region
-  private val objectKey = secrets.objectKey.trimStart(/)
+  private val objectKey = secrets.objectKey.trimStart { it == / }
 
   private fun objectUrl(): String = "$endpoint/$bucket/$objectKey"
 
