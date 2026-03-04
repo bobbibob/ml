@@ -1,255 +1,255 @@
 package com.ml.app.ui
 
-import android.content.Context
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.ml.app.data.CardTypeStore
 import com.ml.app.data.SQLiteRepo
 import com.ml.app.domain.CardType
 import kotlinx.coroutines.launch
-import java.io.File
 
 @Composable
 fun AddEditArticleScreen(
-  bagId: String?,
+  bagId: String?,              // null => create new
   onDone: () -> Unit
 ) {
-  val ctx = LocalContext.current
+  val repo = remember { SQLiteRepo(LocalAppContext.current) }
+  val typeStore = remember { CardTypeStore(LocalAppContext.current) } // пишет в bag_card_type
   val scope = rememberCoroutineScope()
-  val repo = remember { SQLiteRepo(ctx) }
-  val typeStore = remember { CardTypeStore(ctx) }
 
-  var id by remember { mutableStateOf(bagId) }
+  var realBagId by remember { mutableStateOf(bagId ?: ("user_" + System.currentTimeMillis())) }
 
   var name by remember { mutableStateOf("") }
   var hypothesis by remember { mutableStateOf("") }
   var priceText by remember { mutableStateOf("") }
   var cogsText by remember { mutableStateOf("") }
   var cardType by remember { mutableStateOf(CardType.CLASSIC) }
-  var photoPath by remember { mutableStateOf<String?>(null) }
-
-  val colors = remember { mutableStateListOf<String>() }
+  var photoUri by remember { mutableStateOf<String?>(null) }
+  var colors by remember { mutableStateOf(listOf<String>()) }
   var newColor by remember { mutableStateOf("") }
 
   var status by remember { mutableStateOf("") }
-  var saving by remember { mutableStateOf(false) }
+  var loading by remember { mutableStateOf(false) }
 
-  fun parseDoubleOrNull(s: String): Double? =
-    s.trim().replace(",", ".").toDoubleOrNull()
-
-  // load existing if editing
-  LaunchedEffect(id) {
-    val curId = id ?: return@LaunchedEffect
-    val row = repo.getBagUser(curId)
-    if (row != null) {
-      name = row.name.orEmpty()
-      hypothesis = row.hypothesis.orEmpty()
-      priceText = row.price?.toString().orEmpty()
-      cogsText = row.cogs?.toString().orEmpty()
-      photoPath = row.photoPath
-      cardType = when ((row.cardType ?: "CLASSIC").uppercase()) {
-        "PREMIUM" -> CardType.PREMIUM
-        else -> CardType.CLASSIC
-      }
-    } else {
-      // если нет bag_user записи — тип берём из bag_card_type
-      val types = typeStore.getTypes(listOf(curId))
-      cardType = types[curId] ?: CardType.CLASSIC
-    }
-    colors.clear()
-    colors.addAll(repo.getBagUserColors(curId))
+  val pickImage = rememberLauncherForActivityResult(
+    contract = ActivityResultContracts.GetContent()
+  ) { uri: Uri? ->
+    if (uri != null) photoUri = uri.toString()
   }
 
-  // photo picker
-  val pickPhoto = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-    if (uri == null) return@rememberLauncherForActivityResult
-    scope.launch {
-      try {
-        val curId = id ?: ("u_" + System.currentTimeMillis().toString()).also { id = it }
-        val dst = saveImageToPrivate(ctx, curId, uri)
-        photoPath = dst.absolutePath
-        status = "Фото выбрано"
-      } catch (t: Throwable) {
-        status = "Ошибка фото: ${t.message}"
+  // load existing
+  LaunchedEffect(realBagId) {
+    loading = true
+    status = "Загружаю…"
+    try {
+      val u = repo.getBagUser(realBagId)
+      if (u != null) {
+        name = u.name ?: ""
+        hypothesis = u.hypothesis ?: ""
+        priceText = u.price?.toString() ?: ""
+        cogsText = u.cogs?.toString() ?: ""
+        photoUri = u.photoPath
+        val t = u.cardType ?: typeStore.getType(realBagId)?.name
+        cardType = if (t == "PREMIUM") CardType.PREMIUM else CardType.CLASSIC
+      } else {
+        // defaults for new
+        val t = typeStore.getType(realBagId) ?: CardType.CLASSIC
+        cardType = t
       }
+      colors = repo.getBagUserColors(realBagId)
+      status = ""
+    } catch (t: Throwable) {
+      status = "Ошибка: ${t.message}"
+    } finally {
+      loading = false
     }
   }
 
-  Card(
-    modifier = Modifier
-      .fillMaxWidth()
-      .padding(12.dp)
-  ) {
-    Column(
-      modifier = Modifier
-        .padding(14.dp)
-        .verticalScroll(rememberScrollState())
+  fun parseDoubleOrNull(s: String): Double? {
+    val x = s.trim().replace(",", ".")
+    if (x.isBlank()) return null
+    return x.toDoubleOrNull()
+  }
+
+  suspend fun save() {
+    loading = true
+    status = "Сохраняю…"
+    try {
+      val price = parseDoubleOrNull(priceText)
+      val cogs = parseDoubleOrNull(cogsText)
+
+      repo.upsertBagUser(
+        bagId = realBagId,
+        name = name.trim().ifBlank { null },
+        hypothesis = hypothesis.trim().ifBlank { null },
+        price = price,
+        cogs = cogs,
+        cardType = cardType.name,
+        photoPath = photoUri
+      )
+      repo.replaceBagUserColors(realBagId, colors)
+
+      // отдельно обновим bag_card_type (чтобы формула прибыли работала сразу)
+      typeStore.setType(realBagId, cardType)
+
+      status = "Сохранено"
+      onDone()
+    } catch (t: Throwable) {
+      status = "Ошибка сохранения: ${t.message}"
+    } finally {
+      loading = false
+    }
+  }
+
+  Column(Modifier.fillMaxSize().padding(12.dp)) {
+    Text(
+      text = if (bagId == null) "Добавить артикул" else "Редактировать артикул",
+      style = MaterialTheme.typography.titleLarge
+    )
+
+    Spacer(Modifier.height(10.dp))
+
+    if (status.isNotBlank()) {
+      Text(status)
+      Spacer(Modifier.height(8.dp))
+    }
+
+    LazyColumn(
+      modifier = Modifier.weight(1f),
+      verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-      Text(
-        text = if (id == null) "Добавить артикул" else "Редактировать артикул",
-        style = MaterialTheme.typography.titleLarge
-      )
-      Spacer(Modifier.height(12.dp))
-
-      OutlinedTextField(
-        value = name,
-        onValueChange = { name = it },
-        label = { Text("Название") },
-        modifier = Modifier.fillMaxWidth()
-      )
-      Spacer(Modifier.height(10.dp))
-
-      OutlinedTextField(
-        value = hypothesis,
-        onValueChange = { hypothesis = it },
-        label = { Text("Гипотеза") },
-        modifier = Modifier.fillMaxWidth()
-      )
-      Spacer(Modifier.height(10.dp))
-
-      OutlinedTextField(
-        value = priceText,
-        onValueChange = { priceText = it },
-        label = { Text("Цена продажи") },
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-        modifier = Modifier.fillMaxWidth()
-      )
-      Spacer(Modifier.height(10.dp))
-
-      Text("Тип карточки")
-      Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        FilterChip(
-          selected = cardType == CardType.CLASSIC,
-          onClick = { cardType = CardType.CLASSIC },
-          label = { Text("Классика") }
-        )
-        FilterChip(
-          selected = cardType == CardType.PREMIUM,
-          onClick = { cardType = CardType.PREMIUM },
-          label = { Text("Премиум") }
-        )
-      }
-
-      Spacer(Modifier.height(10.dp))
-
-      OutlinedTextField(
-        value = cogsText,
-        onValueChange = { cogsText = it },
-        label = { Text("Себестоимость") },
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-        modifier = Modifier.fillMaxWidth()
-      )
-
-      Spacer(Modifier.height(14.dp))
-
-      Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Button(onClick = { pickPhoto.launch("image/*") }) { Text("Загрузить фото") }
-        if (photoPath != null) {
-          Text("OK", modifier = Modifier.padding(top = 10.dp))
-        }
-      }
-
-      Spacer(Modifier.height(14.dp))
-
-      Text("Цвета")
-      Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+      item {
         OutlinedTextField(
-          value = newColor,
-          onValueChange = { newColor = it },
-          label = { Text("Новый цвет") },
-          modifier = Modifier.weight(1f)
+          value = name,
+          onValueChange = { name = it },
+          label = { Text("Название") },
+          modifier = Modifier.fillMaxWidth()
         )
-        Button(
-          onClick = {
-            val v = newColor.trim()
-            if (v.isNotBlank() && !colors.contains(v)) colors.add(v)
-            newColor = ""
-          }
-        ) { Text("Добавить") }
       }
 
-      if (colors.isNotEmpty()) {
-        Spacer(Modifier.height(8.dp))
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-          colors.forEach { c ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-              Text(c)
-              TextButton(onClick = { colors.remove(c) }) { Text("Удалить") }
-            }
+      item {
+        OutlinedTextField(
+          value = hypothesis,
+          onValueChange = { hypothesis = it },
+          label = { Text("Гипотеза") },
+          modifier = Modifier.fillMaxWidth()
+        )
+      }
+
+      item {
+        OutlinedTextField(
+          value = priceText,
+          onValueChange = { priceText = it },
+          label = { Text("Цена продажи") },
+          modifier = Modifier.fillMaxWidth()
+        )
+      }
+
+      item {
+        OutlinedTextField(
+          value = cogsText,
+          onValueChange = { cogsText = it },
+          label = { Text("Себестоимость") },
+          modifier = Modifier.fillMaxWidth()
+        )
+      }
+
+      item {
+        Text("Тип карточки")
+        Spacer(Modifier.height(6.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+          FilterChip(
+            selected = cardType == CardType.CLASSIC,
+            onClick = { cardType = CardType.CLASSIC },
+            label = { Text("Классика") }
+          )
+          FilterChip(
+            selected = cardType == CardType.PREMIUM,
+            onClick = { cardType = CardType.PREMIUM },
+            label = { Text("Премиум") }
+          )
+        }
+      }
+
+      item {
+        Text("Фото")
+        Spacer(Modifier.height(6.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+          Button(onClick = { pickImage.launch("image/*") }) { Text("Выбрать фото") }
+          if (!photoUri.isNullOrBlank()) {
+            Text("Выбрано", modifier = Modifier.padding(top = 10.dp))
           }
         }
       }
 
-      Spacer(Modifier.height(16.dp))
+      item {
+        Text("Цвета")
+        Spacer(Modifier.height(6.dp))
 
-      Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Button(
-          enabled = !saving,
-          onClick = {
-            scope.launch {
-              saving = true
-              status = ""
-              try {
-                val curId = id ?: ("u_" + System.currentTimeMillis().toString()).also { id = it }
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+          OutlinedTextField(
+            value = newColor,
+            onValueChange = { newColor = it },
+            label = { Text("Добавить цвет") },
+            modifier = Modifier.weight(1f)
+          )
+          Button(
+            onClick = {
+              val c = newColor.trim()
+              if (c.isNotBlank() && !colors.contains(c)) {
+                colors = (colors + c).sorted()
+              }
+              newColor = ""
+            }
+          ) { Text("Добавить") }
+        }
 
-                val price = parseDoubleOrNull(priceText)
-                val cogs = parseDoubleOrNull(cogsText)
+        Spacer(Modifier.height(10.dp))
 
-                // 1) bag_user + colors
-                repo.upsertBagUser(
-                  bagId = curId,
-                  name = name.ifBlank { null },
-                  hypothesis = hypothesis.ifBlank { null },
-                  price = price,
-                  cogs = cogs,
-                  cardType = cardType.name,
-                  photoPath = photoPath
-                )
-                repo.replaceBagUserColors(curId, colors.toList())
-
-                // 2) bag_card_type (чтобы прибыль считалась сразу)
-                typeStore.setType(curId, cardType)
-
-                status = "Сохранено"
-                onDone()
-              } catch (t: Throwable) {
-                status = "Ошибка: ${t.message}"
-              } finally {
-                saving = false
+        if (colors.isEmpty()) {
+          Text("Пока нет цветов")
+        } else {
+          Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            colors.forEach { c ->
+              Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                Text(c, modifier = Modifier.weight(1f))
+                TextButton(onClick = { colors = colors.filterNot { it == c } }) { Text("Удалить") }
               }
             }
           }
-        ) { Text(if (saving) "Сохраняю…" else "Сохранить") }
-
-        OutlinedButton(onClick = onDone) { Text("Отмена") }
+        }
       }
+    }
 
-      if (status.isNotBlank()) {
-        Spacer(Modifier.height(10.dp))
-        Text(status)
-      }
+    Spacer(Modifier.height(10.dp))
+
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+      OutlinedButton(
+        onClick = onDone,
+        modifier = Modifier.weight(1f),
+        enabled = !loading
+      ) { Text("Закрыть") }
+
+      Button(
+        onClick = { scope.launch { save() } },
+        modifier = Modifier.weight(1f),
+        enabled = !loading
+      ) { Text("Сохранить") }
     }
   }
 }
 
-private fun saveImageToPrivate(ctx: Context, bagId: String, uri: Uri): File {
-  val dir = File(ctx.filesDir, "user_images")
-  if (!dir.exists()) dir.mkdirs()
-  val dst = File(dir, "${bagId}.jpg")
-  ctx.contentResolver.openInputStream(uri).use { input ->
-    requireNotNull(input) { "Cannot open input stream" }
-    dst.outputStream().use { out -> input.copyTo(out) }
-  }
-  return dst
+/**
+ * Чтобы не тащить LocalContext во все места.
+ */
+private object LocalAppContext {
+  val current: android.content.Context
+    @Composable get() = androidx.compose.ui.platform.LocalContext.current.applicationContext
 }
