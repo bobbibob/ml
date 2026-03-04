@@ -52,7 +52,7 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
   BackHandler(enabled = (state.mode is ScreenMode.Details) || (state.mode is ScreenMode.ArticleEditor) || (state.mode is ScreenMode.ArticlePicker)) {
     when (state.mode) {
       is ScreenMode.ArticleEditor -> vm.backFromArticleEditor()
-      is ScreenMode.ArticlePicker -> vm.closeArticlePicker()
+      is ScreenMode.ArticlePicker -> vm.backFromArticlePicker()
       else -> vm.backToTimeline()
     }
   }

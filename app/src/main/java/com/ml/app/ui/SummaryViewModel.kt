@@ -54,9 +54,7 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
       val has = PackPaths.dbFile(ctx).exists() && PackPaths.imagesDir(ctx).exists()
       _state.value = _state.value.copy(hasPack = has)
       if (has) PackDbSync.refreshMergedDb(ctx)
-
       syncIfChanged()
-
       if (_state.value.hasPack) refreshTimeline()
     }
   }
@@ -80,12 +78,12 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
     refreshDetails()
   }
 
-  fun setDateFromPicker(date: LocalDate) {
-    openDetails(date)
-  }
-
   fun backToTimeline() {
     _state.value = _state.value.copy(mode = ScreenMode.Timeline)
+  }
+
+  fun setDateFromPicker(date: LocalDate) {
+    openDetails(date)
   }
 
   fun refreshDetails() {
@@ -115,7 +113,6 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
   }
 
   fun backFromArticleEditor() {
-    // возвращаемся в picker, чтобы можно было выбрать другой артикул
     _state.value = _state.value.copy(mode = ScreenMode.ArticlePicker)
   }
 
@@ -125,7 +122,7 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
         _state.value = _state.value.copy(loading = true, status = "Checking updates…")
 
         val remote = r2.headPack()
-        val remoteEtag = remote.etag?.trim()?.trim(") ?: ""
+        val remoteEtag = remote.etag?.trim()?.trim('"') ?: ""
         val remoteToken = when {
           remoteEtag.isNotBlank() -> "etag:$remoteEtag"
           !remote.lastModified.isNullOrBlank() -> "lm:${remote.lastModified}"
