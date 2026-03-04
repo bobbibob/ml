@@ -9,6 +9,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.pullrefresh.PullRefreshIndicator
+import androidx.compose.material.pullrefresh.pullRefresh
+import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -54,95 +57,113 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
     ).show()
   }
 
-  Column(
+  val pullState = rememberPullRefreshState(
+    refreshing = state.loading,
+    onRefresh = { vm.syncIfChanged() }
+  )
+
+  Box(
     modifier = Modifier
       .fillMaxSize()
       .background(Color.White)
+      .pullRefresh(pullState)
   ) {
-    // Header
-    Box(
+
+    Column(
       modifier = Modifier
-        .fillMaxWidth()
-        .background(MercadoYellow)
-        .padding(14.dp)
+        .fillMaxSize()
+        .background(Color.White)
     ) {
-      Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
+      // Header
+      Box(
+        modifier = Modifier
+          .fillMaxWidth()
+          .background(MercadoYellow)
+          .padding(14.dp)
       ) {
-        Text(
-          text = "ml",
-          style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Black),
-          color = TextBlack
-        )
-        Spacer(Modifier.weight(1f))
-
-        if (state.mode is ScreenMode.Details) {
-          TextButton(onClick = { vm.backToTimeline() }) { Text("Назад", color = TextBlack) }
-        } else {
-          TextButton(onClick = { vm.refreshPack() }) { Text("Обновить", color = TextBlack) }
-        }
-      }
-    }
-
-    // If pack is missing -> we auto-download, show status/progress
-    if (!state.hasPack) {
-      Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-          if (state.loading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp))
-          Spacer(Modifier.height(12.dp))
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          verticalAlignment = Alignment.CenterVertically
+        ) {
           Text(
-            text = if (state.status.isNotBlank()) state.status else "Скачиваем базу…",
+            text = "ml",
+            style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Black),
             color = TextBlack
           )
+          Spacer(Modifier.weight(1f))
+
+          if (state.mode is ScreenMode.Details) {
+            TextButton(onClick = { vm.backToTimeline() }) { Text("Назад", color = TextBlack) }
+          } else {
+            TextButton(onClick = { vm.syncIfChanged() }) { Text("Проверить", color = TextBlack) }
+          }
         }
       }
-      return@Column
-    }
 
-    // Top date picker (timeline + details)
-    Row(
-      modifier = Modifier
-        .fillMaxWidth()
-        .padding(12.dp),
-      horizontalArrangement = Arrangement.spacedBy(12.dp),
-      verticalAlignment = Alignment.CenterVertically
-    ) {
-      Button(
-        onClick = { openDatePicker(state.selectedDate) { vm.setDateFromPicker(it) } },
-        colors = ButtonDefaults.buttonColors(containerColor = SoftGray, contentColor = TextBlack),
-        modifier = Modifier.weight(1f)
+      if (!state.hasPack) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+          Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            if (state.loading) {
+              LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp))
+              Spacer(Modifier.height(12.dp))
+            }
+            Text(
+              text = if (state.status.isNotBlank()) state.status else "Скачиваем базу…",
+              color = TextBlack
+            )
+          }
+        }
+        return@Column
+      }
+
+      // Top date picker
+      Row(
+        modifier = Modifier
+          .fillMaxWidth()
+          .padding(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically
       ) {
-        Text("Дата: ${state.selectedDate}", maxLines = 1, overflow = TextOverflow.Ellipsis)
-      }
-
-      if (state.mode is ScreenMode.Details) {
         Button(
-          onClick = { vm.refreshDetails() },
-          colors = ButtonDefaults.buttonColors(containerColor = MercadoBlue, contentColor = Color.White)
-        ) { Text("Обновить") }
+          onClick = { openDatePicker(state.selectedDate) { vm.setDateFromPicker(it) } },
+          colors = ButtonDefaults.buttonColors(containerColor = SoftGray, contentColor = TextBlack),
+          modifier = Modifier.weight(1f)
+        ) {
+          Text("Дата: ${state.selectedDate}", maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+
+        if (state.mode is ScreenMode.Details) {
+          Button(
+            onClick = { vm.refreshDetails() },
+            colors = ButtonDefaults.buttonColors(containerColor = MercadoBlue, contentColor = Color.White)
+          ) { Text("Обновить") }
+        }
+      }
+
+      when (val mode = state.mode) {
+        is ScreenMode.Timeline -> TimelineList(
+          items = state.timeline,
+          onOpen = { vm.openDetails(LocalDate.parse(it.date)) }
+        )
+        is ScreenMode.Details -> DetailsList(rows = state.rows)
+      }
+
+      if (state.status.isNotBlank()) {
+        Text(
+          text = state.status,
+          modifier = Modifier.padding(12.dp),
+          color = Color.Gray
+        )
       }
     }
 
-    if (state.loading) {
-      LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-    }
-
-    when (val mode = state.mode) {
-      is ScreenMode.Timeline -> TimelineList(
-        items = state.timeline,
-        onOpen = { vm.openDetails(LocalDate.parse(it.date)) }
-      )
-      is ScreenMode.Details -> DetailsList(rows = state.rows)
-    }
-
-    if (state.status.isNotBlank()) {
-      Text(
-        text = state.status,
-        modifier = Modifier.padding(12.dp),
-        color = Color.Gray
-      )
-    }
+    PullRefreshIndicator(
+      refreshing = state.loading,
+      state = pullState,
+      modifier = Modifier.align(Alignment.TopCenter),
+      backgroundColor = MercadoYellow,
+      contentColor = MercadoBlue
+    )
   }
 }
 
@@ -268,18 +289,30 @@ private fun DetailsList(rows: List<BagDayRow>) {
           Spacer(Modifier.height(10.dp))
 
           Column {
-            Text(
-              text = "РК: расход ${fmtMoney(r.rk.spend)} • показы ${fmtLong(r.rk.impressions)} • клики ${fmtLong(r.rk.clicks)} • CTR ${fmtPct(r.rk.ctr)} • CPC ${fmtMoney(r.rk.cpc)}",
-              color = Color.Gray
-            )
-            Text(
-              text = "Instagram: расход ${fmtMoney(r.ig.spend)} • показы ${fmtLong(r.ig.impressions)} • клики ${fmtLong(r.ig.clicks)} • CTR ${fmtPct(r.ig.ctr)} • CPC ${fmtMoney(r.ig.cpc)}",
-              color = Color.Gray
-            )
-            Text(
-              text = "Итого: расход ${fmtMoney(r.totalAds.spend)} • показы ${fmtLong(r.totalAds.impressions)} • клики ${fmtLong(r.totalAds.clicks)} • CTR ${fmtPct(r.totalAds.ctr)} • CPC ${fmtMoney(r.totalAds.cpc)} • CPO ${fmtMoney(r.cpo)}",
-              color = Color.Gray
-            )
+            if (r.rk.spend > 0.0) {
+              Text(
+                text = "РК: расход ${fmtMoney(r.rk.spend)} • показы ${fmtLong(r.rk.impressions)} • клики ${fmtLong(r.rk.clicks)} • CTR ${fmtPct(r.rk.ctr)} • CPC ${fmtMoney(r.rk.cpc)}",
+                color = Color.Gray
+              )
+            } else {
+              Text(text = "Нет РК", color = Color.Gray)
+            }
+
+            if (r.ig.spend > 0.0) {
+              Text(
+                text = "Instagram: расход ${fmtMoney(r.ig.spend)} • показы ${fmtLong(r.ig.impressions)} • клики ${fmtLong(r.ig.clicks)} • CTR ${fmtPct(r.ig.ctr)} • CPC ${fmtMoney(r.ig.cpc)}",
+                color = Color.Gray
+              )
+            } else {
+              Text(text = "Нет Instagram", color = Color.Gray)
+            }
+
+            if (r.totalAds.spend > 0.0) {
+              Text(
+                text = "Итого: расход ${fmtMoney(r.totalAds.spend)} • показы ${fmtLong(r.totalAds.impressions)} • клики ${fmtLong(r.totalAds.clicks)} • CTR ${fmtPct(r.totalAds.ctr)} • CPC ${fmtMoney(r.totalAds.cpc)} • CPO ${fmtMoney(r.cpo)}",
+                color = Color.Gray
+              )
+            }
           }
         }
       }
@@ -308,16 +341,11 @@ private fun BagThumb(relativePath: String?) {
     Image(
       bitmap = bmp.asImageBitmap(),
       contentDescription = null,
-      modifier = Modifier
-        .size(56.dp)
-        .clip(shape)
+      modifier = Modifier.size(56.dp).clip(shape)
     )
   } else {
     Box(
-      modifier = Modifier
-        .size(56.dp)
-        .clip(shape)
-        .background(Color(0xFFEAEAEA))
+      modifier = Modifier.size(56.dp).clip(shape).background(Color(0xFFEAEAEA))
     )
   }
 }
