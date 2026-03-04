@@ -34,6 +34,7 @@ data class BagDayRow(
   val totalOrders: Double,
   val totalSpend: Double,
   val cpo: Double,
+  val cogs: Double = 0.0,
 
   // breakdowns
   val ordersByColors: List<ColorValue>,

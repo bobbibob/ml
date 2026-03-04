@@ -21,9 +21,7 @@ class SQLiteRepo(private val context: Context) {
     return if (f.exists()) f.absolutePath else null
   }
 
-  // IMPORTANT:
-  // svodka has per-color rows + an aggregated total row (color='__TOTAL__' or 'TOTAL').
-  // For per-bag totals we must use only TOTAL rows, otherwise it double-counts.
+  // svodka has per-color rows + TOTAL rows. For per-bag aggregates use only TOTAL rows.
   private fun totalColorWhere(): String = "AND s.color IN ('__TOTAL__','TOTAL')"
 
   suspend fun loadTimeline(limitDays: Int = 180): List<DaySummary> = withContext(Dispatchers.IO) {
@@ -104,6 +102,8 @@ class SQLiteRepo(private val context: Context) {
                  MAX(s.hypothesis) AS hypothesis,
                  SUM(COALESCE(s.orders,0)) AS orders,
 
+                 MAX(COALESCE(s.cogs,0)) AS cogs,
+
                  SUM(COALESCE(s.rk_spend,0)) AS rk_spend,
                  SUM(COALESCE(s.rk_impressions,0)) AS rk_impressions,
                  SUM(COALESCE(s.rk_clicks,0)) AS rk_clicks,
@@ -125,6 +125,7 @@ class SQLiteRepo(private val context: Context) {
         val iPrice = c.getColumnIndexOrThrow("price")
         val iHyp = c.getColumnIndexOrThrow("hypothesis")
         val iOrders = c.getColumnIndexOrThrow("orders")
+        val iCogs = c.getColumnIndexOrThrow("cogs")
 
         val iRkSpend = c.getColumnIndexOrThrow("rk_spend")
         val iRkImpr = c.getColumnIndexOrThrow("rk_impressions")
@@ -142,6 +143,7 @@ class SQLiteRepo(private val context: Context) {
           val hyp = if (c.isNull(iHyp)) null else c.getString(iHyp)
 
           val totalOrders = c.getDouble(iOrders)
+          val cogs = c.getDouble(iCogs)
 
           val rkSpend = c.getDouble(iRkSpend)
           val rkImpr = c.getLong(iRkImpr)
@@ -179,6 +181,7 @@ class SQLiteRepo(private val context: Context) {
               totalOrders = totalOrders,
               totalSpend = totalSpend,
               cpo = cpo,
+              cogs = cogs,
               ordersByColors = queryOrdersByColors(db, date, bagId),
               stockByColors = queryStockByColors(db, date, bagId),
               rk = rk,

@@ -8,10 +8,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
-import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,7 +25,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.ml.app.domain.BagDayRow
+import com.ml.app.domain.CardType
 import com.ml.app.domain.DaySummary
+import com.ml.app.domain.ProfitCalc
 import java.io.File
 import java.time.LocalDate
 import kotlin.math.roundToInt
@@ -37,7 +39,6 @@ private val SoftGray = Color(0xFFF7F7F7)
 
 private fun fmtInt(v: Double): String = v.roundToInt().toString()
 private fun fmtMoney(v: Double): String = String.format("%.2f", v)
-private fun fmtPct(v: Double): String = String.format("%.2f%%", v * 100.0)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,7 +69,6 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
   ) {
     Column(modifier = Modifier.fillMaxSize()) {
 
-      // Header
       Box(
         modifier = Modifier
           .fillMaxWidth()
@@ -105,7 +105,6 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
           }
         }
       } else {
-        // Top date picker
         Row(
           modifier = Modifier
             .fillMaxWidth()
@@ -132,7 +131,11 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
             items = state.timeline,
             onOpen = { vm.openDetails(LocalDate.parse(it.date)) }
           )
-          is ScreenMode.Details -> DetailsList(rows = state.rows)
+          is ScreenMode.Details -> DetailsList(
+            rows = state.rows,
+            cardTypes = state.cardTypes,
+            onSetType = { bagId, t -> vm.setCardType(bagId, t) }
+          )
         }
 
         if (state.status.isNotBlank()) {
@@ -201,13 +204,28 @@ private fun TimelineList(items: List<DaySummary>, onOpen: (DaySummary) -> Unit) 
 }
 
 @Composable
-private fun DetailsList(rows: List<BagDayRow>) {
+private fun DetailsList(
+  rows: List<BagDayRow>,
+  cardTypes: Map<String, CardType>,
+  onSetType: (String, CardType) -> Unit
+) {
   LazyColumn(
     modifier = Modifier.fillMaxSize(),
     contentPadding = PaddingValues(12.dp),
     verticalArrangement = Arrangement.spacedBy(12.dp)
   ) {
     items(rows) { r ->
+      val type = cardTypes[r.bagId] ?: CardType.CLASSIC
+
+      val price = r.price ?: 0.0
+      val net = ProfitCalc.netProfit(
+        type = type,
+        orders = r.totalOrders,
+        price = price,
+        spend = r.totalSpend,
+        cogs = r.cogs
+      )
+
       Card(
         colors = CardDefaults.cardColors(containerColor = SoftGray),
         modifier = Modifier.fillMaxWidth()
@@ -228,9 +246,37 @@ private fun DetailsList(rows: List<BagDayRow>) {
 
           Spacer(Modifier.height(8.dp))
 
+          // Type switch
+          Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            AssistChip(
+              onClick = { onSetType(r.bagId, CardType.CLASSIC) },
+              label = { Text("Классика") },
+              colors = AssistChipDefaults.assistChipColors(
+                containerColor = if (type == CardType.CLASSIC) MercadoYellow else Color(0xFFEAEAEA),
+                labelColor = TextBlack
+              )
+            )
+            AssistChip(
+              onClick = { onSetType(r.bagId, CardType.PREMIUM) },
+              label = { Text("Премиум") },
+              colors = AssistChipDefaults.assistChipColors(
+                containerColor = if (type == CardType.PREMIUM) MercadoYellow else Color(0xFFEAEAEA),
+                labelColor = TextBlack
+              )
+            )
+          }
+
+          Spacer(Modifier.height(8.dp))
+
           Row(Modifier.fillMaxWidth()) {
             Text("Заказы: ${fmtInt(r.totalOrders)}", modifier = Modifier.weight(1f), color = TextBlack)
             Text("Расход: ${fmtMoney(r.totalSpend)}", color = TextBlack)
+          }
+
+          Spacer(Modifier.height(6.dp))
+          Row(Modifier.fillMaxWidth()) {
+            Text("Себест.: ${fmtMoney(r.cogs)}", modifier = Modifier.weight(1f), color = TextBlack)
+            Text("Чистая прибыль: ${fmtMoney(net)}", color = TextBlack, fontWeight = FontWeight.SemiBold)
           }
 
           if (!r.hypothesis.isNullOrBlank() || r.price != null) {
@@ -273,30 +319,11 @@ private fun DetailsList(rows: List<BagDayRow>) {
           val rkEmpty = r.rk.spend == 0.0 && r.rk.impressions == 0L && r.rk.clicks == 0L
           val igEmpty = r.ig.spend == 0.0 && r.ig.impressions == 0L && r.ig.clicks == 0L
 
-          if (rkEmpty) {
-            Text("Нет РК", color = Color.Gray)
-          } else {
-            Text(
-              "РК: расход ${fmtMoney(r.rk.spend)} • показы ${r.rk.impressions} • клики ${r.rk.clicks} • CTR ${fmtPct(r.rk.ctr)} • CPC ${fmtMoney(r.rk.cpc)}",
-              color = Color.Gray
-            )
-          }
+          if (rkEmpty) Text("Нет РК", color = Color.Gray)
+          else Text("РК: расход ${fmtMoney(r.rk.spend)} • показы ${r.rk.impressions} • клики ${r.rk.clicks}", color = Color.Gray)
 
-          if (igEmpty) {
-            Text("Нет Instagram", color = Color.Gray)
-          } else {
-            Text(
-              "Instagram: расход ${fmtMoney(r.ig.spend)} • показы ${r.ig.impressions} • клики ${r.ig.clicks} • CTR ${fmtPct(r.ig.ctr)} • CPC ${fmtMoney(r.ig.cpc)}",
-              color = Color.Gray
-            )
-          }
-
-          if (r.totalAds.spend > 0.0) {
-            Text(
-              "Итого: расход ${fmtMoney(r.totalAds.spend)} • показы ${r.totalAds.impressions} • клики ${r.totalAds.clicks} • CTR ${fmtPct(r.totalAds.ctr)} • CPC ${fmtMoney(r.totalAds.cpc)} • CPO ${fmtMoney(r.cpo)}",
-              color = Color.Gray
-            )
-          }
+          if (igEmpty) Text("Нет Instagram", color = Color.Gray)
+          else Text("Instagram: расход ${fmtMoney(r.ig.spend)} • показы ${r.ig.impressions} • клики ${r.ig.clicks}", color = Color.Gray)
         }
       }
     }
@@ -315,8 +342,6 @@ private fun BagThumb(absPath: String?) {
       modifier = Modifier.size(size).clip(shape)
     )
   } else {
-    Box(
-      modifier = Modifier.size(size).clip(shape).background(Color(0xFFEAEAEA))
-    )
+    Box(modifier = Modifier.size(size).clip(shape).background(Color(0xFFEAEAEA)))
   }
 }
