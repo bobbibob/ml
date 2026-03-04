@@ -26,10 +26,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
-import com.ml.app.domain.BagDayRow
-import com.ml.app.domain.CardType
-import com.ml.app.domain.DaySummary
-import com.ml.app.domain.ProfitCalc
+import com.ml.app.domain.*
 import java.io.File
 import java.time.LocalDate
 import kotlin.math.roundToInt
@@ -42,6 +39,7 @@ private val ChipGray = Color(0xFFEAEAEA)
 
 private fun fmtInt(v: Double): String = v.roundToInt().toString()
 private fun fmtMoney(v: Double): String = String.format("%.2f", v)
+private fun fmtPct(v01: Double): String = String.format("%.2f%%", v01 * 100.0)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -51,10 +49,7 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
 
   LaunchedEffect(Unit) { vm.init() }
 
-  // System back button should go back from Details -> Timeline
-  BackHandler(enabled = state.mode is ScreenMode.Details) {
-    vm.backToTimeline()
-  }
+  BackHandler(enabled = state.mode is ScreenMode.Details) { vm.backToTimeline() }
 
   fun openDatePicker(current: LocalDate, onPicked: (LocalDate) -> Unit) {
     DatePickerDialog(
@@ -134,9 +129,10 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
           ) { Text("Обновить") }
         }
 
-        when (val mode = state.mode) {
+        when (state.mode) {
           is ScreenMode.Timeline -> TimelineList(
             items = state.timeline,
+            cardTypes = state.cardTypes,
             onOpen = { vm.openDetails(LocalDate.parse(it.date)) }
           )
 
@@ -161,13 +157,24 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
 }
 
 @Composable
-private fun TimelineList(items: List<DaySummary>, onOpen: (DaySummary) -> Unit) {
+private fun TimelineList(
+  items: List<DaySummary>,
+  cardTypes: Map<String, CardType>,
+  onOpen: (DaySummary) -> Unit
+) {
   LazyColumn(
     modifier = Modifier.fillMaxSize(),
     contentPadding = PaddingValues(12.dp),
     verticalArrangement = Arrangement.spacedBy(12.dp)
   ) {
     items(items) { day ->
+      val daySpend = day.byBags.sumOf { it.spend }
+      val dayNet = day.byBags.sumOf { b ->
+        val t = cardTypes[b.bagId] ?: CardType.CLASSIC
+        val price = b.price ?: 0.0
+        ProfitCalc.netProfit(t, b.orders.toDouble(), price, b.spend, b.cogs)
+      }
+
       Card(
         colors = CardDefaults.cardColors(containerColor = SoftGray),
         modifier = Modifier
@@ -175,6 +182,7 @@ private fun TimelineList(items: List<DaySummary>, onOpen: (DaySummary) -> Unit) 
           .clickable { onOpen(day) }
       ) {
         Column(Modifier.padding(14.dp)) {
+
           Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
               day.date,
@@ -187,6 +195,41 @@ private fun TimelineList(items: List<DaySummary>, onOpen: (DaySummary) -> Unit) 
               style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Black),
               color = MercadoBlue
             )
+          }
+
+          Spacer(Modifier.height(6.dp))
+          Row(Modifier.fillMaxWidth()) {
+            Text("Расход: ${fmtMoney(daySpend)}", modifier = Modifier.weight(1f), color = TextBlack)
+            Text("Чистая прибыль: ${fmtMoney(dayNet)}", color = TextBlack, fontWeight = FontWeight.SemiBold)
+          }
+
+          Spacer(Modifier.height(10.dp))
+
+          day.byBags.take(10).forEach { b ->
+            val t = cardTypes[b.bagId] ?: CardType.CLASSIC
+            val price = b.price ?: 0.0
+            val net = ProfitCalc.netProfit(t, b.orders.toDouble(), price, b.spend, b.cogs)
+
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+              BagThumb(b.imagePath)
+              Spacer(Modifier.width(10.dp))
+              Column(Modifier.weight(1f)) {
+                Text(
+                  text = b.bagName,
+                  maxLines = 1,
+                  overflow = TextOverflow.Ellipsis,
+                  color = TextBlack,
+                  fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                  text = "Заказы: ${b.orders} • Расход: ${fmtMoney(b.spend)} • Прибыль: ${fmtMoney(net)}",
+                  color = Color.Gray,
+                  maxLines = 1,
+                  overflow = TextOverflow.Ellipsis
+                )
+              }
+            }
+            Spacer(Modifier.height(6.dp))
           }
         }
       }
@@ -206,15 +249,8 @@ private fun DetailsList(
   ) {
     items(rows) { r ->
       val type = cardTypes[r.bagId] ?: CardType.CLASSIC
-
       val price = r.price ?: 0.0
-      val net = ProfitCalc.netProfit(
-        type = type,
-        orders = r.totalOrders,
-        price = price,
-        spend = r.totalSpend,
-        cogs = r.cogs
-      )
+      val net = ProfitCalc.netProfit(type, r.totalOrders, price, r.totalSpend, r.cogs)
 
       Card(colors = CardDefaults.cardColors(containerColor = SoftGray), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(14.dp)) {
@@ -233,7 +269,6 @@ private fun DetailsList(
 
           Spacer(Modifier.height(10.dp))
 
-          // indicator only (no click)
           Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             TypePill(text = "Классика", selected = type == CardType.CLASSIC)
             TypePill(text = "Премиум", selected = type == CardType.PREMIUM)
@@ -244,6 +279,11 @@ private fun DetailsList(
           Row(Modifier.fillMaxWidth()) {
             Text("Заказы: ${fmtInt(r.totalOrders)}", modifier = Modifier.weight(1f), color = TextBlack)
             Text("Расход: ${fmtMoney(r.totalSpend)}", color = TextBlack)
+          }
+          Spacer(Modifier.height(6.dp))
+          Row(Modifier.fillMaxWidth()) {
+            Text("Цена за заказ: ${fmtMoney(r.cpo)}", modifier = Modifier.weight(1f), color = TextBlack)
+            Text("CTR: ${fmtPct(r.totalAds.ctr)} • CPC: ${fmtMoney(r.totalAds.cpc)}", color = TextBlack)
           }
 
           Spacer(Modifier.height(6.dp))
@@ -285,6 +325,29 @@ private fun DetailsList(
                 Text(fmtInt(cv.value), color = TextBlack, fontWeight = FontWeight.SemiBold)
               }
             }
+          }
+
+          Spacer(Modifier.height(10.dp))
+
+          val rkEmpty = r.rk.spend == 0.0 && r.rk.impressions == 0L && r.rk.clicks == 0L
+          val igEmpty = r.ig.spend == 0.0 && r.ig.impressions == 0L && r.ig.clicks == 0L
+
+          if (rkEmpty) {
+            Text("Нет РК", color = Color.Gray)
+          } else {
+            Text(
+              "РК: расход ${fmtMoney(r.rk.spend)} • показы ${r.rk.impressions} • клики ${r.rk.clicks} • CTR ${fmtPct(r.rk.ctr)} • CPC ${fmtMoney(r.rk.cpc)}",
+              color = Color.Gray
+            )
+          }
+
+          if (igEmpty) {
+            Text("Нет Instagram", color = Color.Gray)
+          } else {
+            Text(
+              "Instagram: расход ${fmtMoney(r.ig.spend)} • показы ${r.ig.impressions} • клики ${r.ig.clicks} • CTR ${fmtPct(r.ig.ctr)} • CPC ${fmtMoney(r.ig.cpc)}",
+              color = Color.Gray
+            )
           }
         }
       }

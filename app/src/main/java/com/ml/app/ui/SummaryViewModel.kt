@@ -31,7 +31,6 @@ data class SummaryState(
   val timeline: List<DaySummary> = emptyList(),
   val rows: List<BagDayRow> = emptyList(),
 
-  // bag_id -> type (stored in merged DB)
   val cardTypes: Map<String, CardType> = emptyMap(),
 
   val status: String = "",
@@ -55,10 +54,7 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
       val has = PackPaths.dbFile(ctx).exists() && PackPaths.imagesDir(ctx).exists()
       _state.value = _state.value.copy(hasPack = has)
 
-      // if pack already exists locally, ensure merged db exists (and has user tables)
-      if (has) {
-        PackDbSync.refreshMergedDb(ctx)
-      }
+      if (has) PackDbSync.refreshMergedDb(ctx)
 
       syncIfChanged()
 
@@ -71,7 +67,11 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
       try {
         _state.value = _state.value.copy(loading = true, status = "Loading…", mode = ScreenMode.Timeline)
         val t = repo.loadTimeline(limitDays = 180)
-        _state.value = _state.value.copy(timeline = t, loading = false, status = "OK")
+
+        val ids = t.flatMap { it.byBags }.map { it.bagId }.distinct()
+        val types = typeStore.getTypes(ids)
+
+        _state.value = _state.value.copy(timeline = t, cardTypes = types, loading = false, status = "OK")
       } catch (t: Throwable) {
         _state.value = _state.value.copy(loading = false, status = "Error: ${t.message}")
       }
@@ -97,7 +97,7 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
         _state.value = _state.value.copy(loading = true, status = "Loading…")
         val rows = repo.loadForDate(_state.value.selectedDate.toString())
 
-        val ids = rows.map { it.bagId }
+        val ids = rows.map { it.bagId }.distinct()
         val types = typeStore.getTypes(ids)
 
         _state.value = _state.value.copy(rows = rows, cardTypes = types, loading = false, status = "OK")
@@ -132,8 +132,6 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
           _state.value = _state.value.copy(status = "Downloading…")
           val zip = r2.downloadPackZip()
           ZipUtil.unzipToDir(zip, PackPaths.packDir(ctx))
-
-          // build merged db (fresh pack + keep user tables)
           PackDbSync.refreshMergedDb(ctx)
 
           prefsPack.edit().putString("etag", remoteEtag).putString("pack_token", remoteToken).apply()
@@ -146,8 +144,6 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
           _state.value = _state.value.copy(status = "Updating…")
           val zip = r2.downloadPackZip()
           ZipUtil.unzipToDir(zip, PackPaths.packDir(ctx))
-
-          // rebuild merged db and merge user tables from previous merged db
           PackDbSync.refreshMergedDb(ctx)
 
           prefsPack.edit().putString("etag", remoteEtag).putString("pack_token", remoteToken).apply()

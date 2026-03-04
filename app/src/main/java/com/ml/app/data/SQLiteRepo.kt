@@ -34,7 +34,10 @@ class SQLiteRepo(private val context: Context) {
           SELECT s.date AS date,
                  s.bag_id AS bag_id,
                  COALESCE(b.bag_name, s.bag_id) AS bag_name,
-                 SUM(COALESCE(s.orders,0)) AS orders
+                 SUM(COALESCE(s.orders,0)) AS orders,
+                 SUM(COALESCE(s.rk_spend,0) + COALESCE(s.ig_spend,0)) AS spend,
+                 MAX(s.price) AS price,
+                 MAX(COALESCE(s.cogs,0)) AS cogs
           FROM svodka s
           LEFT JOIN bags b ON b.bag_id = s.bag_id
           WHERE s.date IS NOT NULL AND s.date != ''
@@ -49,6 +52,9 @@ class SQLiteRepo(private val context: Context) {
         val iBagId = c.getColumnIndexOrThrow("bag_id")
         val iBagName = c.getColumnIndexOrThrow("bag_name")
         val iOrders = c.getColumnIndexOrThrow("orders")
+        val iSpend = c.getColumnIndexOrThrow("spend")
+        val iPrice = c.getColumnIndexOrThrow("price")
+        val iCogs = c.getColumnIndexOrThrow("cogs")
 
         var curDate: String? = null
         var curTotal = 0
@@ -71,6 +77,10 @@ class SQLiteRepo(private val context: Context) {
           val bagId = c.getString(iBagId)
           val bagName = c.getString(iBagName)
           val orders = c.getDouble(iOrders).roundToInt()
+          val spend = c.getDouble(iSpend)
+          val price = if (c.isNull(iPrice)) null else c.getDouble(iPrice)
+          val cogs = c.getDouble(iCogs)
+
           curTotal += orders
 
           curList.add(
@@ -78,7 +88,10 @@ class SQLiteRepo(private val context: Context) {
               bagId = bagId,
               bagName = bagName,
               orders = orders,
-              imagePath = images[bagId]
+              imagePath = images[bagId],
+              spend = spend,
+              price = price,
+              cogs = cogs
             )
           )
         }
