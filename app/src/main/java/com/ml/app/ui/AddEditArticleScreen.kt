@@ -1,27 +1,30 @@
 package com.ml.app.ui
 
+import android.content.Context
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.ml.app.data.CardTypeStore
+import com.ml.app.data.PackPublisher
 import com.ml.app.data.SQLiteRepo
 import com.ml.app.domain.CardType
 import kotlinx.coroutines.launch
 
 @Composable
 fun AddEditArticleScreen(
-  bagId: String?,              // null => create new
+  bagId: String?,   // null => create new
   onDone: () -> Unit
 ) {
-  val repo = remember { SQLiteRepo(LocalAppContext.current) }
-  val typeStore = remember { CardTypeStore(LocalAppContext.current) } // пишет в bag_card_type
+  val ctx = LocalContext.current.applicationContext
+  val repo = remember { SQLiteRepo(ctx) }
+  val typeStore = remember { CardTypeStore(ctx) }
   val scope = rememberCoroutineScope()
 
   var realBagId by remember { mutableStateOf(bagId ?: ("user_" + System.currentTimeMillis())) }
@@ -32,6 +35,7 @@ fun AddEditArticleScreen(
   var cogsText by remember { mutableStateOf("") }
   var cardType by remember { mutableStateOf(CardType.CLASSIC) }
   var photoUri by remember { mutableStateOf<String?>(null) }
+
   var colors by remember { mutableStateOf(listOf<String>()) }
   var newColor by remember { mutableStateOf("") }
 
@@ -44,7 +48,6 @@ fun AddEditArticleScreen(
     if (uri != null) photoUri = uri.toString()
   }
 
-  // load existing
   LaunchedEffect(realBagId) {
     loading = true
     status = "Загружаю…"
@@ -59,9 +62,7 @@ fun AddEditArticleScreen(
         val t = u.cardType ?: typeStore.getType(realBagId)?.name
         cardType = if (t == "PREMIUM") CardType.PREMIUM else CardType.CLASSIC
       } else {
-        // defaults for new
-        val t = typeStore.getType(realBagId) ?: CardType.CLASSIC
-        cardType = t
+        cardType = typeStore.getType(realBagId) ?: CardType.CLASSIC
       }
       colors = repo.getBagUserColors(realBagId)
       status = ""
@@ -78,7 +79,7 @@ fun AddEditArticleScreen(
     return x.toDoubleOrNull()
   }
 
-  suspend fun save() {
+  suspend fun saveOnly() {
     loading = true
     status = "Сохраняю…"
     try {
@@ -96,13 +97,25 @@ fun AddEditArticleScreen(
       )
       repo.replaceBagUserColors(realBagId, colors)
 
-      // отдельно обновим bag_card_type (чтобы формула прибыли работала сразу)
+      // чтобы прибыль считалась сразу
       typeStore.setType(realBagId, cardType)
 
       status = "Сохранено"
-      onDone()
     } catch (t: Throwable) {
       status = "Ошибка сохранения: ${t.message}"
+    } finally {
+      loading = false
+    }
+  }
+
+  suspend fun publishPack() {
+    loading = true
+    status = "Публикую pack…"
+    try {
+      PackPublisher.publish(ctx)
+      status = "Опубликовано"
+    } catch (t: Throwable) {
+      status = "Ошибка публикации: ${t.message}"
     } finally {
       loading = false
     }
@@ -217,7 +230,7 @@ fun AddEditArticleScreen(
           Text("Пока нет цветов")
         } else {
           Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            colors.forEach { c ->
+            for (c in colors) {
               Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                 Text(c, modifier = Modifier.weight(1f))
                 TextButton(onClick = { colors = colors.filterNot { it == c } }) { Text("Удалить") }
@@ -238,18 +251,16 @@ fun AddEditArticleScreen(
       ) { Text("Закрыть") }
 
       Button(
-        onClick = { scope.launch { save() } },
+        onClick = { scope.launch { saveOnly() } },
         modifier = Modifier.weight(1f),
         enabled = !loading
       ) { Text("Сохранить") }
+
+      Button(
+        onClick = { scope.launch { saveOnly(); publishPack() } },
+        modifier = Modifier.weight(1f),
+        enabled = !loading
+      ) { Text("Опубликовать") }
     }
   }
-}
-
-/**
- * Чтобы не тащить LocalContext во все места.
- */
-private object LocalAppContext {
-  val current: android.content.Context
-    @Composable get() = androidx.compose.ui.platform.LocalContext.current.applicationContext
 }
