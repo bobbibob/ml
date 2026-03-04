@@ -1,7 +1,9 @@
 @file:OptIn(androidx.compose.material.ExperimentalMaterialApi::class)
+
 package com.ml.app.ui
 
 import android.app.DatePickerDialog
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -14,7 +16,6 @@ import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.activity.compose.BackHandler
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,6 +38,7 @@ private val MercadoYellow = Color(0xFFFFE600)
 private val MercadoBlue = Color(0xFF2D3277)
 private val TextBlack = Color(0xFF111111)
 private val SoftGray = Color(0xFFF7F7F7)
+private val ChipGray = Color(0xFFEAEAEA)
 
 private fun fmtInt(v: Double): String = v.roundToInt().toString()
 private fun fmtMoney(v: Double): String = String.format("%.2f", v)
@@ -47,12 +49,14 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
   val state by vm.state.collectAsState()
   val ctx = LocalContext.current
 
-  $1
+  LaunchedEffect(Unit) { vm.init() }
 
+  // System back button should go back from Details -> Timeline
   BackHandler(enabled = state.mode is ScreenMode.Details) {
     vm.backToTimeline()
   }
-fun openDatePicker(current: LocalDate, onPicked: (LocalDate) -> Unit) {
+
+  fun openDatePicker(current: LocalDate, onPicked: (LocalDate) -> Unit) {
     DatePickerDialog(
       ctx,
       { _, y, m, d -> onPicked(LocalDate.of(y, m + 1, d)) },
@@ -135,10 +139,10 @@ fun openDatePicker(current: LocalDate, onPicked: (LocalDate) -> Unit) {
             items = state.timeline,
             onOpen = { vm.openDetails(LocalDate.parse(it.date)) }
           )
+
           is ScreenMode.Details -> DetailsList(
             rows = state.rows,
-            cardTypes = state.cardTypes,
-            onSetType = { bagId, t -> vm.setCardType(bagId, t) }
+            cardTypes = state.cardTypes
           )
         }
 
@@ -173,33 +177,16 @@ private fun TimelineList(items: List<DaySummary>, onOpen: (DaySummary) -> Unit) 
         Column(Modifier.padding(14.dp)) {
           Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
-              text = day.date,
+              day.date,
               style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
               color = TextBlack
             )
             Spacer(Modifier.weight(1f))
             Text(
-              text = "Заказы: ${day.totalOrders}",
+              "Заказы: ${day.totalOrders}",
               style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Black),
               color = MercadoBlue
             )
-          }
-
-          Spacer(Modifier.height(10.dp))
-
-          day.byBags.take(12).forEach { b ->
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-              BagThumb(b.imagePath)
-              Spacer(Modifier.width(10.dp))
-              Text(
-                text = b.bagName,
-                modifier = Modifier.weight(1f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                color = TextBlack
-              )
-              Text(text = b.orders.toString(), color = TextBlack, fontWeight = FontWeight.SemiBold)
-            }
           }
         }
       }
@@ -210,8 +197,7 @@ private fun TimelineList(items: List<DaySummary>, onOpen: (DaySummary) -> Unit) 
 @Composable
 private fun DetailsList(
   rows: List<BagDayRow>,
-  cardTypes: Map<String, CardType>,
-  onSetType: (String, CardType) -> Unit
+  cardTypes: Map<String, CardType>
 ) {
   LazyColumn(
     modifier = Modifier.fillMaxSize(),
@@ -230,10 +216,7 @@ private fun DetailsList(
         cogs = r.cogs
       )
 
-      Card(
-        colors = CardDefaults.cardColors(containerColor = SoftGray),
-        modifier = Modifier.fillMaxWidth()
-      ) {
+      Card(colors = CardDefaults.cardColors(containerColor = SoftGray), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(14.dp)) {
 
           Row(verticalAlignment = Alignment.CenterVertically) {
@@ -248,29 +231,15 @@ private fun DetailsList(
             )
           }
 
-          Spacer(Modifier.height(8.dp))
+          Spacer(Modifier.height(10.dp))
 
-          // Type switch
-          Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            AssistChip(
-              onClick = { onSetType(r.bagId, CardType.CLASSIC) },
-              label = { Text("Классика") },
-              colors = AssistChipDefaults.assistChipColors(
-                containerColor = if (type == CardType.CLASSIC) MercadoYellow else Color(0xFFEAEAEA),
-                labelColor = TextBlack
-              )
-            )
-            AssistChip(
-              onClick = { onSetType(r.bagId, CardType.PREMIUM) },
-              label = { Text("Премиум") },
-              colors = AssistChipDefaults.assistChipColors(
-                containerColor = if (type == CardType.PREMIUM) MercadoYellow else Color(0xFFEAEAEA),
-                labelColor = TextBlack
-              )
-            )
+          // indicator only (no click)
+          Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            TypePill(text = "Классика", selected = type == CardType.CLASSIC)
+            TypePill(text = "Премиум", selected = type == CardType.PREMIUM)
           }
 
-          Spacer(Modifier.height(8.dp))
+          Spacer(Modifier.height(10.dp))
 
           Row(Modifier.fillMaxWidth()) {
             Text("Заказы: ${fmtInt(r.totalOrders)}", modifier = Modifier.weight(1f), color = TextBlack)
@@ -317,20 +286,22 @@ private fun DetailsList(
               }
             }
           }
-
-          Spacer(Modifier.height(10.dp))
-
-          val rkEmpty = r.rk.spend == 0.0 && r.rk.impressions == 0L && r.rk.clicks == 0L
-          val igEmpty = r.ig.spend == 0.0 && r.ig.impressions == 0L && r.ig.clicks == 0L
-
-          if (rkEmpty) Text("Нет РК", color = Color.Gray)
-          else Text("РК: расход ${fmtMoney(r.rk.spend)} • показы ${r.rk.impressions} • клики ${r.rk.clicks}", color = Color.Gray)
-
-          if (igEmpty) Text("Нет Instagram", color = Color.Gray)
-          else Text("Instagram: расход ${fmtMoney(r.ig.spend)} • показы ${r.ig.impressions} • клики ${r.ig.clicks}", color = Color.Gray)
         }
       }
     }
+  }
+}
+
+@Composable
+private fun TypePill(text: String, selected: Boolean) {
+  val bg = if (selected) MercadoYellow else ChipGray
+  Box(
+    modifier = Modifier
+      .clip(RoundedCornerShape(10.dp))
+      .background(bg)
+      .padding(horizontal = 14.dp, vertical = 8.dp)
+  ) {
+    Text(text = text, color = TextBlack, fontWeight = FontWeight.SemiBold)
   }
 }
 

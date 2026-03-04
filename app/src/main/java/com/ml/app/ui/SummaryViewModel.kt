@@ -4,11 +4,12 @@ import android.app.Application
 import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.ml.app.data.CardTypeStore
+import com.ml.app.data.PackDbSync
 import com.ml.app.data.PackPaths
 import com.ml.app.data.R2Client
 import com.ml.app.data.SQLiteRepo
 import com.ml.app.data.ZipUtil
-import com.ml.app.data.PackDbSync
 import com.ml.app.domain.BagDayRow
 import com.ml.app.domain.CardType
 import com.ml.app.domain.DaySummary
@@ -30,6 +31,7 @@ data class SummaryState(
   val timeline: List<DaySummary> = emptyList(),
   val rows: List<BagDayRow> = emptyList(),
 
+  // bag_id -> type (stored in merged DB)
   val cardTypes: Map<String, CardType> = emptyMap(),
 
   val status: String = "",
@@ -41,33 +43,22 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
   private val ctx = app.applicationContext
   private val repo = SQLiteRepo(ctx)
   private val r2 = R2Client(ctx)
+  private val typeStore = CardTypeStore(ctx)
 
   private val prefsPack = ctx.getSharedPreferences("ml_pack", Context.MODE_PRIVATE)
-  private val prefsTypes = ctx.getSharedPreferences("ml_card_types", Context.MODE_PRIVATE)
 
   private val _state = MutableStateFlow(SummaryState())
   val state: StateFlow<SummaryState> = _state
-
-  private fun key(bagId: String) = "card_type_$bagId"
-
-  private fun readType(bagId: String): CardType {
-    return when (prefsTypes.getString(key(bagId), "classic")) {
-      "premium" -> CardType.PREMIUM
-      else -> CardType.CLASSIC
-    }
-  }
-
-  fun setCardType(bagId: String, type: CardType) {
-    prefsTypes.edit().putString(key(bagId), if (type == CardType.PREMIUM) "premium" else "classic").apply()
-    val updated = _state.value.cardTypes.toMutableMap()
-    updated[bagId] = type
-    _state.value = _state.value.copy(cardTypes = updated)
-  }
 
   fun init() {
     viewModelScope.launch(Dispatchers.IO) {
       val has = PackPaths.dbFile(ctx).exists() && PackPaths.imagesDir(ctx).exists()
       _state.value = _state.value.copy(hasPack = has)
+
+      // if pack already exists locally, ensure merged db exists (and has user tables)
+      if (has) {
+        PackDbSync.refreshMergedDb(ctx)
+      }
 
       syncIfChanged()
 
@@ -106,11 +97,10 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
         _state.value = _state.value.copy(loading = true, status = "Loading…")
         val rows = repo.loadForDate(_state.value.selectedDate.toString())
 
-        // make sure we have types for visible bags (default classic)
-        val m = _state.value.cardTypes.toMutableMap()
-        for (r in rows) if (!m.containsKey(r.bagId)) m[r.bagId] = readType(r.bagId)
+        val ids = rows.map { it.bagId }
+        val types = typeStore.getTypes(ids)
 
-        _state.value = _state.value.copy(rows = rows, cardTypes = m, loading = false, status = "OK")
+        _state.value = _state.value.copy(rows = rows, cardTypes = types, loading = false, status = "OK")
       } catch (t: Throwable) {
         _state.value = _state.value.copy(loading = false, status = "Error: ${t.message}")
       }
@@ -141,9 +131,11 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
         if (!hasLocal) {
           _state.value = _state.value.copy(status = "Downloading…")
           val zip = r2.downloadPackZip()
-          $1
+          ZipUtil.unzipToDir(zip, PackPaths.packDir(ctx))
+
+          // build merged db (fresh pack + keep user tables)
           PackDbSync.refreshMergedDb(ctx)
-)
+
           prefsPack.edit().putString("etag", remoteEtag).putString("pack_token", remoteToken).apply()
           _state.value = _state.value.copy(hasPack = true, loading = false, status = "Downloaded")
           refreshAfterSync()
@@ -154,6 +146,10 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
           _state.value = _state.value.copy(status = "Updating…")
           val zip = r2.downloadPackZip()
           ZipUtil.unzipToDir(zip, PackPaths.packDir(ctx))
+
+          // rebuild merged db and merge user tables from previous merged db
+          PackDbSync.refreshMergedDb(ctx)
+
           prefsPack.edit().putString("etag", remoteEtag).putString("pack_token", remoteToken).apply()
           _state.value = _state.value.copy(hasPack = true, loading = false, status = "Updated")
           refreshAfterSync()
