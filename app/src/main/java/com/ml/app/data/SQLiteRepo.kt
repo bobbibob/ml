@@ -66,6 +66,14 @@ class SQLiteRepo(private val context: Context) {
     addCol("updated_at", "TEXT", "(datetime(now))")
   }
 
+  private fun normKey(s: String): String {
+    return s.trim()
+      .lowercase()
+      .replace("ё", "е")
+      .replace(Regex("\\s+"), "")
+      .replace(Regex("[^a-z0-9а-я]"), "")
+  }
+
   private fun isTotalColor(c: String?): Boolean {
     val s = c?.trim() ?: return false
     return s == "__TOTAL__" || s == "TOTAL"
@@ -119,7 +127,8 @@ class SQLiteRepo(private val context: Context) {
 
       val out = ArrayList<DaySummary>()
       for (date in dates) {
-        val byBags = queryBagTotalsForDate(db, date)
+        val images = queryImages(db)
+        val byBags = queryBagTotalsForDate(db, date, images)
         val totalOrders = byBags.sumOf { it.orders }
         out.add(
           DaySummary(
@@ -175,7 +184,7 @@ class SQLiteRepo(private val context: Context) {
 
         val totalImpr = rk.impressions + ig.impressions
         val totalClicks = rk.clicks + ig.clicks
-        val totalCtr = if (totalImpr > 0) totalClicks.toDouble() / totalImpr.toDouble() else 0.0
+        val totalCtr = if (totalImpr > 0) (totalClicks.toDouble() / totalImpr.toDouble()) * 100.0 else 0.0
         val totalCpc = if (totalClicks > 0) totalSpend / totalClicks.toDouble() else 0.0
 
         val totalAds = AdsMetrics(
@@ -191,7 +200,7 @@ class SQLiteRepo(private val context: Context) {
             bag = bag,
             price = price,
             hypothesis = hypothesis,
-            imagePath = images[bag],
+            imagePath = images[bag] ?: images[normKey(bag)],
             totalOrders = totalOrders,
             totalSpend = totalSpend,
             cpo = cpo,
@@ -243,13 +252,9 @@ class SQLiteRepo(private val context: Context) {
         COALESCE(rk_spend,0) AS rk_spend,
         COALESCE(rk_impressions,0) AS rk_impressions,
         COALESCE(rk_clicks,0) AS rk_clicks,
-        COALESCE(rk_ctr,0) AS rk_ctr,
-        COALESCE(rk_cpc,0) AS rk_cpc,
         COALESCE(ig_spend,0) AS ig_spend,
         COALESCE(ig_impressions,0) AS ig_impressions,
-        COALESCE(ig_clicks,0) AS ig_clicks,
-        COALESCE(ig_ctr,0) AS ig_ctr,
-        COALESCE(ig_cpc,0) AS ig_cpc
+        COALESCE(ig_clicks,0) AS ig_clicks
       FROM svodka
       WHERE date=? AND bag=? AND (color="__TOTAL__" OR color="TOTAL")
       ORDER BY CASE WHEN color="__TOTAL__" THEN 0 ELSE 1 END
@@ -274,20 +279,19 @@ class SQLiteRepo(private val context: Context) {
       val price = if (ip >= 0 && !c.isNull(ip)) c.getDouble(ip) else null
       val hyp = if (ih >= 0 && !c.isNull(ih)) c.getString(ih) else null
 
-      val rk = AdsMetrics(
-        spend = c.getDoubleOrZero("rk_spend"),
-        impressions = c.getLongOrZero("rk_impressions"),
-        clicks = c.getLongOrZero("rk_clicks"),
-        ctr = c.getDoubleOrZero("rk_ctr"),
-        cpc = c.getDoubleOrZero("rk_cpc")
-      )
-      val ig = AdsMetrics(
-        spend = c.getDoubleOrZero("ig_spend"),
-        impressions = c.getLongOrZero("ig_impressions"),
-        clicks = c.getLongOrZero("ig_clicks"),
-        ctr = c.getDoubleOrZero("ig_ctr"),
-        cpc = c.getDoubleOrZero("ig_cpc")
-      )
+      val rkSpend = c.getDoubleOrZero("rk_spend")
+      val rkImpr = c.getLongOrZero("rk_impressions")
+      val rkClicks = c.getLongOrZero("rk_clicks")
+      val rkCtr = if (rkImpr > 0) (rkClicks.toDouble() / rkImpr.toDouble()) * 100.0 else 0.0
+      val rkCpc = if (rkClicks > 0) rkSpend / rkClicks.toDouble() else 0.0
+      val rk = AdsMetrics(spend = rkSpend, impressions = rkImpr, clicks = rkClicks, ctr = rkCtr, cpc = rkCpc)
+
+      val igSpend = c.getDoubleOrZero("ig_spend")
+      val igImpr = c.getLongOrZero("ig_impressions")
+      val igClicks = c.getLongOrZero("ig_clicks")
+      val igCtr = if (igImpr > 0) (igClicks.toDouble() / igImpr.toDouble()) * 100.0 else 0.0
+      val igCpc = if (igClicks > 0) igSpend / igClicks.toDouble() else 0.0
+      val ig = AdsMetrics(spend = igSpend, impressions = igImpr, clicks = igClicks, ctr = igCtr, cpc = igCpc)
 
       return TotalRow(
         price = price,
@@ -346,7 +350,7 @@ class SQLiteRepo(private val context: Context) {
     return out
   }
 
-  private fun queryBagTotalsForDate(db: SQLiteDatabase, date: String): List<BagOrders> {
+  private fun queryBagTotalsForDate(db: SQLiteDatabase, date: String, images: Map<String, String>): List<BagOrders> {
     val bags = ArrayList<String>()
     db.rawQuery("SELECT DISTINCT bag FROM svodka WHERE date=?", arrayOf(date)).use { c ->
       val i = c.getColumnIndexOrThrow("bag")
@@ -362,7 +366,14 @@ class SQLiteRepo(private val context: Context) {
       val orders =
         if (tot > 0.0) tot
         else queryOrdersByColors(db, date, bag).sumOf { it.value }
-      out.add(BagOrders(bag = bag, orders = orders.toInt()))
+
+      out.add(
+        BagOrders(
+          bag = bag,
+          orders = orders.toInt(),
+          imagePath = images[bag] ?: images[normKey(bag)]
+        )
+      )
     }
     return out
   }
@@ -373,18 +384,26 @@ class SQLiteRepo(private val context: Context) {
     try {
       db.rawQuery(
         """
-          SELECT entity_key, image_path
+          SELECT
+            entity_key,
+            COALESCE(NULLIF(thumbnail_path,), NULLIF(image_path,)) AS p
           FROM media
-          WHERE (entity_type="bag" OR entity_type="BAG" OR entity_type="product" OR entity_type="sku")
+          WHERE entity_key IS NOT NULL
         """.trimIndent(),
         null
       ).use { c ->
         val ik = c.getColumnIndexOrThrow("entity_key")
-        val ip = c.getColumnIndexOrThrow("image_path")
+        val ip = c.getColumnIndexOrThrow("p")
         while (c.moveToNext()) {
-          val k = c.getString(ik)
-          val p = c.getString(ip)
-          if (!k.isNullOrBlank() && !p.isNullOrBlank()) out[k] = p
+          val k = c.getString(ik)?.trim()
+          val p0 = c.getString(ip)?.trim()
+          if (k.isNullOrBlank() || p0.isNullOrBlank()) continue
+
+          // normalize path (we store relative paths inside pack)
+          val p = p0.removePrefix("/")
+
+          out[k] = p
+          out[normKey(k)] = p
         }
       }
     } catch (_: Throwable) {

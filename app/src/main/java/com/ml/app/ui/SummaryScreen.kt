@@ -35,6 +35,8 @@ private val SoftGray = Color(0xFFF7F7F7)
 
 private fun fmtInt(v: Double): String = v.roundToInt().toString()
 private fun fmtMoney(v: Double): String = String.format("%.2f", v)
+private fun fmtLong(v: Long): String = v.toString()
+private fun fmtPct(v: Double): String = String.format("%.2f%%", v)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -176,7 +178,9 @@ private fun TimelineList(items: List<DaySummary>, onOpen: (DaySummary) -> Unit) 
           Spacer(Modifier.height(8.dp))
 
           day.byBags.take(12).forEach { b ->
-            Row(Modifier.fillMaxWidth()) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+              BagThumb(b.imagePath)
+              Spacer(Modifier.width(10.dp))
               Text(
                 text = b.bag,
                 modifier = Modifier.weight(1f),
@@ -262,10 +266,21 @@ private fun DetailsList(rows: List<BagDayRow>) {
           }
 
           Spacer(Modifier.height(10.dp))
-          Text(
-            text = "РК: ${fmtMoney(r.rk.spend)} • IG: ${fmtMoney(r.ig.spend)} • CPO: ${fmtMoney(r.cpo)}",
-            color = Color.Gray
-          )
+
+          Column {
+            Text(
+              text = "РК: расход ${fmtMoney(r.rk.spend)} • показы ${fmtLong(r.rk.impressions)} • клики ${fmtLong(r.rk.clicks)} • CTR ${fmtPct(r.rk.ctr)} • CPC ${fmtMoney(r.rk.cpc)}",
+              color = Color.Gray
+            )
+            Text(
+              text = "Instagram: расход ${fmtMoney(r.ig.spend)} • показы ${fmtLong(r.ig.impressions)} • клики ${fmtLong(r.ig.clicks)} • CTR ${fmtPct(r.ig.ctr)} • CPC ${fmtMoney(r.ig.cpc)}",
+              color = Color.Gray
+            )
+            Text(
+              text = "Итого: расход ${fmtMoney(r.totalAds.spend)} • показы ${fmtLong(r.totalAds.impressions)} • клики ${fmtLong(r.totalAds.clicks)} • CTR ${fmtPct(r.totalAds.ctr)} • CPC ${fmtMoney(r.totalAds.cpc)} • CPO ${fmtMoney(r.cpo)}",
+              color = Color.Gray
+            )
+          }
         }
       }
     }
