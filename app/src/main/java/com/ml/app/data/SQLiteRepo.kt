@@ -28,14 +28,16 @@ class SQLiteRepo(private val context: Context) {
       val days = ArrayList<DaySummary>()
       db.rawQuery(
         """
-          SELECT date,
-                 bag_id,
-                 MAX(bag_name) AS bag_name,
-                 SUM(COALESCE(orders,0)) AS orders
-          FROM svodka
-          WHERE date IS NOT NULL AND date != '' AND bag_id IS NOT NULL AND bag_id != ''
-          GROUP BY date, bag_id
-          ORDER BY date DESC, orders DESC
+          SELECT s.date AS date,
+                 s.bag_id AS bag_id,
+                 COALESCE(b.bag_name, s.bag_id) AS bag_name,
+                 SUM(COALESCE(s.orders,0)) AS orders
+          FROM svodka s
+          LEFT JOIN bags b ON b.bag_id = s.bag_id
+          WHERE s.date IS NOT NULL AND s.date != ''
+            AND s.bag_id IS NOT NULL AND s.bag_id != ''
+          GROUP BY s.date, s.bag_id
+          ORDER BY s.date DESC, orders DESC
         """.trimIndent(),
         null
       ).use { c ->
@@ -64,8 +66,9 @@ class SQLiteRepo(private val context: Context) {
 
           val bagId = c.getString(iBagId)
           val bagName = c.getString(iBagName)
-          val orders = c.getInt(iOrders)
+          val orders = c.getDouble(iOrders).roundToInt()
           curTotal += orders
+
           curList.add(
             BagOrdersSummary(
               bagId = bagId,
@@ -85,22 +88,27 @@ class SQLiteRepo(private val context: Context) {
   suspend fun loadForDate(date: String): List<BagDayRow> = withContext(Dispatchers.IO) {
     openDbReadOnly().use { db ->
       val images = queryImagesByBagId(db)
-
-      // base rows per bag
       val out = ArrayList<BagDayRow>()
+
       db.rawQuery(
         """
-          SELECT bag_id,
-                 MAX(bag_name) AS bag_name,
-                 MAX(price) AS price,
-                 MAX(hypothesis) AS hypothesis,
-                 SUM(COALESCE(orders,0)) AS orders,
-                 SUM(COALESCE(spend,0)) AS spend,
-                 SUM(COALESCE(impressions,0)) AS impressions,
-                 SUM(COALESCE(clicks,0)) AS clicks
-          FROM svodka
-          WHERE date=? AND bag_id IS NOT NULL AND bag_id != ''
-          GROUP BY bag_id
+          SELECT s.bag_id AS bag_id,
+                 COALESCE(b.bag_name, s.bag_id) AS bag_name,
+                 MAX(s.price) AS price,
+                 MAX(s.hypothesis) AS hypothesis,
+                 SUM(COALESCE(s.orders,0)) AS orders,
+
+                 SUM(COALESCE(s.rk_spend,0)) AS rk_spend,
+                 SUM(COALESCE(s.rk_impressions,0)) AS rk_impressions,
+                 SUM(COALESCE(s.rk_clicks,0)) AS rk_clicks,
+
+                 SUM(COALESCE(s.ig_spend,0)) AS ig_spend,
+                 SUM(COALESCE(s.ig_impressions,0)) AS ig_impressions,
+                 SUM(COALESCE(s.ig_clicks,0)) AS ig_clicks
+          FROM svodka s
+          LEFT JOIN bags b ON b.bag_id = s.bag_id
+          WHERE s.date=? AND s.bag_id IS NOT NULL AND s.bag_id != ''
+          GROUP BY s.bag_id
           ORDER BY orders DESC
         """.trimIndent(),
         arrayOf(date)
@@ -110,31 +118,48 @@ class SQLiteRepo(private val context: Context) {
         val iPrice = c.getColumnIndexOrThrow("price")
         val iHyp = c.getColumnIndexOrThrow("hypothesis")
         val iOrders = c.getColumnIndexOrThrow("orders")
-        val iSpend = c.getColumnIndexOrThrow("spend")
-        val iImpr = c.getColumnIndexOrThrow("impressions")
-        val iClicks = c.getColumnIndexOrThrow("clicks")
+
+        val iRkSpend = c.getColumnIndexOrThrow("rk_spend")
+        val iRkImpr = c.getColumnIndexOrThrow("rk_impressions")
+        val iRkClicks = c.getColumnIndexOrThrow("rk_clicks")
+
+        val iIgSpend = c.getColumnIndexOrThrow("ig_spend")
+        val iIgImpr = c.getColumnIndexOrThrow("ig_impressions")
+        val iIgClicks = c.getColumnIndexOrThrow("ig_clicks")
 
         while (c.moveToNext()) {
           val bagId = c.getString(iId)
           val bagName = c.getString(iName)
+
           val price = if (c.isNull(iPrice)) null else c.getDouble(iPrice)
           val hyp = if (c.isNull(iHyp)) null else c.getString(iHyp)
 
           val totalOrders = c.getDouble(iOrders)
-          val totalSpend = c.getDouble(iSpend)
-          val impressions = c.getLong(iImpr)
-          val clicks = c.getLong(iClicks)
 
-          val ctr = if (impressions > 0) clicks.toDouble() / impressions.toDouble() else 0.0
-          val cpc = if (clicks > 0) totalSpend / clicks.toDouble() else 0.0
+          val rkSpend = c.getDouble(iRkSpend)
+          val rkImpr = c.getLong(iRkImpr)
+          val rkClicks = c.getLong(iRkClicks)
 
-          val totalAds = AdsMetrics(
-            spend = totalSpend,
-            impressions = impressions,
-            clicks = clicks,
-            ctr = ctr,
-            cpc = cpc
-          )
+          val igSpend = c.getDouble(iIgSpend)
+          val igImpr = c.getLong(iIgImpr)
+          val igClicks = c.getLong(iIgClicks)
+
+          val rkCtr = if (rkImpr > 0) rkClicks.toDouble() / rkImpr.toDouble() else 0.0
+          val rkCpc = if (rkClicks > 0) rkSpend / rkClicks.toDouble() else 0.0
+
+          val igCtr = if (igImpr > 0) igClicks.toDouble() / igImpr.toDouble() else 0.0
+          val igCpc = if (igClicks > 0) igSpend / igClicks.toDouble() else 0.0
+
+          val rk = AdsMetrics(spend = rkSpend, impressions = rkImpr, clicks = rkClicks, ctr = rkCtr, cpc = rkCpc)
+          val ig = AdsMetrics(spend = igSpend, impressions = igImpr, clicks = igClicks, ctr = igCtr, cpc = igCpc)
+
+          val totalSpend = rkSpend + igSpend
+          val totalImpr = rkImpr + igImpr
+          val totalClicks = rkClicks + igClicks
+          val totalCtr = if (totalImpr > 0) totalClicks.toDouble() / totalImpr.toDouble() else 0.0
+          val totalCpc = if (totalClicks > 0) totalSpend / totalClicks.toDouble() else 0.0
+          val totalAds = AdsMetrics(spend = totalSpend, impressions = totalImpr, clicks = totalClicks, ctr = totalCtr, cpc = totalCpc)
+
           val cpo = if (totalOrders > 0) totalSpend / totalOrders else 0.0
 
           out.add(
@@ -149,13 +174,14 @@ class SQLiteRepo(private val context: Context) {
               cpo = cpo,
               ordersByColors = queryOrdersByColors(db, date, bagId),
               stockByColors = queryStockByColors(db, date, bagId),
-              rk = queryAds(db, date, bagId, "rk"),
-              ig = queryAds(db, date, bagId, "ig"),
+              rk = rk,
+              ig = ig,
               totalAds = totalAds
             )
           )
         }
       }
+
       out
     }
   }
@@ -217,34 +243,6 @@ class SQLiteRepo(private val context: Context) {
       while (c.moveToNext()) out.add(ColorValue(c.getString(ic), c.getDouble(iv)))
     }
     return out
-  }
-
-  fun queryAds(db: SQLiteDatabase, date: String, bagId: String, channel: String): AdsMetrics {
-    var spend = 0.0
-    var impressions = 0L
-    var clicks = 0L
-
-    db.rawQuery(
-      """
-        SELECT SUM(COALESCE(spend,0)) AS spend,
-               SUM(COALESCE(impressions,0)) AS impressions,
-               SUM(COALESCE(clicks,0)) AS clicks
-        FROM svodka
-        WHERE date=? AND bag_id=? AND channel=?
-      """.trimIndent(),
-      arrayOf(date, bagId, channel)
-    ).use { c ->
-      if (c.moveToFirst()) {
-        spend = c.getDouble(c.getColumnIndexOrThrow("spend"))
-        impressions = c.getLong(c.getColumnIndexOrThrow("impressions"))
-        clicks = c.getLong(c.getColumnIndexOrThrow("clicks"))
-      }
-    }
-
-    val ctr = if (impressions > 0) clicks.toDouble() / impressions.toDouble() else 0.0
-    val cpc = if (clicks > 0) spend / clicks.toDouble() else 0.0
-
-    return AdsMetrics(spend = spend, impressions = impressions, clicks = clicks, ctr = ctr, cpc = cpc)
   }
 
   suspend fun fmtMoney(v: Double): String = withContext(Dispatchers.Default) {
