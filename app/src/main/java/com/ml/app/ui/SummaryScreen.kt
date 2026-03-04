@@ -13,6 +13,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
@@ -74,43 +75,30 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
         )
         Spacer(Modifier.weight(1f))
 
-        when (state.mode) {
-          is ScreenMode.Details -> {
-            TextButton(onClick = { vm.backToTimeline() }) { Text("Назад", color = TextBlack) }
-          }
-          else -> {
-            TextButton(
-              onClick = { if (!state.hasPack) vm.syncDownload() else vm.refreshTimeline() }
-            ) { Text("Обновить", color = TextBlack) }
-          }
+        if (state.mode is ScreenMode.Details) {
+          TextButton(onClick = { vm.backToTimeline() }) { Text("Назад", color = TextBlack) }
+        } else {
+          TextButton(onClick = { vm.refreshPack() }) { Text("Обновить", color = TextBlack) }
         }
       }
     }
 
+    // If pack is missing -> we auto-download, show status/progress
     if (!state.hasPack) {
       Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(16.dp)) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+          if (state.loading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp))
+          Spacer(Modifier.height(12.dp))
           Text(
-            "Нет базы данных (pack).\nНажми «Скачать», чтобы загрузить database_pack.zip",
+            text = if (state.status.isNotBlank()) state.status else "Скачиваем базу…",
             color = TextBlack
           )
-          Spacer(Modifier.height(12.dp))
-          Button(
-            onClick = { vm.syncDownload() },
-            colors = ButtonDefaults.buttonColors(containerColor = MercadoBlue, contentColor = Color.White)
-          ) { Text("Скачать") }
         }
-      }
-      if (state.loading) {
-        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-      }
-      if (state.status.isNotBlank()) {
-        Text(state.status, modifier = Modifier.padding(12.dp), color = Color.Gray)
       }
       return@Column
     }
 
-    // Top date picker
+    // Top date picker (timeline + details)
     Row(
       modifier = Modifier
         .fillMaxWidth()
@@ -126,15 +114,11 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
         Text("Дата: ${state.selectedDate}", maxLines = 1, overflow = TextOverflow.Ellipsis)
       }
 
-      when (state.mode) {
-        is ScreenMode.Details -> Button(
+      if (state.mode is ScreenMode.Details) {
+        Button(
           onClick = { vm.refreshDetails() },
           colors = ButtonDefaults.buttonColors(containerColor = MercadoBlue, contentColor = Color.White)
         ) { Text("Обновить") }
-        else -> Button(
-          onClick = { vm.syncUploadWithConflictCheck() },
-          colors = ButtonDefaults.buttonColors(containerColor = MercadoBlue, contentColor = Color.White)
-        ) { Text("Сохранить") }
       }
     }
 
@@ -156,39 +140,6 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
         modifier = Modifier.padding(12.dp),
         color = Color.Gray
       )
-    }
-  }
-}
-
-@Composable
-private fun BagThumb(imagePath: String?, size: Int = 44) {
-  val ctx = LocalContext.current
-  val bmp = remember(imagePath) {
-    try {
-      if (imagePath.isNullOrBlank()) return@remember null
-      val f = File(PackPaths.packDir(ctx), imagePath)
-      if (!f.exists()) return@remember null
-      BitmapFactory.decodeFile(f.absolutePath)
-    } catch (_: Throwable) {
-      null
-    }
-  }
-
-  Box(
-    modifier = Modifier
-      .size(size.dp)
-      .background(Color.White, RoundedCornerShape(12.dp)),
-    contentAlignment = Alignment.Center
-  ) {
-    if (bmp != null) {
-      Image(
-        bitmap = bmp.asImageBitmap(),
-        contentDescription = null,
-        modifier = Modifier.fillMaxSize()
-      )
-    } else {
-      // placeholder
-      Box(modifier = Modifier.fillMaxSize().background(Color(0xFFEAEAEA), RoundedCornerShape(12.dp)))
     }
   }
 }
@@ -222,15 +173,10 @@ private fun TimelineList(items: List<DaySummary>, onOpen: (DaySummary) -> Unit) 
             )
           }
 
-          Spacer(Modifier.height(10.dp))
+          Spacer(Modifier.height(8.dp))
 
           day.byBags.take(12).forEach { b ->
-            Row(
-              Modifier.fillMaxWidth(),
-              verticalAlignment = Alignment.CenterVertically
-            ) {
-              BagThumb(b.imagePath, size = 40)
-              Spacer(Modifier.width(10.dp))
+            Row(Modifier.fillMaxWidth()) {
               Text(
                 text = b.bag,
                 modifier = Modifier.weight(1f),
@@ -240,7 +186,6 @@ private fun TimelineList(items: List<DaySummary>, onOpen: (DaySummary) -> Unit) 
               )
               Text(text = b.orders.toString(), color = TextBlack, fontWeight = FontWeight.SemiBold)
             }
-            Spacer(Modifier.height(8.dp))
           }
         }
       }
@@ -263,15 +208,14 @@ private fun DetailsList(rows: List<BagDayRow>) {
         Column(Modifier.padding(14.dp)) {
 
           Row(verticalAlignment = Alignment.CenterVertically) {
-            BagThumb(r.imagePath, size = 48)
-            Spacer(Modifier.width(10.dp))
+            BagThumb(r.imagePath)
+            Spacer(Modifier.width(12.dp))
             Text(
               text = r.bag,
               style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
               color = TextBlack,
-              maxLines = 1,
-              overflow = TextOverflow.Ellipsis,
-              modifier = Modifier.weight(1f)
+              maxLines = 2,
+              overflow = TextOverflow.Ellipsis
             )
           }
 
@@ -325,5 +269,40 @@ private fun DetailsList(rows: List<BagDayRow>) {
         }
       }
     }
+  }
+}
+
+@Composable
+private fun BagThumb(relativePath: String?) {
+  val ctx = LocalContext.current
+
+  val bmp = remember(relativePath) {
+    try {
+      if (relativePath.isNullOrBlank()) return@remember null
+      val f = File(PackPaths.packDir(ctx), relativePath)
+      if (!f.exists()) return@remember null
+      BitmapFactory.decodeFile(f.absolutePath)
+    } catch (_: Throwable) {
+      null
+    }
+  }
+
+  val shape = RoundedCornerShape(12.dp)
+
+  if (bmp != null) {
+    Image(
+      bitmap = bmp.asImageBitmap(),
+      contentDescription = null,
+      modifier = Modifier
+        .size(56.dp)
+        .clip(shape)
+    )
+  } else {
+    Box(
+      modifier = Modifier
+        .size(56.dp)
+        .clip(shape)
+        .background(Color(0xFFEAEAEA))
+    )
   }
 }

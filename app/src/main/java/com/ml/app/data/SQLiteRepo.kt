@@ -1,223 +1,189 @@
 package com.ml.app.data
 
 import android.content.Context
+import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
-import com.ml.app.domain.*
+import com.ml.app.domain.AdsMetrics
+import com.ml.app.domain.BagDayRow
+import com.ml.app.domain.ColorValue
+import com.ml.app.domain.DaySummary
+import com.ml.app.domain.BagOrders
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
-import kotlin.math.roundToInt
 
 class SQLiteRepo(private val context: Context) {
 
-  private fun openDb(): SQLiteDatabase {
+  private fun openDbReadOnly(): SQLiteDatabase {
     val dbFile: File = PackPaths.dbFile(context)
     return SQLiteDatabase.openDatabase(dbFile.absolutePath, null, SQLiteDatabase.OPEN_READONLY)
   }
 
-  // bag -> relative image path (prefer thumbnail_path)
-  private fun queryImages(db: SQLiteDatabase): Map<String, String> {
-    val out = HashMap<String, String>()
-    try {
-      db.rawQuery(
-        """
-        SELECT entity_key, COALESCE(NULLIF(thumbnail_path,), image_path) AS p
-        FROM media
-        WHERE entity_type IN ("bag","BAG","product","PRODUCT")
-        """.trimIndent(),
-        null
-      ).use { c ->
-        val ik = c.getColumnIndexOrThrow("entity_key")
-        val ip = c.getColumnIndexOrThrow("p")
-        while (c.moveToNext()) {
-          val key = c.getString(ik)?.trim() ?: continue
-          val p = c.getString(ip)?.trim()
-          if (!p.isNullOrBlank()) out[key] = p
-        }
-      }
-    } catch (_: Throwable) {
-      // media table may be absent in early packs — ignore
-    }
-    return out
+  private fun openDbReadWrite(): SQLiteDatabase {
+    val dbFile: File = PackPaths.dbFile(context)
+    val db = SQLiteDatabase.openDatabase(dbFile.absolutePath, null, SQLiteDatabase.OPEN_READWRITE)
+    ensureSchema(db)
+    return db
   }
 
-  private fun normalizeColor(raw: String?, bag: String?): String? {
+  private fun ensureSchema(db: SQLiteDatabase) {
+    db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS ux_svodka_date_bag_color ON svodka(date, bag, color)")
+
+    val cols = HashSet<String>()
+    db.rawQuery("PRAGMA table_info(svodka)", null).use { c ->
+      val idx = c.getColumnIndex("name")
+      while (c.moveToNext()) cols.add(c.getString(idx))
+    }
+
+    fun addCol(name: String, type: String, def: String? = null) {
+      if (!cols.contains(name)) {
+        val d = if (def != null) " DEFAULT $def" else ""
+        db.execSQL("ALTER TABLE svodka ADD COLUMN $name $type$d")
+      }
+    }
+
+    // ads (RK/IG)
+    addCol("rk_spend", "REAL", "0")
+    addCol("rk_impressions", "INTEGER", "0")
+    addCol("rk_clicks", "INTEGER", "0")
+    addCol("rk_ctr", "REAL", "0")
+    addCol("rk_cpc", "REAL", "0")
+
+    addCol("ig_spend", "REAL", "0")
+    addCol("ig_impressions", "INTEGER", "0")
+    addCol("ig_clicks", "INTEGER", "0")
+    addCol("ig_ctr", "REAL", "0")
+    addCol("ig_cpc", "REAL", "0")
+
+    // optional KPI/econ – чтобы приложение не падало, если БД “тонкая”
+    addCol("cpo", "REAL", "0")
+    addCol("ctr", "REAL", "0")
+    addCol("cpc", "REAL", "0")
+    addCol("profit_net", "REAL", "0")
+    addCol("roi_pct", "REAL", "0")
+    addCol("cogs", "REAL", "0")
+    addCol("notes", "TEXT", "")
+    addCol("updated_at", "TEXT", "(datetime(now))")
+  }
+
+  private fun isTotalColor(c: String?): Boolean {
+    val s = c?.trim() ?: return false
+    return s == "__TOTAL__" || s == "TOTAL"
+  }
+
+  private fun normalizeColor(raw: String?): String? {
     if (raw == null) return null
     val s = raw.trim()
     if (s.isEmpty()) return null
+    if (isTotalColor(s)) return null
+
     val low = s.lowercase()
 
-    if (low == "__total__" || low == "total") return null
-    if (low.contains("#") || low.contains("div/")) return null
+    // excel junk
+    if (low.contains("#")) return null
+    if (low.contains("div/")) return null
+
+    // numeric / percent-like / weird tokens
     if (low.matches(Regex("-?\\d+(\\.\\d+)?"))) return null
 
-    val bad = listOf(
-      "цвет","заказы","остаток","гипотеза","цена","расход","ставка",
-      "показы","клики","ctr","cpc","cpo","инста","instagram","органика","внутренняя","рк"
-    )
-    if (bad.any { low.contains(it) }) return null
-    bag?.let { if (low == it.trim().lowercase()) return null }
-
+    // too long -> usually trash
     if (s.length > 25) return null
+
+    // ignore obvious headers
+    if (low.contains("гипотез")) return null
+    if (low.contains("заказ")) return null
+    if (low.contains("остат")) return null
+    if (low == "цвет") return null
+
     return s
   }
 
-  // ---------- TIMELINE ----------
-  suspend fun loadTimeline(limitDays: Int = 180): List<DaySummary> = withContext(Dispatchers.IO) {
-    openDb().use { db ->
-      val images = queryImages(db)
+  // --- Public API ---
 
+  suspend fun loadTimeline(limitDays: Int = 180): List<DaySummary> = withContext(Dispatchers.IO) {
+    try { openDbReadWrite().use { } } catch (_: Throwable) { /* ignore */ }
+
+    openDbReadOnly().use { db ->
       val dates = ArrayList<String>()
+
       db.rawQuery(
-        "SELECT DISTINCT date FROM svodka ORDER BY date DESC LIMIT $limitDays",
-        null
+        "SELECT DISTINCT date FROM svodka ORDER BY date DESC LIMIT ?",
+        arrayOf(limitDays.toString())
       ).use { c ->
         val i = c.getColumnIndexOrThrow("date")
-        while (c.moveToNext()) dates.add(c.getString(i))
-      }
-
-      val out = ArrayList<DaySummary>(dates.size)
-
-      for (date in dates) {
-        val byBags = ArrayList<BagOrders>()
-
-        db.rawQuery(
-          """
-          SELECT bag, CAST(ROUND(COALESCE(orders,0)) AS INTEGER) AS o
-          FROM svodka
-          WHERE date=? AND (color="__TOTAL__" OR color="TOTAL")
-          ORDER BY o DESC, bag ASC
-          """.trimIndent(),
-          arrayOf(date)
-        ).use { c ->
-          val ib = c.getColumnIndexOrThrow("bag")
-          val io = c.getColumnIndexOrThrow("o")
-          while (c.moveToNext()) {
-            val bag = c.getString(ib)?.trim() ?: continue
-            val o = c.getInt(io)
-            byBags.add(BagOrders(bag = bag, orders = o, imagePath = images[bag]))
-          }
+        while (c.moveToNext()) {
+          val d = c.getString(i)
+          if (!d.isNullOrBlank()) dates.add(d)
         }
-
-        val total = byBags.sumOf { it.orders }
-        out.add(DaySummary(date = date, totalOrders = total, byBags = byBags))
       }
 
+      val out = ArrayList<DaySummary>()
+      for (date in dates) {
+        val byBags = queryBagTotalsForDate(db, date)
+        val totalOrders = byBags.sumOf { it.orders }
+        out.add(
+          DaySummary(
+            date = date,
+            totalOrders = totalOrders,
+            byBags = byBags.sortedByDescending { it.orders }
+          )
+        )
+      }
       out
     }
   }
 
-  // ---------- DETAILS ----------
   suspend fun loadForDate(date: String): List<BagDayRow> = withContext(Dispatchers.IO) {
-    openDb().use { db ->
-      val images = queryImages(db)
+    try { openDbReadWrite().use { } } catch (_: Throwable) { /* ignore */ }
+
+    openDbReadOnly().use { db ->
+      val images = queryImages(db) // bag -> relative path
 
       val bags = LinkedHashSet<String>()
       db.rawQuery(
-        "SELECT DISTINCT bag FROM svodka WHERE date=? ORDER BY bag",
+        "SELECT DISTINCT bag FROM svodka WHERE date=?",
         arrayOf(date)
       ).use { c ->
         val i = c.getColumnIndexOrThrow("bag")
         while (c.moveToNext()) {
           val b = c.getString(i)
-          if (!b.isNullOrBlank()) bags.add(b.trim())
+          if (!b.isNullOrBlank()) bags.add(b)
         }
       }
 
       val result = ArrayList<BagDayRow>()
       for (bag in bags) {
+        val total = queryTotalRow(db, date, bag)
 
-        var price: Double? = null
-        var hypothesis: String? = null
-        var totalOrders = 0.0
+        val price = total.price
+        val hypothesis = total.hypothesis
 
-        var rk = AdsMetrics()
-        var ig = AdsMetrics()
+        val ordersByColors = queryOrdersByColors(db, date, bag)
+        val stockByColors = queryStockByColors(db, date, bag)
 
-        // TOTAL row (support both)
-        db.rawQuery(
-          """
-          SELECT *
-          FROM svodka
-          WHERE date=? AND bag=? AND (color="__TOTAL__" OR color="TOTAL")
-          ORDER BY updated_at DESC
-          LIMIT 1
-          """.trimIndent(),
-          arrayOf(date, bag)
-        ).use { c ->
-          if (c.moveToFirst()) {
-            val ip = c.getColumnIndex("price")
-            if (ip >= 0 && !c.isNull(ip)) price = c.getDouble(ip)
+        val totalOrders =
+          if (total.orders > 0.0) total.orders
+          else ordersByColors.sumOf { it.value }
 
-            val ih = c.getColumnIndex("hypothesis")
-            if (ih >= 0 && !c.isNull(ih)) hypothesis = c.getString(ih)
-
-            val io = c.getColumnIndex("orders")
-            if (io >= 0 && !c.isNull(io)) totalOrders = c.getDouble(io).roundToInt().toDouble()
-
-            fun getD(name: String): Double {
-              val idx = c.getColumnIndex(name)
-              return if (idx >= 0 && !c.isNull(idx)) c.getDouble(idx) else 0.0
-            }
-            fun getL(name: String): Long {
-              val idx = c.getColumnIndex(name)
-              return if (idx >= 0 && !c.isNull(idx)) c.getLong(idx) else 0L
-            }
-
-            rk = AdsMetrics(
-              spend = getD("rk_spend"),
-              impressions = getL("rk_impressions"),
-              clicks = getL("rk_clicks"),
-              ctr = getD("rk_ctr"),
-              cpc = getD("rk_cpc")
-            )
-            ig = AdsMetrics(
-              spend = getD("ig_spend"),
-              impressions = getL("ig_impressions"),
-              clicks = getL("ig_clicks"),
-              ctr = getD("ig_ctr"),
-              cpc = getD("ig_cpc")
-            )
-          }
-        }
-
-        val ordersByColors = mutableListOf<ColorValue>()
-        val stockByColors = mutableListOf<ColorValue>()
-
-        db.rawQuery(
-          """
-          SELECT color, COALESCE(orders,0) AS o, COALESCE(stock,0) AS s
-          FROM svodka
-          WHERE date=? AND bag=? AND color NOT IN ("__TOTAL__","TOTAL")
-          """.trimIndent(),
-          arrayOf(date, bag)
-        ).use { c ->
-          val ic = c.getColumnIndexOrThrow("color")
-          val io = c.getColumnIndexOrThrow("o")
-          val isx = c.getColumnIndexOrThrow("s")
-
-          while (c.moveToNext()) {
-            val color = normalizeColor(c.getString(ic), bag) ?: continue
-            val o = c.getDouble(io).roundToInt().toDouble()
-            val s = c.getDouble(isx).roundToInt().toDouble()
-
-            if (o > 0) ordersByColors.add(ColorValue(color, o))
-            if (s > 0) stockByColors.add(ColorValue(color, s))
-          }
-        }
+        val rk = total.rk
+        val ig = total.ig
 
         val totalSpend = rk.spend + ig.spend
-        val cpo = if (totalOrders > 0) totalSpend / totalOrders else 0.0
+        val cpo =
+          if (total.cpo > 0.0) total.cpo
+          else if (totalOrders > 0.0) totalSpend / totalOrders else 0.0
 
         val totalImpr = rk.impressions + ig.impressions
         val totalClicks = rk.clicks + ig.clicks
+        val totalCtr = if (totalImpr > 0) totalClicks.toDouble() / totalImpr.toDouble() else 0.0
+        val totalCpc = if (totalClicks > 0) totalSpend / totalClicks.toDouble() else 0.0
 
         val totalAds = AdsMetrics(
           spend = totalSpend,
           impressions = totalImpr,
           clicks = totalClicks,
-          ctr = if (totalImpr > 0) totalClicks.toDouble() / totalImpr else 0.0,
-          cpc = if (totalClicks > 0) totalSpend / totalClicks else 0.0
+          ctr = totalCtr,
+          cpc = totalCpc
         )
 
         result.add(
@@ -229,8 +195,8 @@ class SQLiteRepo(private val context: Context) {
             totalOrders = totalOrders,
             totalSpend = totalSpend,
             cpo = cpo,
-            ordersByColors = ordersByColors.sortedByDescending { it.value },
-            stockByColors = stockByColors.sortedByDescending { it.value },
+            ordersByColors = ordersByColors,
+            stockByColors = stockByColors,
             rk = rk,
             ig = ig,
             totalAds = totalAds
@@ -240,5 +206,190 @@ class SQLiteRepo(private val context: Context) {
 
       result.sortedByDescending { it.totalOrders }
     }
+  }
+
+  // --- Queries ---
+
+  private data class TotalRow(
+    val price: Double?,
+    val hypothesis: String?,
+    val orders: Double,
+    val stock: Double,
+    val cpo: Double,
+    val rk: AdsMetrics,
+    val ig: AdsMetrics
+  )
+
+  private fun Cursor.getDoubleOrZero(col: String): Double {
+    val i = getColumnIndex(col)
+    if (i < 0 || isNull(i)) return 0.0
+    return getDouble(i)
+  }
+
+  private fun Cursor.getLongOrZero(col: String): Long {
+    val i = getColumnIndex(col)
+    if (i < 0 || isNull(i)) return 0L
+    return getLong(i)
+  }
+
+  private fun queryTotalRow(db: SQLiteDatabase, date: String, bag: String): TotalRow {
+    // IMPORTANT: prefer __TOTAL__ over TOTAL if both exist
+    val sql = """
+      SELECT
+        price, hypothesis,
+        COALESCE(orders,0) AS orders,
+        COALESCE(stock,0) AS stock,
+        COALESCE(cpo,0) AS cpo,
+        COALESCE(rk_spend,0) AS rk_spend,
+        COALESCE(rk_impressions,0) AS rk_impressions,
+        COALESCE(rk_clicks,0) AS rk_clicks,
+        COALESCE(rk_ctr,0) AS rk_ctr,
+        COALESCE(rk_cpc,0) AS rk_cpc,
+        COALESCE(ig_spend,0) AS ig_spend,
+        COALESCE(ig_impressions,0) AS ig_impressions,
+        COALESCE(ig_clicks,0) AS ig_clicks,
+        COALESCE(ig_ctr,0) AS ig_ctr,
+        COALESCE(ig_cpc,0) AS ig_cpc
+      FROM svodka
+      WHERE date=? AND bag=? AND (color="__TOTAL__" OR color="TOTAL")
+      ORDER BY CASE WHEN color="__TOTAL__" THEN 0 ELSE 1 END
+      LIMIT 1
+    """.trimIndent()
+
+    db.rawQuery(sql, arrayOf(date, bag)).use { c ->
+      if (!c.moveToFirst()) {
+        return TotalRow(
+          price = null,
+          hypothesis = null,
+          orders = 0.0,
+          stock = 0.0,
+          cpo = 0.0,
+          rk = AdsMetrics(),
+          ig = AdsMetrics()
+        )
+      }
+
+      val ip = c.getColumnIndex("price")
+      val ih = c.getColumnIndex("hypothesis")
+      val price = if (ip >= 0 && !c.isNull(ip)) c.getDouble(ip) else null
+      val hyp = if (ih >= 0 && !c.isNull(ih)) c.getString(ih) else null
+
+      val rk = AdsMetrics(
+        spend = c.getDoubleOrZero("rk_spend"),
+        impressions = c.getLongOrZero("rk_impressions"),
+        clicks = c.getLongOrZero("rk_clicks"),
+        ctr = c.getDoubleOrZero("rk_ctr"),
+        cpc = c.getDoubleOrZero("rk_cpc")
+      )
+      val ig = AdsMetrics(
+        spend = c.getDoubleOrZero("ig_spend"),
+        impressions = c.getLongOrZero("ig_impressions"),
+        clicks = c.getLongOrZero("ig_clicks"),
+        ctr = c.getDoubleOrZero("ig_ctr"),
+        cpc = c.getDoubleOrZero("ig_cpc")
+      )
+
+      return TotalRow(
+        price = price,
+        hypothesis = hyp,
+        orders = c.getDoubleOrZero("orders"),
+        stock = c.getDoubleOrZero("stock"),
+        cpo = c.getDoubleOrZero("cpo"),
+        rk = rk,
+        ig = ig
+      )
+    }
+  }
+
+  private fun queryOrdersByColors(db: SQLiteDatabase, date: String, bag: String): List<ColorValue> {
+    val sql = """
+      SELECT color, SUM(COALESCE(orders,0)) AS v
+      FROM svodka
+      WHERE date=? AND bag=? AND color <> "__TOTAL__" AND color <> "TOTAL"
+      GROUP BY color
+      ORDER BY v DESC
+    """.trimIndent()
+
+    val out = ArrayList<ColorValue>()
+    db.rawQuery(sql, arrayOf(date, bag)).use { c ->
+      val ic = c.getColumnIndexOrThrow("color")
+      val iv = c.getColumnIndexOrThrow("v")
+      while (c.moveToNext()) {
+        val color = normalizeColor(c.getString(ic)) ?: continue
+        val v = c.getDouble(iv)
+        if (v <= 0.0) continue
+        out.add(ColorValue(color, v))
+      }
+    }
+    return out
+  }
+
+  private fun queryStockByColors(db: SQLiteDatabase, date: String, bag: String): List<ColorValue> {
+    val sql = """
+      SELECT color, MAX(COALESCE(stock,0)) AS v
+      FROM svodka
+      WHERE date=? AND bag=? AND color <> "__TOTAL__" AND color <> "TOTAL"
+      GROUP BY color
+      ORDER BY v DESC
+    """.trimIndent()
+
+    val out = ArrayList<ColorValue>()
+    db.rawQuery(sql, arrayOf(date, bag)).use { c ->
+      val ic = c.getColumnIndexOrThrow("color")
+      val iv = c.getColumnIndexOrThrow("v")
+      while (c.moveToNext()) {
+        val color = normalizeColor(c.getString(ic)) ?: continue
+        val v = c.getDouble(iv)
+        out.add(ColorValue(color, v))
+      }
+    }
+    return out
+  }
+
+  private fun queryBagTotalsForDate(db: SQLiteDatabase, date: String): List<BagOrders> {
+    val bags = ArrayList<String>()
+    db.rawQuery("SELECT DISTINCT bag FROM svodka WHERE date=?", arrayOf(date)).use { c ->
+      val i = c.getColumnIndexOrThrow("bag")
+      while (c.moveToNext()) {
+        val b = c.getString(i)
+        if (!b.isNullOrBlank()) bags.add(b)
+      }
+    }
+
+    val out = ArrayList<BagOrders>()
+    for (bag in bags) {
+      val tot = queryTotalRow(db, date, bag).orders
+      val orders =
+        if (tot > 0.0) tot
+        else queryOrdersByColors(db, date, bag).sumOf { it.value }
+      out.add(BagOrders(bag = bag, orders = orders.toInt()))
+    }
+    return out
+  }
+
+  private fun queryImages(db: SQLiteDatabase): Map<String, String> {
+    val out = HashMap<String, String>()
+    // media might not exist in early packs
+    try {
+      db.rawQuery(
+        """
+          SELECT entity_key, image_path
+          FROM media
+          WHERE (entity_type="bag" OR entity_type="BAG" OR entity_type="product" OR entity_type="sku")
+        """.trimIndent(),
+        null
+      ).use { c ->
+        val ik = c.getColumnIndexOrThrow("entity_key")
+        val ip = c.getColumnIndexOrThrow("image_path")
+        while (c.moveToNext()) {
+          val k = c.getString(ik)
+          val p = c.getString(ip)
+          if (!k.isNullOrBlank() && !p.isNullOrBlank()) out[k] = p
+        }
+      }
+    } catch (_: Throwable) {
+      // ignore
+    }
+    return out
   }
 }
