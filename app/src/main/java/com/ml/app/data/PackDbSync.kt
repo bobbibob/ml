@@ -21,13 +21,6 @@ object PackDbSync {
     return if (merged.exists() && merged.length() > 0) merged else PackPaths.dbFile(ctx)
   }
 
-  /**
-   * Call after pack was (downloaded/updated) and unpacked into PackPaths.packDir(ctx).
-   * Creates/updates merged DB:
-   *   - take fresh pack db
-   *   - merge user tables from previous merged db
-   *   - atomically replace merged db
-   */
   fun refreshMergedDb(ctx: Context) {
     val packDb = PackPaths.dbFile(ctx)
     if (!packDb.exists() || packDb.length() == 0L) return
@@ -35,69 +28,65 @@ object PackDbSync {
     val merged = mergedDbFile(ctx)
     val tmp = File(merged.parentFile, "data.sqlite.tmp")
 
-    // copy fresh pack db into tmp
     packDb.copyTo(tmp, overwrite = true)
 
-    // merge user tables from old merged -> tmp
     if (merged.exists() && merged.length() > 0L) {
       mergeUserTables(fromDbFile = merged, toDbFile = tmp)
     } else {
-      // ensure user tables exist in tmp even on first run
-      ensureUserTables(tmp)
+      // first run: just ensure tables in tmp
+      SQLiteDatabase.openDatabase(tmp.absolutePath, null, SQLiteDatabase.OPEN_READWRITE).use { db ->
+        db.beginTransaction()
+        try {
+          ensureUserTables(db)
+          db.setTransactionSuccessful()
+        } finally {
+          db.endTransaction()
+        }
+      }
     }
 
-    // replace merged atomically
     if (merged.exists()) merged.delete()
     tmp.renameTo(merged)
   }
 
-  private fun ensureUserTables(dbFile: File) {
-    SQLiteDatabase.openDatabase(dbFile.absolutePath, null, SQLiteDatabase.OPEN_READWRITE).use { db ->
-      db.beginTransaction()
-      try {
-        // 1) card type
-        db.execSQL(
-          """
-          CREATE TABLE IF NOT EXISTS $T_CARD_TYPE(
-            bag_id TEXT PRIMARY KEY,
-            type TEXT NOT NULL
-          );
-          """.trimIndent()
-        )
-        db.execSQL("CREATE INDEX IF NOT EXISTS idx_${T_CARD_TYPE}_type ON $T_CARD_TYPE(type);")
+  private fun ensureUserTables(db: SQLiteDatabase) {
+    // 1) card type
+    db.execSQL(
+      """
+      CREATE TABLE IF NOT EXISTS $T_CARD_TYPE(
+        bag_id TEXT PRIMARY KEY,
+        type TEXT NOT NULL
+      );
+      """.trimIndent()
+    )
+    db.execSQL("CREATE INDEX IF NOT EXISTS idx_${T_CARD_TYPE}_type ON $T_CARD_TYPE(type);")
 
-        // 2) bag user main
-        db.execSQL(
-          """
-          CREATE TABLE IF NOT EXISTS $T_BAG_USER(
-            bag_id TEXT PRIMARY KEY,
-            name TEXT,
-            hypothesis TEXT,
-            price REAL,
-            cogs REAL,
-            card_type TEXT,
-            photo_path TEXT
-          );
-          """.trimIndent()
-        )
+    // 2) bag user main
+    db.execSQL(
+      """
+      CREATE TABLE IF NOT EXISTS $T_BAG_USER(
+        bag_id TEXT PRIMARY KEY,
+        name TEXT,
+        hypothesis TEXT,
+        price REAL,
+        cogs REAL,
+        card_type TEXT,
+        photo_path TEXT
+      );
+      """.trimIndent()
+    )
 
-        // 3) bag user colors
-        db.execSQL(
-          """
-          CREATE TABLE IF NOT EXISTS $T_BAG_USER_COLORS(
-            bag_id TEXT NOT NULL,
-            color TEXT NOT NULL,
-            PRIMARY KEY(bag_id, color)
-          );
-          """.trimIndent()
-        )
-        db.execSQL("CREATE INDEX IF NOT EXISTS idx_${T_BAG_USER_COLORS}_bag ON $T_BAG_USER_COLORS(bag_id);")
-
-        db.setTransactionSuccessful()
-      } finally {
-        db.endTransaction()
-      }
-    }
+    // 3) bag user colors
+    db.execSQL(
+      """
+      CREATE TABLE IF NOT EXISTS $T_BAG_USER_COLORS(
+        bag_id TEXT NOT NULL,
+        color TEXT NOT NULL,
+        PRIMARY KEY(bag_id, color)
+      );
+      """.trimIndent()
+    )
+    db.execSQL("CREATE INDEX IF NOT EXISTS idx_${T_BAG_USER_COLORS}_bag ON $T_BAG_USER_COLORS(bag_id);")
   }
 
   private fun tableExists(db: SQLiteDatabase, name: String): Boolean {
@@ -114,10 +103,10 @@ object PackDbSync {
     try {
       toDb.beginTransaction()
       try {
-        // ensure tables in target
-        ensureUserTables(toDbFile)
+        // IMPORTANT: use SAME connection (no nested openDatabase)
+        ensureUserTables(toDb)
 
-        // ---- merge bag_card_type
+        // merge bag_card_type
         if (tableExists(fromDb, T_CARD_TYPE)) {
           fromDb.rawQuery("SELECT bag_id, type FROM $T_CARD_TYPE", null).use { c ->
             val iId = c.getColumnIndexOrThrow("bag_id")
@@ -132,7 +121,7 @@ object PackDbSync {
           }
         }
 
-        // ---- merge bag_user
+        // merge bag_user
         if (tableExists(fromDb, T_BAG_USER)) {
           fromDb.rawQuery(
             "SELECT bag_id, name, hypothesis, price, cogs, card_type, photo_path FROM $T_BAG_USER",
@@ -165,7 +154,7 @@ object PackDbSync {
           }
         }
 
-        // ---- merge bag_user_colors
+        // merge bag_user_colors
         if (tableExists(fromDb, T_BAG_USER_COLORS)) {
           fromDb.rawQuery("SELECT bag_id, color FROM $T_BAG_USER_COLORS", null).use { c ->
             val iId = c.getColumnIndexOrThrow("bag_id")
