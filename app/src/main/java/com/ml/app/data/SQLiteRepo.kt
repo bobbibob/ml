@@ -21,6 +21,11 @@ class SQLiteRepo(private val context: Context) {
     return if (f.exists()) f.absolutePath else null
   }
 
+  // IMPORTANT:
+  // svodka has per-color rows + an aggregated total row (color='__TOTAL__' or 'TOTAL').
+  // For per-bag totals we must use only TOTAL rows, otherwise it double-counts.
+  private fun totalColorWhere(): String = "AND s.color IN ('__TOTAL__','TOTAL')"
+
   suspend fun loadTimeline(limitDays: Int = 180): List<DaySummary> = withContext(Dispatchers.IO) {
     openDbReadOnly().use { db ->
       val images = queryImagesByBagId(db)
@@ -36,6 +41,7 @@ class SQLiteRepo(private val context: Context) {
           LEFT JOIN bags b ON b.bag_id = s.bag_id
           WHERE s.date IS NOT NULL AND s.date != ''
             AND s.bag_id IS NOT NULL AND s.bag_id != ''
+            ${totalColorWhere()}
           GROUP BY s.date, s.bag_id
           ORDER BY s.date DESC, orders DESC
         """.trimIndent(),
@@ -108,6 +114,7 @@ class SQLiteRepo(private val context: Context) {
           FROM svodka s
           LEFT JOIN bags b ON b.bag_id = s.bag_id
           WHERE s.date=? AND s.bag_id IS NOT NULL AND s.bag_id != ''
+            ${totalColorWhere()}
           GROUP BY s.bag_id
           ORDER BY orders DESC
         """.trimIndent(),
