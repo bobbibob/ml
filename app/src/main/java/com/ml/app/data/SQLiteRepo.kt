@@ -368,4 +368,47 @@ class SQLiteRepo(private val context: Context) {
     }
   }
 
-}
+
+  suspend fun listAllBags(): List<Pair<String, String>> = withContext(Dispatchers.IO) {
+    openDbReadWrite().use { db ->
+      val out = ArrayList<Pair<String, String>>()
+
+      val hasBags = db.rawQuery(
+        "SELECT 1 FROM sqlite_master WHERE type=\table\ AND name=\bags\ LIMIT 1",
+        null
+      ).use { c -> c.moveToFirst() }
+
+      if (hasBags) {
+        db.rawQuery(
+          "SELECT bag_id, bag_name FROM bags WHERE bag_id IS NOT NULL AND bag_id != \\ ORDER BY bag_name",
+          null
+        ).use { c ->
+          val iId = c.getColumnIndexOrThrow("bag_id")
+          val iName = c.getColumnIndexOrThrow("bag_name")
+          while (c.moveToNext()) {
+            val id = c.getString(iId)
+            val name = c.getString(iName)
+            out.add(id to name)
+          }
+        }
+      }
+
+      // add user-only bags (bag_user not present in bags)
+      db.rawQuery(
+        "SELECT bag_id, COALESCE(name, bag_id) AS nm FROM bag_user " +
+          "WHERE bag_id IS NOT NULL AND bag_id != \\ " +
+          "AND bag_id NOT IN (SELECT bag_id FROM bags) " +
+          "ORDER BY nm",
+        null
+      ).use { c ->
+        val iId = c.getColumnIndexOrThrow("bag_id")
+        val iNm = c.getColumnIndexOrThrow("nm")
+        while (c.moveToNext()) {
+          out.add(c.getString(iId) to c.getString(iNm))
+        }
+      }
+
+      out
+    }
+  }
+\n}

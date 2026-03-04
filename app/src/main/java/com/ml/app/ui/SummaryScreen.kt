@@ -170,7 +170,7 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
     }
 
     ArticleBottomBar(
-      onArticleClick = { vm.openArticleEditor() },
+      onArticleClick = { vm.openArticlePicker() },
       modifier = Modifier.align(Alignment.BottomCenter)
     )
 
