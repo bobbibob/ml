@@ -24,8 +24,8 @@ class SQLiteRepo(private val context: Context) {
   suspend fun loadTimeline(limitDays: Int = 180): List<DaySummary> = withContext(Dispatchers.IO) {
     openDbReadOnly().use { db ->
       val images = queryImagesByBagId(db)
-
       val days = ArrayList<DaySummary>()
+
       db.rawQuery(
         """
           SELECT s.date AS date,

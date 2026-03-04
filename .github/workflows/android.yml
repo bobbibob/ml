@@ -8,7 +8,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -22,6 +21,9 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
       - name: Build Debug APK
         run: ./gradlew :app:assembleDebug
 
@@ -30,7 +32,10 @@ jobs:
 
       - name: CI SQL checks on test database
         run: |
+          set -e
           test -f testdata/data.sqlite
+          ls -la testdata/data.sqlite
+
           echo "Tables:"
           sqlite3 testdata/data.sqlite ".tables"
 
@@ -47,10 +52,10 @@ jobs:
           sqlite3 testdata/data.sqlite "
             SELECT s.date AS date,
                    s.bag_id AS bag_id,
-                   COALESCE(b.name, s.bag_id) AS bag_name,
+                   COALESCE(b.bag_name, s.bag_id) AS bag_name,
                    SUM(COALESCE(s.orders,0)) AS orders
             FROM svodka s
-            LEFT JOIN bags b ON b.id = s.bag_id
+            LEFT JOIN bags b ON b.bag_id = s.bag_id
             WHERE s.date IS NOT NULL AND s.date != ''
               AND s.bag_id IS NOT NULL AND s.bag_id != ''
             GROUP BY s.date, s.bag_id
@@ -59,24 +64,19 @@ jobs:
           "
 
           echo "Details query check (one date):"
+          d="$(sqlite3 testdata/data.sqlite "SELECT date FROM svodka WHERE date IS NOT NULL AND date != '' ORDER BY date DESC LIMIT 1;")"
+          echo "Using date=$d"
           sqlite3 testdata/data.sqlite "
-            SELECT date FROM svodka
-            WHERE date IS NOT NULL AND date != ''
-            ORDER BY date DESC LIMIT 1;
-          " | while read -r d; do
-            echo "Using date=$d"
-            sqlite3 testdata/data.sqlite "
-              SELECT s.bag_id AS bag_id,
-                     COALESCE(b.name, s.bag_id) AS bag_name,
-                     SUM(COALESCE(s.orders,0)) AS orders
-              FROM svodka s
-              LEFT JOIN bags b ON b.id = s.bag_id
-              WHERE s.date='$d' AND s.bag_id IS NOT NULL AND s.bag_id != ''
-              GROUP BY s.bag_id
-              ORDER BY orders DESC
-              LIMIT 5;
-            "
-          done
+            SELECT s.bag_id AS bag_id,
+                   COALESCE(b.bag_name, s.bag_id) AS bag_name,
+                   SUM(COALESCE(s.orders,0)) AS orders
+            FROM svodka s
+            LEFT JOIN bags b ON b.bag_id = s.bag_id
+            WHERE s.date='$d' AND s.bag_id IS NOT NULL AND s.bag_id != ''
+            GROUP BY s.bag_id
+            ORDER BY orders DESC
+            LIMIT 5;
+          "
 
       - name: Upload Debug APK artifact
         uses: actions/upload-artifact@v4
