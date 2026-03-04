@@ -17,7 +17,7 @@ data class BagDayRow(
   val imagePath: String?,
 
   // header stats
-  val totalOrders: Double,
+  val totalOrders: Double,   // показываем как Int
   val totalSpend: Double,
   val cpo: Double,
 
@@ -29,4 +29,15 @@ data class BagDayRow(
   val rk: AdsMetrics,
   val ig: AdsMetrics,
   val totalAds: AdsMetrics
+)
+
+data class BagOrders(
+  val bag: String,
+  val orders: Int
+)
+
+data class DaySummary(
+  val date: String,          // YYYY-MM-DD
+  val totalOrders: Int,
+  val byBags: List<BagOrders>
 )

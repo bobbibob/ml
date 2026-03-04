@@ -1,6 +1,8 @@
 package com.ml.app.ui
 
+import android.app.DatePickerDialog
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -14,14 +16,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import coil.compose.AsyncImage
-import com.ml.app.data.PackPaths
-import com.ml.app.domain.AdsMetrics
 import com.ml.app.domain.BagDayRow
-import com.ml.app.domain.ColorValue
-import java.io.File
-import java.time.Instant
-import java.time.ZoneId
+import com.ml.app.domain.DaySummary
+import java.time.LocalDate
 import kotlin.math.roundToInt
 
 private val MercadoYellow = Color(0xFFFFE600)
@@ -29,208 +26,226 @@ private val MercadoBlue = Color(0xFF2D3277)
 private val TextBlack = Color(0xFF111111)
 private val SoftGray = Color(0xFFF7F7F7)
 
-private fun fmt2(v: Double): String = String.format("%.2f", v)
-private fun fmt0(v: Double): String = v.roundToInt().toString()
+private fun fmtInt(v: Double): String = v.roundToInt().toString()
+private fun fmtMoney(v: Double): String = String.format("%.2f", v)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
   val state by vm.state.collectAsState()
+  val ctx = LocalContext.current
 
   LaunchedEffect(Unit) { vm.init() }
 
-  var openDatePicker by remember { mutableStateOf(false) }
-  val pickerState = rememberDatePickerState(
-    initialSelectedDateMillis = state.selectedDate
-      .atStartOfDay(ZoneId.systemDefault())
-      .toInstant().toEpochMilli()
-  )
+  fun openDatePicker(current: LocalDate, onPicked: (LocalDate) -> Unit) {
+    DatePickerDialog(
+      ctx,
+      { _, y, m, d -> onPicked(LocalDate.of(y, m + 1, d)) },
+      current.year, current.monthValue - 1, current.dayOfMonth
+    ).show()
+  }
 
-  Scaffold(
-    topBar = {
-      CenterAlignedTopAppBar(
-        title = { Text("ml", fontWeight = FontWeight.Bold, color = TextBlack) },
-        colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.White)
-      )
-    },
-    containerColor = Color.White
-  ) { pad ->
-    Column(
+  Column(
+    modifier = Modifier
+      .fillMaxSize()
+      .background(Color.White)
+  ) {
+    // Header
+    Box(
       modifier = Modifier
-        .padding(pad)
-        .fillMaxSize()
-        .background(Color.White)
+        .fillMaxWidth()
+        .background(MercadoYellow)
         .padding(14.dp)
     ) {
-
-      // Верхняя панель: дата + кнопки
       Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically
       ) {
+        Text(
+          text = "ml",
+          style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Black),
+          color = TextBlack
+        )
+        Spacer(Modifier.weight(1f))
+
+        if (state.mode is ScreenMode.Details) {
+          TextButton(onClick = { vm.backToTimeline() }) { Text("Назад", color = TextBlack) }
+        } else {
+          TextButton(onClick = { vm.refreshTimeline() }) { Text("Обновить", color = TextBlack) }
+        }
+      }
+    }
+
+    if (!state.hasPack) {
+      // если пакета нет — пока просто сообщение (скачивание у тебя было в другом VM, если нужно — вернем)
+      Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Text("Нет базы данных (pack). Сначала скачай/положи database_pack.", color = TextBlack)
+      }
+      return@Column
+    }
+
+    // Top date picker (и на таймлайне, и в деталях)
+    Row(
+      modifier = Modifier
+        .fillMaxWidth()
+        .padding(12.dp),
+      horizontalArrangement = Arrangement.spacedBy(12.dp),
+      verticalAlignment = Alignment.CenterVertically
+    ) {
+      Button(
+        onClick = { openDatePicker(state.selectedDate) { vm.setDateFromPicker(it) } },
+        colors = ButtonDefaults.buttonColors(containerColor = SoftGray, contentColor = TextBlack),
+        modifier = Modifier.weight(1f)
+      ) {
+        Text("Дата: ${state.selectedDate}", maxLines = 1, overflow = TextOverflow.Ellipsis)
+      }
+
+      if (state.mode is ScreenMode.Details) {
         Button(
-          onClick = { openDatePicker = true },
-          colors = ButtonDefaults.buttonColors(containerColor = SoftGray, contentColor = TextBlack),
-          modifier = Modifier.weight(1.2f)
-        ) {
+          onClick = { vm.refreshDetails() },
+          colors = ButtonDefaults.buttonColors(containerColor = MercadoBlue, contentColor = Color.White)
+        ) { Text("Обновить") }
+      }
+    }
+
+    if (state.loading) {
+      LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+    }
+
+    when (val mode = state.mode) {
+      is ScreenMode.Timeline -> TimelineList(
+        items = state.timeline,
+        onOpen = { vm.openDetails(LocalDate.parse(it.date)) }
+      )
+      is ScreenMode.Details -> DetailsList(rows = state.rows)
+    }
+
+    if (state.status.isNotBlank()) {
+      Text(
+        text = state.status,
+        modifier = Modifier.padding(12.dp),
+        color = Color.Gray
+      )
+    }
+  }
+}
+
+@Composable
+private fun TimelineList(items: List<DaySummary>, onOpen: (DaySummary) -> Unit) {
+  LazyColumn(
+    modifier = Modifier.fillMaxSize(),
+    contentPadding = PaddingValues(12.dp),
+    verticalArrangement = Arrangement.spacedBy(12.dp)
+  ) {
+    items(items) { day ->
+      Card(
+        colors = CardDefaults.cardColors(containerColor = SoftGray),
+        modifier = Modifier
+          .fillMaxWidth()
+          .clickable { onOpen(day) }
+      ) {
+        Column(Modifier.padding(14.dp)) {
+          Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+              text = day.date,
+              style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+              color = TextBlack
+            )
+            Spacer(Modifier.weight(1f))
+            Text(
+              text = "Заказы: ${day.totalOrders}",
+              style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Black),
+              color = MercadoBlue
+            )
+          }
+
+          Spacer(Modifier.height(8.dp))
+
+          day.byBags.take(12).forEach { b ->
+            Row(Modifier.fillMaxWidth()) {
+              Text(
+                text = b.bag,
+                modifier = Modifier.weight(1f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                color = TextBlack
+              )
+              Text(text = b.orders.toString(), color = TextBlack, fontWeight = FontWeight.SemiBold)
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+@Composable
+private fun DetailsList(rows: List<BagDayRow>) {
+  LazyColumn(
+    modifier = Modifier.fillMaxSize(),
+    contentPadding = PaddingValues(12.dp),
+    verticalArrangement = Arrangement.spacedBy(12.dp)
+  ) {
+    items(rows) { r ->
+      Card(
+        colors = CardDefaults.cardColors(containerColor = SoftGray),
+        modifier = Modifier.fillMaxWidth()
+      ) {
+        Column(Modifier.padding(14.dp)) {
           Text(
-            "Дата: ${state.selectedDate}",
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            text = r.bag,
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+            color = TextBlack
+          )
+
+          Spacer(Modifier.height(6.dp))
+
+          Row(Modifier.fillMaxWidth()) {
+            Text("Заказы: ${fmtInt(r.totalOrders)}", modifier = Modifier.weight(1f), color = TextBlack)
+            Text("Расход: ${fmtMoney(r.totalSpend)}", color = TextBlack)
+          }
+
+          if (!r.hypothesis.isNullOrBlank() || r.price != null) {
+            Spacer(Modifier.height(6.dp))
+            Text(
+              text = "${r.hypothesis ?: ""}${if (r.price != null) " • Цена: ${fmtMoney(r.price)}" else ""}",
+              color = Color.Gray,
+              maxLines = 2,
+              overflow = TextOverflow.Ellipsis
+            )
+          }
+
+          Spacer(Modifier.height(10.dp))
+
+          if (r.ordersByColors.isNotEmpty()) {
+            Text("Заказы по цветам", fontWeight = FontWeight.SemiBold, color = TextBlack)
+            Spacer(Modifier.height(6.dp))
+            r.ordersByColors.take(12).forEach { cv ->
+              Row(Modifier.fillMaxWidth()) {
+                Text(cv.color, modifier = Modifier.weight(1f), color = TextBlack)
+                Text(fmtInt(cv.value), color = TextBlack, fontWeight = FontWeight.SemiBold)
+              }
+            }
+          }
+
+          if (r.stockByColors.isNotEmpty()) {
+            Spacer(Modifier.height(10.dp))
+            Text("Остаток по цветам", fontWeight = FontWeight.SemiBold, color = TextBlack)
+            Spacer(Modifier.height(6.dp))
+            r.stockByColors.take(12).forEach { cv ->
+              Row(Modifier.fillMaxWidth()) {
+                Text(cv.color, modifier = Modifier.weight(1f), color = TextBlack)
+                Text(fmtInt(cv.value), color = TextBlack, fontWeight = FontWeight.SemiBold)
+              }
+            }
+          }
+
+          Spacer(Modifier.height(10.dp))
+          Text(
+            text = "РК: ${fmtMoney(r.rk.spend)} • IG: ${fmtMoney(r.ig.spend)} • CPO: ${fmtMoney(r.cpo)}",
+            color = Color.Gray
           )
         }
-
-        Button(
-          onClick = { vm.syncDownload() },
-          enabled = !state.loading,
-          colors = ButtonDefaults.buttonColors(containerColor = MercadoBlue, contentColor = Color.White),
-          modifier = Modifier.weight(1f)
-        ) { Text("Обновить") }
-
-        Button(
-          onClick = { vm.syncUploadWithConflictCheck() },
-          enabled = state.hasPack && !state.loading,
-          colors = ButtonDefaults.buttonColors(containerColor = MercadoYellow, contentColor = TextBlack),
-          modifier = Modifier.weight(1f)
-        ) { Text("Сохранить") }
-      }
-
-      Spacer(Modifier.height(10.dp))
-
-      if (state.status.isNotBlank()) {
-        Text(state.status, color = TextBlack)
-        Spacer(Modifier.height(6.dp))
-      }
-
-      if (state.loading) {
-        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-        Spacer(Modifier.height(10.dp))
-      }
-
-      if (!state.hasPack) {
-        Card(colors = CardDefaults.cardColors(containerColor = SoftGray)) {
-          Column(Modifier.padding(12.dp)) {
-            Text("Нет данных. Нажми «Обновить», чтобы скачать пакет.", color = TextBlack)
-          }
-        }
-        return@Column
-      }
-
-      LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-      ) {
-        items(state.rows) { row ->
-          BagCardMercado(row)
-        }
-      }
-    }
-  }
-
-  if (openDatePicker) {
-    DatePickerDialog(
-      onDismissRequest = { openDatePicker = false },
-      confirmButton = {
-        TextButton(onClick = {
-          pickerState.selectedDateMillis?.let { ms ->
-            val d = Instant.ofEpochMilli(ms).atZone(ZoneId.systemDefault()).toLocalDate()
-            vm.setDate(d)
-          }
-          openDatePicker = false
-        }) { Text("OK", color = TextBlack) }
-      },
-      dismissButton = {
-        TextButton(onClick = { openDatePicker = false }) { Text("Отмена", color = TextBlack) }
-      }
-    ) { DatePicker(state = pickerState) }
-  }
-}
-
-@Composable
-private fun BagCardMercado(row: BagDayRow) {
-  val context = LocalContext.current
-  val imgFile: File? = row.imagePath?.let { rel -> File(PackPaths.packDir(context), rel) }
-
-  Card(
-    colors = CardDefaults.cardColors(containerColor = SoftGray),
-    modifier = Modifier.fillMaxWidth()
-  ) {
-    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-
-      // Header: image + title + key stats
-      Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-        AsyncImage(
-          model = imgFile?.takeIf { it.exists() },
-          contentDescription = row.bag,
-          modifier = Modifier.size(86.dp)
-        )
-
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-          Text(row.bag, fontWeight = FontWeight.Bold, color = TextBlack, maxLines = 2, overflow = TextOverflow.Ellipsis)
-
-          // price + orders
-          Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("Заказы: ${fmt0(row.totalOrders)}", color = TextBlack)
-            Text("Цена: ${row.price?.let { fmt2(it) } ?: "—"}", color = TextBlack)
-          }
-
-          // spend + cpo
-          Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("Расход: ${fmt2(row.totalSpend)}", color = TextBlack)
-            Text("CPO: ${fmt2(row.cpo)}", color = TextBlack)
-          }
-        }
-      }
-
-      row.hypothesis?.takeIf { it.isNotBlank() }?.let {
-        Text("Гипотеза: $it", color = TextBlack)
-      }
-
-      // Ads blocks
-      AdsLine(title = "Внутр. РК", m = row.rk)
-      AdsLine(title = "Instagram", m = row.ig)
-      AdsLine(title = "Итого Ads", m = row.totalAds, emphasize = true)
-
-      // Colors: orders
-      if (row.ordersByColors.isNotEmpty()) {
-        Text("Заказы по цветам:", fontWeight = FontWeight.SemiBold, color = TextBlack)
-        ColorList(row.ordersByColors)
-      }
-
-      // Colors: stock
-      if (row.stockByColors.isNotEmpty()) {
-        Text("Остаток по цветам:", fontWeight = FontWeight.SemiBold, color = TextBlack)
-        ColorList(row.stockByColors)
-      }
-    }
-  }
-}
-
-@Composable
-private fun AdsLine(title: String, m: AdsMetrics, emphasize: Boolean = false) {
-  val labelColor = if (emphasize) MercadoBlue else TextBlack
-  Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-    Text(title, fontWeight = FontWeight.SemiBold, color = labelColor)
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-      Text("Spend: ${fmt2(m.spend)}", color = TextBlack)
-      Text("Clicks: ${m.clicks}", color = TextBlack)
-      Text("CTR: ${fmt2(m.ctr)}", color = TextBlack)
-      Text("CPC: ${fmt2(m.cpc)}", color = TextBlack)
-    }
-  }
-}
-
-@Composable
-private fun ColorList(list: List<ColorValue>) {
-  // Показываем максимум 12, чтобы карточка не становилась гигантской
-  val top = list.take(12)
-  Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-    top.forEach { c ->
-      Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(c.color, color = TextBlack, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        Spacer(Modifier.width(8.dp))
-        Text(fmt2(c.value), color = TextBlack)
       }
     }
   }
