@@ -176,5 +176,4 @@ fun setDateFromPicker(date: LocalDate) {
       is ScreenMode.ArticleEditor -> { /* stay */ }
     }
   }
-
 }
