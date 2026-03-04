@@ -96,8 +96,16 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
 
           if (state.mode is ScreenMode.Details) {
             TextButton(onClick = { vm.backToTimeline() }) { Text("Назад", color = TextBlack) }
+
+            is ScreenMode.ArticleEditor -> AddEditArticleScreen(
+              bagId = (state.mode as ScreenMode.ArticleEditor).bagId,
+              onDone = { vm.backFromArticleEditor() }
+            )
+
           } else {
             TextButton(onClick = { vm.syncIfChanged() }) { Text("Проверить", color = TextBlack) }
+
+
           }
         }
       }
@@ -110,6 +118,8 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
               Spacer(Modifier.height(12.dp))
             }
             Text(if (state.status.isNotBlank()) state.status else "Скачиваем базу…", color = TextBlack)
+
+
           }
         }
       } else {
@@ -126,6 +136,8 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
             modifier = Modifier.weight(1f)
           ) {
             Text("Дата: ${state.selectedDate}", maxLines = 1, overflow = TextOverflow.Ellipsis)
+
+
           }
 
           Button(
@@ -145,6 +157,8 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
             rows = state.rows,
             cardTypes = state.cardTypes
           )
+
+
         }
 
         if (state.status.isNotBlank()) {
@@ -199,18 +213,24 @@ private fun TimelineList(
               style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
               color = TextBlack
             )
+
+
             Spacer(Modifier.weight(1f))
             Text(
               "Заказы: ${day.totalOrders}",
               style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Black),
               color = MercadoBlue
             )
+
+
           }
 
           Spacer(Modifier.height(6.dp))
           Row(Modifier.fillMaxWidth()) {
             Text("Расход: ${fmtMoney(daySpend)}", modifier = Modifier.weight(1f), color = TextBlack)
             Text("Чистая прибыль: ${fmtMoney(dayNet)}", color = TextBlack, fontWeight = FontWeight.SemiBold)
+
+
           }
 
           Spacer(Modifier.height(10.dp))
@@ -240,6 +260,8 @@ private fun TimelineList(
               }
             }
             Spacer(Modifier.height(6.dp))
+
+
           }
         }
   }
@@ -276,6 +298,8 @@ private fun DetailsList(
               maxLines = 2,
               overflow = TextOverflow.Ellipsis
             )
+
+
           }
 
           Spacer(Modifier.height(10.dp))
@@ -283,6 +307,8 @@ private fun DetailsList(
           Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             TypePill(text = "Классика", selected = type == CardType.CLASSIC)
             TypePill(text = "Премиум", selected = type == CardType.PREMIUM)
+
+
           }
 
           Spacer(Modifier.height(10.dp))
@@ -290,17 +316,23 @@ private fun DetailsList(
           Row(Modifier.fillMaxWidth()) {
             Text("Заказы: ${fmtInt(r.totalOrders)}", modifier = Modifier.weight(1f), color = TextBlack)
             Text("Расход: ${fmtMoney(r.totalSpend)}", color = TextBlack)
+
+
           }
           Spacer(Modifier.height(6.dp))
           Row(Modifier.fillMaxWidth()) {
             Text("Цена за заказ: ${fmtMoney(r.cpo)}", modifier = Modifier.weight(1f), color = TextBlack)
             Text("CTR: ${fmtPct(r.totalAds.ctr)} • CPC: ${fmtMoney(r.totalAds.cpc)}", color = TextBlack)
+
+
           }
 
           Spacer(Modifier.height(6.dp))
           Row(Modifier.fillMaxWidth()) {
             Text("Себест.: ${fmtMoney(r.cogs)}", modifier = Modifier.weight(1f), color = TextBlack)
             Text("Чистая прибыль: ${fmtMoney(net)}", color = TextBlack, fontWeight = FontWeight.SemiBold)
+
+
           }
 
           if (!r.hypothesis.isNullOrBlank() || r.price != null) {
@@ -311,6 +343,8 @@ private fun DetailsList(
               maxLines = 2,
               overflow = TextOverflow.Ellipsis
             )
+
+
           }
 
           Spacer(Modifier.height(10.dp))
@@ -324,6 +358,8 @@ private fun DetailsList(
                 Text(fmtInt(cv.value), color = TextBlack, fontWeight = FontWeight.SemiBold)
               }
             }
+
+
           }
 
           if (r.stockByColors.isNotEmpty()) {
@@ -336,6 +372,8 @@ private fun DetailsList(
                 Text(fmtInt(cv.value), color = TextBlack, fontWeight = FontWeight.SemiBold)
               }
             }
+
+
           }
 
           Spacer(Modifier.height(10.dp))
@@ -345,20 +383,28 @@ private fun DetailsList(
 
           if (rkEmpty) {
             Text("Нет РК", color = Color.Gray)
+
+
           } else {
             Text(
               "РК: расход ${fmtMoney(r.rk.spend)} • показы ${r.rk.impressions} • клики ${r.rk.clicks} • CTR ${fmtPct(r.rk.ctr)} • CPC ${fmtMoney(r.rk.cpc)}",
               color = Color.Gray
             )
+
+
           }
 
           if (igEmpty) {
             Text("Нет Instagram", color = Color.Gray)
+
+
           } else {
             Text(
               "Instagram: расход ${fmtMoney(r.ig.spend)} • показы ${r.ig.impressions} • клики ${r.ig.clicks} • CTR ${fmtPct(r.ig.ctr)} • CPC ${fmtMoney(r.ig.cpc)}",
               color = Color.Gray
             )
+
+
           }
         }
       }
@@ -414,7 +460,7 @@ private fun ArticleBottomBar(
         onClick = onArticleClick,
         modifier = Modifier.weight(1f)
       ) {
-        Text("Add/Edit article")
+        Text("Добавить/редактировать артикул")
       }
     }
   }
