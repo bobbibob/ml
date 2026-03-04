@@ -49,10 +49,10 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
 
   LaunchedEffect(Unit) { vm.init() }
 
-  BackHandler(enabled = (state.mode is ScreenMode.Details) || (state.mode is ScreenMode.ArticleEditor) || (state.mode is ScreenMode.BagsList)) {
+  BackHandler(enabled = (state.mode is ScreenMode.Details) || (state.mode is ScreenMode.ArticleEditor) || (state.mode is ScreenMode.ArticlePicker)) {
     when (state.mode) {
       is ScreenMode.ArticleEditor -> vm.backFromArticleEditor()
-      is ScreenMode.BagsList -> vm.closeBagsList()
+      is ScreenMode.ArticlePicker -> vm.closeArticlePicker()
       else -> vm.backToTimeline()
     }
   }
@@ -100,7 +100,7 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
 
 
           } else {
-            TextButton(onClick = { vm.openBagsList() }) { Text("Проверить", color = TextBlack) }
+            TextButton(onClick = { vm.openArticlePicker() }) { Text("Проверить", color = TextBlack) }
 
 
           }

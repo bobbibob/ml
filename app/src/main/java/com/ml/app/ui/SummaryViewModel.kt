@@ -21,7 +21,7 @@ import java.time.LocalDate
 
 sealed class ScreenMode {
   data object Timeline : ScreenMode()
-  data object BagsList : ScreenMode()
+  data object ArticlePicker : ScreenMode()
 data class Details(val date: LocalDate) : ScreenMode()
   data class ArticleEditor(val bagId: String? = null) : ScreenMode()
 
@@ -96,7 +96,7 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
     _state.value = _state.value.copy(mode = ScreenMode.ArticleEditor(bagId))
   }
 
-  fun backFromArticleEditor() {
+  fun backFromArticlePicker() { _state.value = _state.value.copy(mode = ScreenMode.Timeline) }\n\n  fun backFromArticleEditor() {
     _state.value = _state.value.copy(mode = ScreenMode.Timeline)
   }
 fun setDateFromPicker(date: LocalDate) {
@@ -171,16 +171,16 @@ fun setDateFromPicker(date: LocalDate) {
     }
   }
   
-  fun openBagsList() {
-    _state.value = _state.value.copy(mode = ScreenMode.BagsList)
-    refreshBagsList()
+  fun openArticlePicker() {
+    _state.value = _state.value.copy(mode = ScreenMode.ArticlePicker)
+    refreshArticlePicker()
   }
 
-  fun closeBagsList() {
+  fun closeArticlePicker() {
     _state.value = _state.value.copy(mode = ScreenMode.Timeline)
   }
 
-  fun refreshBagsList() {
+  fun refreshArticlePicker() {
     viewModelScope.launch(Dispatchers.IO) {
       try {
         val items = repo.listAllBags()
@@ -195,7 +195,7 @@ private fun refreshAfterSync() {
     when (state.value.mode) {
       is ScreenMode.Timeline -> refreshTimeline()
       is ScreenMode.Details -> refreshDetails()
-      is ScreenMode.BagsList -> refreshBagsList()
+      is ScreenMode.ArticlePicker -> refreshArticlePicker()
       is ScreenMode.ArticleEditor -> { /* stay */ }
     }
   }
