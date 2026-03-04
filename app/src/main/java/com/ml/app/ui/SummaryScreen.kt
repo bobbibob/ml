@@ -97,10 +97,6 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
           if (state.mode is ScreenMode.Details) {
             TextButton(onClick = { vm.backToTimeline() }) { Text("Назад", color = TextBlack) }
 
-            is ScreenMode.ArticleEditor -> AddEditArticleScreen(
-              bagId = (state.mode as ScreenMode.ArticleEditor).bagId,
-              onDone = { vm.backFromArticleEditor() }
-            )
 
           } else {
             TextButton(onClick = { vm.syncIfChanged() }) { Text("Проверить", color = TextBlack) }
