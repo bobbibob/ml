@@ -148,6 +148,11 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
       }
     }
 
+    ArticleBottomBar(
+      onArticleClick = { vm.syncIfChanged() },
+      modifier = Modifier.align(Alignment.BottomCenter)
+    )
+
     PullRefreshIndicator(
       refreshing = state.loading,
       state = pullState,
