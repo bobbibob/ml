@@ -13,8 +13,9 @@
         android:supportsRtl="true"
         android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
 
+        <!-- Указываем полный путь к классу, чтобы исключить ошибки -->
         <activity
-            android:name=".MainActivity"
+            android:name="com.ml.app.MainActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
