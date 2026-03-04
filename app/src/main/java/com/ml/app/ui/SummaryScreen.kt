@@ -49,9 +49,10 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
 
   LaunchedEffect(Unit) { vm.init() }
 
-  BackHandler(enabled = (state.mode is ScreenMode.Details) || (state.mode is ScreenMode.ArticleEditor)) {
+  BackHandler(enabled = (state.mode is ScreenMode.Details) || (state.mode is ScreenMode.ArticleEditor) || (state.mode is ScreenMode.BagsList)) {
     when (state.mode) {
       is ScreenMode.ArticleEditor -> vm.backFromArticleEditor()
+      is ScreenMode.BagsList -> vm.closeBagsList()
       else -> vm.backToTimeline()
     }
   }
@@ -99,7 +100,7 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
 
 
           } else {
-            TextButton(onClick = { vm.syncIfChanged() }) { Text("Проверить", color = TextBlack) }
+            TextButton(onClick = { vm.openBagsList() }) { Text("Проверить", color = TextBlack) }
 
 
           }
@@ -139,7 +140,7 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
           Button(
             onClick = { vm.syncIfChanged() },
             colors = ButtonDefaults.buttonColors(containerColor = MercadoBlue, contentColor = Color.White)
-          ) { Text("Обновить") }
+          ) { Text("Редактировать") }
         }
 
         when (state.mode) {

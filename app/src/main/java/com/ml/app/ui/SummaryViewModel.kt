@@ -21,7 +21,8 @@ import java.time.LocalDate
 
 sealed class ScreenMode {
   data object Timeline : ScreenMode()
-  data class Details(val date: LocalDate) : ScreenMode()
+  data object BagsList : ScreenMode()
+data class Details(val date: LocalDate) : ScreenMode()
   data class ArticleEditor(val bagId: String? = null) : ScreenMode()
 
 }
@@ -169,10 +170,32 @@ fun setDateFromPicker(date: LocalDate) {
       }
     }
   }
-  private fun refreshAfterSync() {
+  
+  fun openBagsList() {
+    _state.value = _state.value.copy(mode = ScreenMode.BagsList)
+    refreshBagsList()
+  }
+
+  fun closeBagsList() {
+    _state.value = _state.value.copy(mode = ScreenMode.Timeline)
+  }
+
+  fun refreshBagsList() {
+    viewModelScope.launch(Dispatchers.IO) {
+      try {
+        val items = repo.listAllBags()
+        _state.value = _state.value.copy(bagsList = items)
+      } catch (t: Throwable) {
+        _state.value = _state.value.copy(status = "Error: ${'$'}{t.message}")
+      }
+    }
+  }
+
+private fun refreshAfterSync() {
     when (state.value.mode) {
       is ScreenMode.Timeline -> refreshTimeline()
       is ScreenMode.Details -> refreshDetails()
+      is ScreenMode.BagsList -> refreshBagsList()
       is ScreenMode.ArticleEditor -> { /* stay */ }
     }
   }
