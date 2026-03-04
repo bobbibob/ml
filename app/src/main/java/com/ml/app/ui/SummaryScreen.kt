@@ -383,3 +383,28 @@ private fun BagThumb(absPath: String?) {
     Box(modifier = Modifier.size(size).clip(shape).background(Color(0xFFEAEAEA)))
   }
 }
+
+@Composable
+private fun ArticleBottomBar(
+  onArticleClick: () -> Unit,
+  modifier: Modifier = Modifier
+) {
+  Surface(
+    modifier = modifier.fillMaxWidth(),
+    tonalElevation = 4.dp
+  ) {
+    Row(
+      modifier = Modifier
+        .fillMaxWidth()
+        .padding(12.dp),
+      horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+      Button(
+        onClick = onArticleClick,
+        modifier = Modifier.weight(1f)
+      ) {
+        Text("Артикул")
+      }
+    }
+  }
+}
