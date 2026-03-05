@@ -24,6 +24,9 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.foundation.layout.width
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextOverflow
 
 @Composable
 fun AddEditArticleScreen(
@@ -136,7 +139,7 @@ fun AddEditArticleScreen(
       // Поэтому здесь просто держим буфер на случай, если ниже переменная называется иначе.
       var __globalPriceShadow by remember { mutableStateOf("") }
 
-      Text("Цвета", style = MaterialTheme.typography.titleMedium, color = TextBlack)
+      Text("Цвета", style = MaterialTheme.typography.titleMedium, color = Color.Black)
       Spacer(Modifier.height(8.dp))
 
       Row(verticalAlignment = Alignment.CenterVertically) {
@@ -157,8 +160,8 @@ fun AddEditArticleScreen(
           }
         )
         Column {
-          Text("Цена для всех цветов", color = TextBlack)
-          Text("если выключить — цена по каждому цвету", style = MaterialTheme.typography.bodySmall, color = TextGray)
+          Text("Цена для всех цветов", color = Color.Black)
+          Text("если выключить — цена по каждому цвету", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
         }
       }
 
@@ -187,7 +190,7 @@ fun AddEditArticleScreen(
             modifier = Modifier.weight(1f),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            color = TextBlack
+            color = Color.Black
           )
           Spacer(Modifier.width(8.dp))
           OutlinedTextField(
