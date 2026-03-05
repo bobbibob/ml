@@ -198,8 +198,8 @@ fun AddEditArticleScreen(
                 enabled = !priceForAllEnabled,
                 singleLine = true,
                 // пишем полным путём, чтобы не зависеть от импорта KeyboardOptions
-                keyboardOptions = androidx.compose.ui.text.input.KeyboardOptions(
-                  keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                keyboardOptions = androidx.compose.ui.text.input.androidx.compose.ui.text.input.KeyboardOptions(
+                  keyboardType = androidx.compose.ui.text.input.androidx.compose.ui.text.input.KeyboardType.Number
                 ),
                 modifier = Modifier.width(140.dp)
               )
@@ -236,8 +236,8 @@ fun AddEditArticleScreen(
         label = { Text("Цена (общая)") },
         enabled = priceForAllEnabled,
         singleLine = true,
-        keyboardOptions = androidx.compose.ui.text.input.KeyboardOptions(
-          keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+        keyboardOptions = androidx.compose.ui.text.input.androidx.compose.ui.text.input.KeyboardOptions(
+          keyboardType = androidx.compose.ui.text.input.androidx.compose.ui.text.input.KeyboardType.Number
         ),
         modifier = Modifier.fillMaxWidth()
       )
