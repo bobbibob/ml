@@ -266,3 +266,17 @@ private fun saveImageToPrivate(ctx: Context, bagId: String, uri: Uri): File {
   }
   return dst
 }
+
+fun loadArticleForEdit(
+    article: Article,
+    onLoad: (String, String, String) -> Unit
+) {
+    onLoad(article.name, article.description, article.photoUri ?: "")
+}
+
+fun deleteArticleById(
+    id: Long,
+    repository: ArticleRepository
+) {
+    repository.deleteById(id)
+}
