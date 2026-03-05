@@ -277,50 +277,6 @@ OutlinedTextField(
 
       Spacer(Modifier.height(14.dp))
 
-OutlinedTextField(
-        value = priceText,
-        onValueChange = { priceText = it },
-        label = { Text("Цена продажи") },
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-        modifier = Modifier.fillMaxWidth()
-      )
-      Spacer(Modifier.height(10.dp))
-
-      Text("Тип карточки")
-      Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        FilterChip(
-          selected = cardType == CardType.CLASSIC,
-          onClick = { cardType = CardType.CLASSIC },
-          label = { Text("Классика") }
-        )
-        FilterChip(
-          selected = cardType == CardType.PREMIUM,
-          onClick = { cardType = CardType.PREMIUM },
-          label = { Text("Премиум") }
-        )
-      }
-
-      Spacer(Modifier.height(10.dp))
-
-      OutlinedTextField(
-        value = cogsText,
-        onValueChange = { cogsText = it },
-        label = { Text("Себестоимость") },
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-        modifier = Modifier.fillMaxWidth()
-      )
-
-      Spacer(Modifier.height(14.dp))
-
-      Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Button(onClick = { pickPhoto.launch("image/*") }) { Text("Загрузить фото") }
-        if (photoPath != null) {
-          Text("OK", modifier = Modifier.padding(top = 10.dp))
-        }
-      }
-
-      Spacer(Modifier.height(14.dp))
-
       Text("Цвета")
       Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
         OutlinedTextField(
