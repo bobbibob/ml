@@ -6,6 +6,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -13,10 +14,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import kotlinx.coroutines.launch
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -198,8 +201,8 @@ fun AddEditArticleScreen(
                 enabled = !priceForAllEnabled,
                 singleLine = true,
                 // пишем полным путём, чтобы не зависеть от импорта KeyboardOptions
-                keyboardOptions = androidx.compose.ui.text.input.androidx.compose.ui.text.input.KeyboardOptions(
-                  keyboardType = androidx.compose.ui.text.input.androidx.compose.ui.text.input.KeyboardType.Number
+                keyboardOptions = androidx.compose.ui.text.input.KeyboardOptions(
+                  keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
                 ),
                 modifier = Modifier.width(140.dp)
               )
@@ -236,8 +239,8 @@ fun AddEditArticleScreen(
         label = { Text("Цена (общая)") },
         enabled = priceForAllEnabled,
         singleLine = true,
-        keyboardOptions = androidx.compose.ui.text.input.androidx.compose.ui.text.input.KeyboardOptions(
-          keyboardType = androidx.compose.ui.text.input.androidx.compose.ui.text.input.KeyboardType.Number
+        keyboardOptions = androidx.compose.ui.text.input.KeyboardOptions(
+          keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
         ),
         modifier = Modifier.fillMaxWidth()
       )
