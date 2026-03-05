@@ -2,7 +2,10 @@ package com.ml.app.ui
 
 import android.content.Context
 import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.
+// per-color prices
+val colorPrices = remember { mutableStateMapOf<String, String>() }
+rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -225,6 +228,53 @@ fun AddEditArticleScreen(
                 val gp = __globalPriceShadow.trim()
                 if (gp.isNotEmpty()) __colorPrices[v] = gp
               }
+
+/* ML_COLOR_LIST_V1 */
+Spacer(Modifier.height(12.dp))
+
+// Список цветов (с ценой рядом, если отключили "цена для всех")
+colors.forEach { c ->
+  Row(
+    modifier = Modifier.fillMaxWidth(),
+    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+  ) {
+    Text(
+      text = c,
+      modifier = Modifier.weight(1f),
+      maxLines = 1,
+      overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+    )
+
+    if (!priceForAllEnabled) {
+      OutlinedTextField(
+        value = (colorPrices[c] ?: priceAll),
+        onValueChange = { v -> colorPrices[c] = v },
+        singleLine = true,
+        modifier = Modifier.width(120.dp),
+        placeholder = { Text("Цена") }
+      )
+      Spacer(Modifier.width(8.dp))
+    } else {
+      // когда цена общая — показываем её как подсказку (не редактируется)
+      Text(
+        text = if (priceAll.isBlank()) "—" else priceAll,
+        modifier = Modifier.padding(horizontal = 8.dp),
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
+      )
+    }
+
+    TextButton(
+      onClick = {
+        colors.remove(c)
+        colorPrices.remove(c)
+      }
+    ) { Text("Удалить") }
+  }
+
+  Spacer(Modifier.height(8.dp))
+}
+/* ML_COLOR_LIST_V1 END */
             }
             __newColor = ""
           }
@@ -233,14 +283,6 @@ fun AddEditArticleScreen(
 
       Spacer(Modifier.height(16.dp))
       // --- /Цвета ---
-OutlinedTextField(
-        value = priceText,
-        onValueChange = { priceText = it },
-        label = { Text("Цена продажи") },
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-        modifier = Modifier.fillMaxWidth()
-      )
-      Spacer(Modifier.height(10.dp))
 
       Text("Тип карточки")
       Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
