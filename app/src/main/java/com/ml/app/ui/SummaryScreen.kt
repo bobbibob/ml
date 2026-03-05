@@ -3,10 +3,6 @@
 package com.ml.app.ui
 
 import android.app.DatePickerDialog
-import androidx.compose.material.ExperimentalMaterialApi
-import androidx.compose.material.pullrefresh.PullRefreshIndicator
-import androidx.compose.material.pullrefresh.pullRefresh
-import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -14,6 +10,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
@@ -44,7 +41,7 @@ private fun fmtInt(v: Double): String = v.roundToInt().toString()
 private fun fmtMoney(v: Double): String = String.format("%.2f", v)
 private fun fmtPct(v01: Double): String = String.format("%.2f%%", v01 * 100.0)
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
   val state by vm.state.collectAsState()
@@ -102,7 +99,7 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
 
 
           } else {
-            TextButton(onClick = { vm.syncIfChanged() }) { if (mode !is ScreenMode.ArticleEditor) Text("Проверить", color = TextBlack) }
+            TextButton(onClick = { vm.syncIfChanged() }) { Text("Проверить", color = TextBlack) }
 
 
           }
@@ -129,7 +126,21 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
           horizontalArrangement = Arrangement.spacedBy(12.dp),
           verticalAlignment = Alignment.CenterVertically
         ) {
+          Button(
+            onClick = { openDatePicker(state.selectedDate) { vm.setDateFromPicker(it) } },
+            colors = ButtonDefaults.buttonColors(containerColor = SoftGray, contentColor = TextBlack),
+            modifier = Modifier.weight(1f)
+          ) {
+            Text("Дата: ${state.selectedDate}", maxLines = 1, overflow = TextOverflow.Ellipsis)
 
+
+          }
+
+          Button(
+            onClick = { vm.syncIfChanged() },
+            colors = ButtonDefaults.buttonColors(containerColor = MercadoBlue, contentColor = Color.White)
+          ) { Text("Обновить") }
+        }
 
         when (state.mode) {
           is ScreenMode.Timeline -> TimelineList(
