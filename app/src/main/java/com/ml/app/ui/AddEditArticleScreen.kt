@@ -3,17 +3,16 @@ package com.ml.app.ui
 import android.content.Context
 import android.net.Uri
 import androidx.activity.compose.
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -27,6 +26,8 @@ import com.ml.app.data.SQLiteRepo
 import com.ml.app.domain.CardType
 import java.io.File
 import kotlinx.coroutines.launch
+
+
 
 
 // per-color prices
@@ -234,7 +235,7 @@ fun AddEditArticleScreen(
 /* ML_VARIANT_A_COLORS_V2 */
 Spacer(Modifier.height(12.dp))
 
-// список цветов
+// список цветов + цены
 __colors.forEach { c ->
   Row(
     modifier = Modifier.fillMaxWidth(),
@@ -247,7 +248,7 @@ __colors.forEach { c ->
       overflow = TextOverflow.Ellipsis,
     )
 
-    if (!__globalPriceShadow) {
+    if (!priceForAllEnabled) {
       OutlinedTextField(
         value = (colorPrices[c] ?: __globalPriceShadow),
         onValueChange = { v -> colorPrices[c] = v },
@@ -295,7 +296,7 @@ colors.forEach { c ->
 
     if (!priceForAllEnabled) {
       OutlinedTextField(
-        value = (colorPrices[c] ?: priceAll),
+        value = (colorPrices[c] ?: __globalPriceShadow),
         onValueChange = { v -> colorPrices[c] = v },
         singleLine = true,
         modifier = Modifier.width(120.dp),
@@ -305,7 +306,7 @@ colors.forEach { c ->
     } else {
       // когда цена общая — показываем её как подсказку (не редактируется)
       Text(
-        text = if (priceAll.isBlank()) "—" else priceAll,
+        text = if (__globalPriceShadow.isBlank()) "—" else __globalPriceShadow,
         modifier = Modifier.padding(horizontal = 8.dp),
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
