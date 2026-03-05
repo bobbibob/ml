@@ -102,7 +102,7 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
 
 
           } else {
-            TextButton(onClick = { vm.syncIfChanged() }) { Text("Проверить", color = TextBlack) }
+            TextButton(onClick = { vm.syncIfChanged() }) { if (mode !is ScreenMode.ArticleEditor) Text("Проверить", color = TextBlack) }
 
 
           }
@@ -129,21 +129,7 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
           horizontalArrangement = Arrangement.spacedBy(12.dp),
           verticalAlignment = Alignment.CenterVertically
         ) {
-          Button(
-            onClick = { openDatePicker(state.selectedDate) { vm.setDateFromPicker(it) } },
-            colors = ButtonDefaults.buttonColors(containerColor = SoftGray, contentColor = TextBlack),
-            modifier = Modifier.weight(1f)
-          ) {
-            Text("Дата: ${state.selectedDate}", maxLines = 1, overflow = TextOverflow.Ellipsis)
 
-
-          }
-
-          Button(
-            onClick = { vm.syncIfChanged() },
-            colors = ButtonDefaults.buttonColors(containerColor = MercadoBlue, contentColor = Color.White)
-          ) { Text("Обновить") }
-        }
 
         when (state.mode) {
           is ScreenMode.Timeline -> TimelineList(
