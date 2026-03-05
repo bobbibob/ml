@@ -2,7 +2,7 @@ name: Android CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "stable_build" ]
   pull_request:
 
 jobs:
@@ -27,6 +27,13 @@ jobs:
       - name: Build Debug APK
         run: ./gradlew :app:assembleDebug
 
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
       - name: Install sqlite3
         run: sudo apt-get update && sudo apt-get install -y sqlite3
 
@@ -35,51 +42,7 @@ jobs:
           set -e
           test -f testdata/data.sqlite
           ls -la testdata/data.sqlite
-
           echo "Tables:"
           sqlite3 testdata/data.sqlite ".tables"
-
           echo "svodka rows:"
           sqlite3 testdata/data.sqlite "SELECT COUNT(*) FROM svodka;"
-
-          echo "bags schema:"
-          sqlite3 testdata/data.sqlite "PRAGMA table_info(bags);"
-
-          echo "svodka schema:"
-          sqlite3 testdata/data.sqlite "PRAGMA table_info(svodka);"
-
-          echo "Timeline query check:"
-          sqlite3 testdata/data.sqlite "
-            SELECT s.date AS date,
-                   s.bag_id AS bag_id,
-                   COALESCE(b.bag_name, s.bag_id) AS bag_name,
-                   SUM(COALESCE(s.orders,0)) AS orders
-            FROM svodka s
-            LEFT JOIN bags b ON b.bag_id = s.bag_id
-            WHERE s.date IS NOT NULL AND s.date != ''
-              AND s.bag_id IS NOT NULL AND s.bag_id != ''
-            GROUP BY s.date, s.bag_id
-            ORDER BY s.date DESC, orders DESC
-            LIMIT 5;
-          "
-
-          echo "Details query check (one date):"
-          d="$(sqlite3 testdata/data.sqlite "SELECT date FROM svodka WHERE date IS NOT NULL AND date != '' ORDER BY date DESC LIMIT 1;")"
-          echo "Using date=$d"
-          sqlite3 testdata/data.sqlite "
-            SELECT s.bag_id AS bag_id,
-                   COALESCE(b.bag_name, s.bag_id) AS bag_name,
-                   SUM(COALESCE(s.orders,0)) AS orders
-            FROM svodka s
-            LEFT JOIN bags b ON b.bag_id = s.bag_id
-            WHERE s.date='$d' AND s.bag_id IS NOT NULL AND s.bag_id != ''
-            GROUP BY s.bag_id
-            ORDER BY orders DESC
-            LIMIT 5;
-          "
-
-      - name: Upload Debug APK artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
