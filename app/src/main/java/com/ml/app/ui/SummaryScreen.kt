@@ -98,7 +98,7 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
             TextButton(onClick = { vm.backToTimeline() }) { Text("Назад", color = TextBlack) }
 
           } else {
-            TextButton(onClick = { vm.syncIfChanged() }) { Text("Проверить", color = TextBlack) }
+            
 
           }
         }
@@ -132,10 +132,7 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
 
           }
 
-          Button(
-            onClick = { vm.syncIfChanged() },
-            colors = ButtonDefaults.buttonColors(containerColor = MercadoBlue, contentColor = Color.White)
-          ) { Text("Обновить") }
+          
         }
 
         when (state.mode) {
