@@ -13,22 +13,23 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardOptions
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddEditArticleScreen(
-  navController: NavController,
-  bagId: String? = null
+  // делаем опциональным для совместимости со старым вызовом без navController
+  navController: NavController? = null,
+  bagId: String? = null,
+  // добавляем обратно, чтобы старый SummaryScreen компилился
+  onDone: (() -> Unit)? = null
 ) {
   val scope = rememberCoroutineScope()
   val scroll = rememberScrollState()
 
-  // --- state (minimal, compile-safe) ---
   var name by remember { mutableStateOf("") }
   var sku by remember { mutableStateOf(bagId ?: "") }
 
@@ -38,7 +39,7 @@ fun AddEditArticleScreen(
     photoUri = uri
   }
 
-  // Colors + prices (Variant A)
+  // Variant A: Colors + prices
   val colors = remember { mutableStateListOf<String>() }
   var newColor by remember { mutableStateOf("") }
 
@@ -46,12 +47,10 @@ fun AddEditArticleScreen(
   var priceAll by remember { mutableStateOf("") }
   val colorPrices = remember { mutableStateMapOf<String, String>() }
 
-  // "dirty" flag for Save button
   var dirty by remember { mutableStateOf(false) }
 
   fun ensureColorPrice(color: String) {
     if (!colorPrices.containsKey(color)) {
-      // if switching to per-color, initialize from priceAll
       colorPrices[color] = priceAll
     }
   }
@@ -75,12 +74,7 @@ fun AddEditArticleScreen(
     if (priceForAllEnabled == enabled) return
     priceForAllEnabled = enabled
     if (!enabled) {
-      // moving to per-color: initialize all colors from current priceAll
-      for (c in colors) {
-        colorPrices[c] = priceAll
-      }
-    } else {
-      // moving to for-all: keep priceAll as-is, per-color stays but UI disables
+      for (c in colors) colorPrices[c] = priceAll
     }
     dirty = true
   }
@@ -96,7 +90,12 @@ fun AddEditArticleScreen(
           )
         },
         navigationIcon = {
-          TextButton(onClick = { navController.popBackStack() }) { Text("Назад") }
+          TextButton(
+            onClick = {
+              // если есть navController — назад, иначе зовём onDone (совместимость)
+              if (navController != null) navController.popBackStack() else onDone?.invoke()
+            }
+          ) { Text("Назад") }
         }
       )
     },
@@ -112,13 +111,13 @@ fun AddEditArticleScreen(
           Button(
             enabled = dirty,
             onClick = {
-              // пока заглушка — чтобы UI был рабочим и компилировался.
-              // дальше подключим запись в БД + сборку pack + upload в R2.
-              scope.launch { dirty = false }
+              // пока заглушка: только снять dirty, чтобы UI был рабочим
+              scope.launch {
+                dirty = false
+                onDone?.invoke()
+              }
             }
-          ) {
-            Text("Сохранить")
-          }
+          ) { Text("Сохранить") }
         }
       }
     }
@@ -129,8 +128,6 @@ fun AddEditArticleScreen(
         .padding(12.dp)
         .verticalScroll(scroll)
     ) {
-
-      // Basic fields
       OutlinedTextField(
         value = name,
         onValueChange = { name = it; dirty = true },
@@ -163,7 +160,7 @@ fun AddEditArticleScreen(
 
       Spacer(Modifier.height(18.dp))
 
-      // Variant A: Colors first
+      // Colors first (Variant A)
       Text("Цвета", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold))
       Spacer(Modifier.height(8.dp))
 
@@ -175,12 +172,7 @@ fun AddEditArticleScreen(
           modifier = Modifier.weight(1f)
         )
         Spacer(Modifier.width(10.dp))
-        Button(
-          onClick = {
-            addColor(newColor)
-            newColor = ""
-          }
-        ) { Text("Добавить") }
+        Button(onClick = { addColor(newColor); newColor = "" }) { Text("Добавить") }
       }
 
       Spacer(Modifier.height(10.dp))
@@ -199,22 +191,20 @@ fun AddEditArticleScreen(
             ) {
               Text(c, modifier = Modifier.weight(1f), color = Color.Black)
 
-              // Per-color price field (enabled only if checkbox OFF)
               OutlinedTextField(
                 value = colorPrices[c] ?: "",
-                onValueChange = {
-                  colorPrices[c] = it
-                  dirty = true
-                },
+                onValueChange = { colorPrices[c] = it; dirty = true },
                 label = { Text("Цена") },
                 enabled = !priceForAllEnabled,
                 singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                // пишем полным путём, чтобы не зависеть от импорта KeyboardOptions
+                keyboardOptions = androidx.compose.ui.text.input.KeyboardOptions(
+                  keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                ),
                 modifier = Modifier.width(140.dp)
               )
 
               Spacer(Modifier.width(8.dp))
-
               TextButton(onClick = { removeColor(c) }) { Text("Удалить") }
             }
           }
@@ -223,18 +213,18 @@ fun AddEditArticleScreen(
 
       Spacer(Modifier.height(18.dp))
 
-      // Price section (below colors)
       Text("Цена", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold))
       Spacer(Modifier.height(8.dp))
 
       Row(verticalAlignment = Alignment.CenterVertically) {
-        Checkbox(
-          checked = priceForAllEnabled,
-          onCheckedChange = { setPriceForAll(it) }
-        )
+        Checkbox(checked = priceForAllEnabled, onCheckedChange = { setPriceForAll(it) })
         Column {
           Text("Цена для всех цветов", color = Color.Black)
-          Text("Если выключить — цена задаётся отдельно для каждого цвета", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+          Text(
+            "Если выключить — цена задаётся отдельно для каждого цвета",
+            color = Color.Gray,
+            style = MaterialTheme.typography.bodySmall
+          )
         }
       }
 
@@ -246,11 +236,13 @@ fun AddEditArticleScreen(
         label = { Text("Цена (общая)") },
         enabled = priceForAllEnabled,
         singleLine = true,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        keyboardOptions = androidx.compose.ui.text.input.KeyboardOptions(
+          keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+        ),
         modifier = Modifier.fillMaxWidth()
       )
 
-      Spacer(Modifier.height(80.dp)) // bottom padding for button
+      Spacer(Modifier.height(80.dp))
     }
   }
 }
