@@ -65,4 +65,8 @@ implementation(platform("androidx.compose:compose-bom:2024.06.00"))
   implementation("org.json:json:20240303")
 
   debugImplementation("androidx.compose.ui:ui-tooling")
+  implementation("androidx.navigation:navigation-compose:2.7.7")
+
+  implementation("androidx.compose.foundation:foundation")
+
 }
