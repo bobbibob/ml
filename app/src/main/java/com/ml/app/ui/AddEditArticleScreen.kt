@@ -1,243 +1,255 @@
 package com.ml.app.ui
 
+import android.content.Context
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.navigation.NavController
+import com.ml.app.data.CardTypeStore
+import com.ml.app.data.SQLiteRepo
+import com.ml.app.domain.CardType
 import kotlinx.coroutines.launch
+import java.io.File
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddEditArticleScreen(
-  // делаем опциональным для совместимости со старым вызовом без navController
-  navController: NavController? = null,
-  bagId: String? = null,
-  // добавляем обратно, чтобы старый SummaryScreen компилился
-  onDone: (() -> Unit)? = null
+  bagId: String?,
+  onDone: () -> Unit
 ) {
+  val ctx = LocalContext.current
   val scope = rememberCoroutineScope()
-  val scroll = rememberScrollState()
+  val repo = remember { SQLiteRepo(ctx) }
+  val typeStore = remember { CardTypeStore(ctx) }
+
+  var id by remember { mutableStateOf(bagId) }
 
   var name by remember { mutableStateOf("") }
-  var sku by remember { mutableStateOf(bagId ?: "") }
+  var hypothesis by remember { mutableStateOf("") }
+  var priceText by remember { mutableStateOf("") }
+  var cogsText by remember { mutableStateOf("") }
+  var cardType by remember { mutableStateOf(CardType.CLASSIC) }
+  var photoPath by remember { mutableStateOf<String?>(null) }
 
-  // Photo
-  var photoUri by remember { mutableStateOf<Uri?>(null) }
-  val pickPhoto = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-    photoUri = uri
-  }
-
-  // Variant A: Colors + prices
   val colors = remember { mutableStateListOf<String>() }
   var newColor by remember { mutableStateOf("") }
 
-  var priceForAllEnabled by remember { mutableStateOf(true) }
-  var priceAll by remember { mutableStateOf("") }
-  val colorPrices = remember { mutableStateMapOf<String, String>() }
+  var status by remember { mutableStateOf("") }
+  var saving by remember { mutableStateOf(false) }
 
-  var dirty by remember { mutableStateOf(false) }
+  fun parseDoubleOrNull(s: String): Double? =
+    s.trim().replace(",", ".").toDoubleOrNull()
 
-  fun ensureColorPrice(color: String) {
-    if (!colorPrices.containsKey(color)) {
-      colorPrices[color] = priceAll
+  // load existing if editing
+  LaunchedEffect(id) {
+    val curId = id ?: return@LaunchedEffect
+    val row = repo.getBagUser(curId)
+    if (row != null) {
+      name = row.name.orEmpty()
+      hypothesis = row.hypothesis.orEmpty()
+      priceText = row.price?.toString().orEmpty()
+      cogsText = row.cogs?.toString().orEmpty()
+      photoPath = row.photoPath
+      cardType = when ((row.cardType ?: "CLASSIC").uppercase()) {
+        "PREMIUM" -> CardType.PREMIUM
+        else -> CardType.CLASSIC
+      }
+    } else {
+      // если нет bag_user записи — тип берём из bag_card_type
+      val types = typeStore.getTypes(listOf(curId))
+      cardType = types[curId] ?: CardType.CLASSIC
     }
+    colors.clear()
+    colors.addAll(repo.getBagUserColors(curId))
   }
 
-  fun addColor(c: String) {
-    val cc = c.trim()
-    if (cc.isBlank()) return
-    if (colors.contains(cc)) return
-    colors.add(cc)
-    ensureColorPrice(cc)
-    dirty = true
-  }
-
-  fun removeColor(c: String) {
-    colors.remove(c)
-    colorPrices.remove(c)
-    dirty = true
-  }
-
-  fun setPriceForAll(enabled: Boolean) {
-    if (priceForAllEnabled == enabled) return
-    priceForAllEnabled = enabled
-    if (!enabled) {
-      for (c in colors) colorPrices[c] = priceAll
-    }
-    dirty = true
-  }
-
-  Scaffold(
-    topBar = {
-      TopAppBar(
-        title = {
-          Text(
-            if (bagId == null) "Добавить артикул" else "Редактировать артикул",
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-          )
-        },
-        navigationIcon = {
-          TextButton(
-            onClick = {
-              // если есть navController — назад, иначе зовём onDone (совместимость)
-              if (navController != null) navController.popBackStack() else onDone?.invoke()
-            }
-          ) { Text("Назад") }
-        }
-      )
-    },
-    bottomBar = {
-      Surface(tonalElevation = 3.dp) {
-        Row(
-          Modifier
-            .fillMaxWidth()
-            .padding(12.dp),
-          verticalAlignment = Alignment.CenterVertically
-        ) {
-          Spacer(Modifier.weight(1f))
-          Button(
-            enabled = dirty,
-            onClick = {
-              // пока заглушка: только снять dirty, чтобы UI был рабочим
-              scope.launch {
-                dirty = false
-                onDone?.invoke()
-              }
-            }
-          ) { Text("Сохранить") }
-        }
+  // photo picker
+  val pickPhoto = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+    if (uri == null) return@rememberLauncherForActivityResult
+    scope.launch {
+      try {
+        val curId = id ?: ("u_" + System.currentTimeMillis().toString()).also { id = it }
+        val dst = saveImageToPrivate(ctx, curId, uri)
+        photoPath = dst.absolutePath
+        status = "Фото выбрано"
+      } catch (t: Throwable) {
+        status = "Ошибка фото: ${t.message}"
       }
     }
-  ) { pad ->
+  }
+
+  Card(
+    modifier = Modifier
+      .fillMaxWidth()
+      .padding(12.dp)
+  ) {
     Column(
-      Modifier
-        .padding(pad)
-        .padding(12.dp)
-        .verticalScroll(scroll)
+      modifier = Modifier
+        .padding(14.dp)
+        .verticalScroll(rememberScrollState())
     ) {
+      Text(
+        text = if (id == null) "Добавить артикул" else "Редактировать артикул",
+        style = MaterialTheme.typography.titleLarge
+      )
+      Spacer(Modifier.height(12.dp))
+
       OutlinedTextField(
         value = name,
-        onValueChange = { name = it; dirty = true },
+        onValueChange = { name = it },
         label = { Text("Название") },
         modifier = Modifier.fillMaxWidth()
       )
       Spacer(Modifier.height(10.dp))
 
       OutlinedTextField(
-        value = sku,
-        onValueChange = { sku = it; dirty = true },
-        label = { Text("Артикул / SKU") },
+        value = hypothesis,
+        onValueChange = { hypothesis = it },
+        label = { Text("Гипотеза") },
+        modifier = Modifier.fillMaxWidth()
+      )
+      Spacer(Modifier.height(10.dp))
+
+      OutlinedTextField(
+        value = priceText,
+        onValueChange = { priceText = it },
+        label = { Text("Цена продажи") },
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        modifier = Modifier.fillMaxWidth()
+      )
+      Spacer(Modifier.height(10.dp))
+
+      Text("Тип карточки")
+      Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        FilterChip(
+          selected = cardType == CardType.CLASSIC,
+          onClick = { cardType = CardType.CLASSIC },
+          label = { Text("Классика") }
+        )
+        FilterChip(
+          selected = cardType == CardType.PREMIUM,
+          onClick = { cardType = CardType.PREMIUM },
+          label = { Text("Премиум") }
+        )
+      }
+
+      Spacer(Modifier.height(10.dp))
+
+      OutlinedTextField(
+        value = cogsText,
+        onValueChange = { cogsText = it },
+        label = { Text("Себестоимость") },
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         modifier = Modifier.fillMaxWidth()
       )
 
       Spacer(Modifier.height(14.dp))
 
-      // Photo (single button)
-      Row(verticalAlignment = Alignment.CenterVertically) {
+      Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Button(onClick = { pickPhoto.launch("image/*") }) { Text("Загрузить фото") }
-        Spacer(Modifier.width(10.dp))
-        Text(
-          text = photoUri?.toString() ?: "Фото не выбрано",
-          color = Color.Gray,
-          maxLines = 1,
-          overflow = TextOverflow.Ellipsis,
-          modifier = Modifier.weight(1f)
-        )
+        if (photoPath != null) {
+          Text("OK", modifier = Modifier.padding(top = 10.dp))
+        }
       }
 
-      Spacer(Modifier.height(18.dp))
+      Spacer(Modifier.height(14.dp))
 
-      // Colors first (Variant A)
-      Text("Цвета", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold))
-      Spacer(Modifier.height(8.dp))
-
-      Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+      Text("Цвета")
+      Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
         OutlinedTextField(
           value = newColor,
           onValueChange = { newColor = it },
-          label = { Text("Добавить цвет") },
+          label = { Text("Новый цвет") },
           modifier = Modifier.weight(1f)
         )
-        Spacer(Modifier.width(10.dp))
-        Button(onClick = { addColor(newColor); newColor = "" }) { Text("Добавить") }
+        Button(
+          onClick = {
+            val v = newColor.trim()
+            if (v.isNotBlank() && !colors.contains(v)) colors.add(v)
+            newColor = ""
+          }
+        ) { Text("Добавить") }
       }
 
-      Spacer(Modifier.height(10.dp))
-
-      if (colors.isEmpty()) {
-        Text("Нет цветов", color = Color.Gray)
-      } else {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+      if (colors.isNotEmpty()) {
+        Spacer(Modifier.height(8.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
           colors.forEach { c ->
-            Row(
-              Modifier
-                .fillMaxWidth()
-                .background(Color(0xFFF5F5F5))
-                .padding(10.dp),
-              verticalAlignment = Alignment.CenterVertically
-            ) {
-              Text(c, modifier = Modifier.weight(1f), color = Color.Black)
-
-              OutlinedTextField(
-                value = colorPrices[c] ?: "",
-                onValueChange = { colorPrices[c] = it; dirty = true },
-                label = { Text("Цена") },
-                enabled = !priceForAllEnabled,
-                singleLine = true,
-                ),
-                modifier = Modifier.width(140.dp)
-              )
-
-              Spacer(Modifier.width(8.dp))
-              TextButton(onClick = { removeColor(c) }) { Text("Удалить") }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+              Text(c)
+              TextButton(onClick = { colors.remove(c) }) { Text("Удалить") }
             }
           }
         }
       }
 
-      Spacer(Modifier.height(18.dp))
+      Spacer(Modifier.height(16.dp))
 
-      Text("Цена", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold))
-      Spacer(Modifier.height(8.dp))
+      Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Button(
+          enabled = !saving,
+          onClick = {
+            scope.launch {
+              saving = true
+              status = ""
+              try {
+                val curId = id ?: ("u_" + System.currentTimeMillis().toString()).also { id = it }
 
-      Row(verticalAlignment = Alignment.CenterVertically) {
-        Checkbox(checked = priceForAllEnabled, onCheckedChange = { setPriceForAll(it) })
-        Column {
-          Text("Цена для всех цветов", color = Color.Black)
-          Text(
-            "Если выключить — цена задаётся отдельно для каждого цвета",
-            color = Color.Gray,
-            style = MaterialTheme.typography.bodySmall
-          )
-        }
+                val price = parseDoubleOrNull(priceText)
+                val cogs = parseDoubleOrNull(cogsText)
+
+                // 1) bag_user + colors
+                repo.upsertBagUser(
+                  bagId = curId,
+                  name = name.ifBlank { null },
+                  hypothesis = hypothesis.ifBlank { null },
+                  price = price,
+                  cogs = cogs,
+                  cardType = cardType.name,
+                  photoPath = photoPath
+                )
+                repo.replaceBagUserColors(curId, colors.toList())
+
+                // 2) bag_card_type (чтобы прибыль считалась сразу)
+                typeStore.setType(curId, cardType)
+
+                status = "Сохранено"
+                onDone()
+              } catch (t: Throwable) {
+                status = "Ошибка: ${t.message}"
+              } finally {
+                saving = false
+              }
+            }
+          }
+        ) { Text(if (saving) "Сохраняю…" else "Сохранить") }
+
+        OutlinedButton(onClick = onDone) { Text("Отмена") }
       }
 
-      Spacer(Modifier.height(8.dp))
-
-      OutlinedTextField(
-        value = priceAll,
-        onValueChange = { priceAll = it; dirty = true },
-        label = { Text("Цена (общая)") },
-        enabled = priceForAllEnabled,
-        singleLine = true,
-        ),
-        modifier = Modifier.fillMaxWidth()
-      )
-
-      Spacer(Modifier.height(80.dp))
+      if (status.isNotBlank()) {
+        Spacer(Modifier.height(10.dp))
+        Text(status)
+      }
     }
   }
+}
+
+private fun saveImageToPrivate(ctx: Context, bagId: String, uri: Uri): File {
+  val dir = File(ctx.filesDir, "user_images")
+  if (!dir.exists()) dir.mkdirs()
+  val dst = File(dir, "${bagId}.jpg")
+  ctx.contentResolver.openInputStream(uri).use { input ->
+    requireNotNull(input) { "Cannot open input stream" }
+    dst.outputStream().use { out -> input.copyTo(out) }
+  }
+  return dst
 }

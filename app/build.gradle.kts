@@ -16,7 +16,7 @@ android {
     minSdk = 26
     targetSdk = 34
     versionCode = 2
-    versionName = "1.0"
+    versionName = "1.0 Альфа"
 
     val r2Endpoint = System.getenv("R2_ENDPOINT") ?: "https://REPLACE_ME.r2.cloudflarestorage.com"
     val r2Bucket = System.getenv("R2_BUCKET") ?: "ml-br"
