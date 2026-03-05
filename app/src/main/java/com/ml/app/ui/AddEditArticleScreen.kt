@@ -3,33 +3,35 @@ package com.ml.app.ui
 import android.content.Context
 import android.net.Uri
 import androidx.activity.compose.
-// per-color prices
-val colorPrices = remember { mutableStateMapOf<String, String>() }
-rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.ml.app.data.CardTypeStore
 import com.ml.app.data.SQLiteRepo
 import com.ml.app.domain.CardType
-import kotlinx.coroutines.launch
 import java.io.File
-import androidx.compose.runtime.mutableStateMapOf
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
-import androidx.compose.foundation.layout.width
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.style.TextOverflow
+import kotlinx.coroutines.launch
+
+
+// per-color prices
+val colorPrices = remember { mutableStateMapOf<String, String>() }
+rememberLauncherForActivityResult
 
 @Composable
 fun AddEditArticleScreen(
@@ -228,6 +230,52 @@ fun AddEditArticleScreen(
                 val gp = __globalPriceShadow.trim()
                 if (gp.isNotEmpty()) __colorPrices[v] = gp
               }
+
+/* ML_VARIANT_A_COLORS_V2 */
+Spacer(Modifier.height(12.dp))
+
+// список цветов
+__colors.forEach { c ->
+  Row(
+    modifier = Modifier.fillMaxWidth(),
+    verticalAlignment = Alignment.CenterVertically
+  ) {
+    Text(
+      text = c,
+      modifier = Modifier.weight(1f),
+      maxLines = 1,
+      overflow = TextOverflow.Ellipsis,
+    )
+
+    if (!__globalPriceShadow) {
+      OutlinedTextField(
+        value = (colorPrices[c] ?: __globalPriceShadow),
+        onValueChange = { v -> colorPrices[c] = v },
+        singleLine = true,
+        modifier = Modifier.width(120.dp),
+        placeholder = { Text("Цена") }
+      )
+      Spacer(Modifier.width(8.dp))
+    } else {
+      Text(
+        text = if (__globalPriceShadow.isBlank()) "—" else __globalPriceShadow,
+        modifier = Modifier.padding(horizontal = 8.dp),
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
+      )
+    }
+
+    TextButton(
+      onClick = {
+        __colors.remove(c)
+        colorPrices.remove(c)
+      }
+    ) { Text("Удалить") }
+  }
+
+  Spacer(Modifier.height(8.dp))
+}
+/* ML_VARIANT_A_COLORS_V2 END */
 
 /* ML_COLOR_LIST_V1 */
 Spacer(Modifier.height(12.dp))
