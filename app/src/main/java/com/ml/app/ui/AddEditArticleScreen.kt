@@ -28,22 +28,35 @@ fun AddEditArticleScreen(
   val ctx = LocalContext.current
   val scope = rememberCoroutineScope()
   val repo = remember { SQLiteRepo(ctx) }
+    var editingArticleId by remember { mutableStateOf<Long?>(null) }
   val typeStore = remember { CardTypeStore(ctx) }
+    var editingArticleId by remember { mutableStateOf<Long?>(null) }
 
   var id by remember { mutableStateOf(bagId) }
+    var editingArticleId by remember { mutableStateOf<Long?>(null) }
 
   var name by remember { mutableStateOf("") }
+    var editingArticleId by remember { mutableStateOf<Long?>(null) }
   var hypothesis by remember { mutableStateOf("") }
+    var editingArticleId by remember { mutableStateOf<Long?>(null) }
   var priceText by remember { mutableStateOf("") }
+    var editingArticleId by remember { mutableStateOf<Long?>(null) }
   var cogsText by remember { mutableStateOf("") }
+    var editingArticleId by remember { mutableStateOf<Long?>(null) }
   var cardType by remember { mutableStateOf(CardType.CLASSIC) }
+    var editingArticleId by remember { mutableStateOf<Long?>(null) }
   var photoPath by remember { mutableStateOf<String?>(null) }
+    var editingArticleId by remember { mutableStateOf<Long?>(null) }
 
   val colors = remember { mutableStateListOf<String>() }
+    var editingArticleId by remember { mutableStateOf<Long?>(null) }
   var newColor by remember { mutableStateOf("") }
+    var editingArticleId by remember { mutableStateOf<Long?>(null) }
 
   var status by remember { mutableStateOf("") }
+    var editingArticleId by remember { mutableStateOf<Long?>(null) }
   var saving by remember { mutableStateOf(false) }
+    var editingArticleId by remember { mutableStateOf<Long?>(null) }
 
   fun parseDoubleOrNull(s: String): Double? =
     s.trim().replace(",", ".").toDoubleOrNull()
