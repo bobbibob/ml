@@ -128,9 +128,7 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
             colors = ButtonDefaults.buttonColors(containerColor = SoftGray, contentColor = TextBlack),
             modifier = Modifier.weight(1f)
           ) {
-            
-if (state.screenMode != ScreenMode.EDITOR) Text("Дата: ${state.selectedDate}", maxLines = 1, overflow = TextOverflow.Ellipsis)
-
+            Text("Дата: ${state.selectedDate}", maxLines = 1, overflow = TextOverflow.Ellipsis)
 
           }
 
@@ -154,7 +152,7 @@ if (state.screenMode != ScreenMode.EDITOR) Text("Дата: ${state.selectedDate}
               bagId = (state.mode as ScreenMode.ArticleEditor).bagId,
               onDone = { vm.backFromArticleEditor() }
             )
-
+}
 
         if (state.status.isNotBlank()) {
           Text(text = state.status, modifier = Modifier.padding(12.dp), color = Color.Gray)
@@ -173,7 +171,7 @@ if (state.screenMode != ScreenMode.EDITOR) Text("Дата: ${state.selectedDate}
       modifier = Modifier.align(Alignment.TopCenter)
     )
   }
-
+}
 
 @Composable
 private fun TimelineList(
@@ -389,7 +387,7 @@ private fun DetailsList(
       }
     }
   }
-
+}
 
 @Composable
 private fun TypePill(text: String, selected: Boolean) {
@@ -402,7 +400,7 @@ private fun TypePill(text: String, selected: Boolean) {
   ) {
     Text(text = text, color = TextBlack, fontWeight = FontWeight.SemiBold)
   }
-
+}
 
 @Composable
 private fun BagThumb(absPath: String?) {
@@ -418,7 +416,7 @@ private fun BagThumb(absPath: String?) {
   } else {
     Box(modifier = Modifier.size(size).clip(shape).background(Color(0xFFEAEAEA)))
   }
-
+}
 
 @Composable
 private fun ArticleBottomBar(
@@ -443,4 +441,4 @@ private fun ArticleBottomBar(
       }
     }
   }
-
+}
