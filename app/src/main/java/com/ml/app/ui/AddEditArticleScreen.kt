@@ -19,7 +19,6 @@ import com.ml.app.data.SQLiteRepo
 import com.ml.app.domain.CardType
 import kotlinx.coroutines.launch
 import java.io.File
-
 @Composable
 fun AddEditArticleScreen(
   bagId: String?,
@@ -30,37 +29,19 @@ fun AddEditArticleScreen(
   val repo = remember { SQLiteRepo(ctx) }
     var editingArticleId by remember { mutableStateOf<Long?>(null) }
   val typeStore = remember { CardTypeStore(ctx) }
-    var editingArticleId by remember { mutableStateOf<Long?>(null) }
-
   var id by remember { mutableStateOf(bagId) }
-    var editingArticleId by remember { mutableStateOf<Long?>(null) }
-
   var name by remember { mutableStateOf("") }
-    var editingArticleId by remember { mutableStateOf<Long?>(null) }
   var hypothesis by remember { mutableStateOf("") }
-    var editingArticleId by remember { mutableStateOf<Long?>(null) }
   var priceText by remember { mutableStateOf("") }
-    var editingArticleId by remember { mutableStateOf<Long?>(null) }
   var cogsText by remember { mutableStateOf("") }
-    var editingArticleId by remember { mutableStateOf<Long?>(null) }
   var cardType by remember { mutableStateOf(CardType.CLASSIC) }
-    var editingArticleId by remember { mutableStateOf<Long?>(null) }
   var photoPath by remember { mutableStateOf<String?>(null) }
-    var editingArticleId by remember { mutableStateOf<Long?>(null) }
-
   val colors = remember { mutableStateListOf<String>() }
-    var editingArticleId by remember { mutableStateOf<Long?>(null) }
   var newColor by remember { mutableStateOf("") }
-    var editingArticleId by remember { mutableStateOf<Long?>(null) }
-
   var status by remember { mutableStateOf("") }
-    var editingArticleId by remember { mutableStateOf<Long?>(null) }
   var saving by remember { mutableStateOf(false) }
-    var editingArticleId by remember { mutableStateOf<Long?>(null) }
-
   fun parseDoubleOrNull(s: String): Double? =
     s.trim().replace(",", ".").toDoubleOrNull()
-
   // load existing if editing
   LaunchedEffect(id) {
     val curId = id ?: return@LaunchedEffect
@@ -83,7 +64,6 @@ fun AddEditArticleScreen(
     colors.clear()
     colors.addAll(repo.getBagUserColors(curId))
   }
-
   // photo picker
   val pickPhoto = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
     if (uri == null) return@rememberLauncherForActivityResult
@@ -95,10 +75,6 @@ fun AddEditArticleScreen(
         status = "Фото выбрано"
       } catch (t: Throwable) {
         status = "Ошибка фото: ${t.message}"
-      }
-    }
-  }
-
   Card(
     modifier = Modifier
       .fillMaxWidth()
@@ -114,32 +90,19 @@ fun AddEditArticleScreen(
         style = MaterialTheme.typography.titleLarge
       )
       Spacer(Modifier.height(12.dp))
-
       OutlinedTextField(
         value = name,
         onValueChange = { name = it },
         label = { Text("Название") },
         modifier = Modifier.fillMaxWidth()
-      )
       Spacer(Modifier.height(10.dp))
-
-      OutlinedTextField(
         value = hypothesis,
         onValueChange = { hypothesis = it },
         label = { Text("Гипотеза") },
-        modifier = Modifier.fillMaxWidth()
-      )
-      Spacer(Modifier.height(10.dp))
-
-      OutlinedTextField(
         value = priceText,
         onValueChange = { priceText = it },
         label = { Text("Цена продажи") },
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-        modifier = Modifier.fillMaxWidth()
-      )
-      Spacer(Modifier.height(10.dp))
-
       Text("Тип карточки")
       Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         FilterChip(
@@ -147,34 +110,18 @@ fun AddEditArticleScreen(
           onClick = { cardType = CardType.CLASSIC },
           label = { Text("Классика") }
         )
-        FilterChip(
           selected = cardType == CardType.PREMIUM,
           onClick = { cardType = CardType.PREMIUM },
           label = { Text("Премиум") }
-        )
-      }
-
-      Spacer(Modifier.height(10.dp))
-
-      OutlinedTextField(
         value = cogsText,
         onValueChange = { cogsText = it },
         label = { Text("Себестоимость") },
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-        modifier = Modifier.fillMaxWidth()
-      )
-
       Spacer(Modifier.height(14.dp))
-
       Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Button(onClick = { pickPhoto.launch("image/*") }) { Text("Загрузить фото") }
         if (photoPath != null) {
           Text("OK", modifier = Modifier.padding(top = 10.dp))
         }
-      }
-
-      Spacer(Modifier.height(14.dp))
-
       Text("Цвета")
       Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
         OutlinedTextField(
@@ -182,7 +129,6 @@ fun AddEditArticleScreen(
           onValueChange = { newColor = it },
           label = { Text("Новый цвет") },
           modifier = Modifier.weight(1f)
-        )
         Button(
           onClick = {
             val v = newColor.trim()
@@ -190,8 +136,6 @@ fun AddEditArticleScreen(
             newColor = ""
           }
         ) { Text("Добавить") }
-      }
-
       if (colors.isNotEmpty()) {
         Spacer(Modifier.height(8.dp))
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -200,25 +144,15 @@ fun AddEditArticleScreen(
               Text(c)
               TextButton(onClick = { colors.remove(c) }) { Text("Удалить") }
             }
-          }
-        }
-      }
-
       Spacer(Modifier.height(16.dp))
-
-      Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Button(
           enabled = !saving,
-          onClick = {
             scope.launch {
               saving = true
               status = ""
               try {
                 val curId = id ?: ("u_" + System.currentTimeMillis().toString()).also { id = it }
-
                 val price = parseDoubleOrNull(priceText)
                 val cogs = parseDoubleOrNull(cogsText)
-
                 // 1) bag_user + colors
                 repo.upsertBagUser(
                   bagId = curId,
@@ -230,10 +164,8 @@ fun AddEditArticleScreen(
                   photoPath = photoPath
                 )
                 repo.replaceBagUserColors(curId, colors.toList())
-
                 // 2) bag_card_type (чтобы прибыль считалась сразу)
                 typeStore.setType(curId, cardType)
-
                 status = "Сохранено"
                 onDone()
               } catch (t: Throwable) {
@@ -241,21 +173,12 @@ fun AddEditArticleScreen(
               } finally {
                 saving = false
               }
-            }
-          }
         ) { Text(if (saving) "Сохраняю…" else "Сохранить") }
-
         OutlinedButton(onClick = onDone) { Text("Отмена") }
-      }
-
       if (status.isNotBlank()) {
         Spacer(Modifier.height(10.dp))
         Text(status)
-      }
-    }
-  }
 }
-
 private fun saveImageToPrivate(ctx: Context, bagId: String, uri: Uri): File {
   val dir = File(ctx.filesDir, "user_images")
   if (!dir.exists()) dir.mkdirs()
@@ -263,20 +186,4 @@ private fun saveImageToPrivate(ctx: Context, bagId: String, uri: Uri): File {
   ctx.contentResolver.openInputStream(uri).use { input ->
     requireNotNull(input) { "Cannot open input stream" }
     dst.outputStream().use { out -> input.copyTo(out) }
-  }
   return dst
-}
-
-fun loadArticleForEdit(
-    article: Article,
-    onLoad: (String, String, String) -> Unit
-) {
-    onLoad(article.name, article.description, article.photoUri ?: "")
-}
-
-fun deleteArticleById(
-    id: Long,
-    repository: ArticleRepository
-) {
-    repository.deleteById(id)
-}
