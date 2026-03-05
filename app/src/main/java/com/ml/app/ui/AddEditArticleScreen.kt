@@ -1,38 +1,31 @@
 package com.ml.app.ui
 
-import android.content.Context
 import android.net.Uri
-import androidx.activity.compose.
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.runtime.mutableStateMapOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.ml.app.data.CardTypeStore
-import com.ml.app.data.SQLiteRepo
-import com.ml.app.domain.CardType
-import java.io.File
+import androidx.navigation.NavController
 import kotlinx.coroutines.launch
-
-
-
-
-// per-color prices
-val colorPrices = remember { mutableStateMapOf<String, String>() }
-rememberLauncherForActivityResult
 
 @Composable
 fun AddEditArticleScreen(
