@@ -129,7 +129,7 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
             modifier = Modifier.weight(1f)
           ) {
             
-Text("Дата: ${state.selectedDate}", maxLines = 1, overflow = TextOverflow.Ellipsis)
+if (state.screenMode != ScreenMode.EDITOR) Text("Дата: ${state.selectedDate}", maxLines = 1, overflow = TextOverflow.Ellipsis)
 
 
           }
