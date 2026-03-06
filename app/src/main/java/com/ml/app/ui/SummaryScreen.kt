@@ -46,13 +46,16 @@ private fun fmtPct(v01: Double): String = String.format("%.2f%%", v01 * 100.0)
 fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
   val state by vm.state.collectAsState()
   val ctx = LocalContext.current
+  var showArticlePicker by remember { mutableStateOf(false) }
 
-  LaunchedEffect(Unit) { vm.init() }
 
-  BackHandler(enabled = (state.mode is ScreenMode.Details) || (state.mode is ScreenMode.ArticleEditor)) {
-    when (state.mode) {
-      is ScreenMode.ArticleEditor -> vm.backFromArticleEditor()
+  BackHandler(enabled = showArticlePicker || (state.mode is ScreenMode.Details) || (state.mode is ScreenMode.ArticleEditor)) {
+    when {
+      showArticlePicker -> showArticlePicker = false
+      state.mode is ScreenMode.ArticleEditor -> vm.backFromArticleEditor()
       else -> vm.backToTimeline()
+    }
+  }
     }
   }
 
@@ -113,7 +116,7 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
             }
             Text(if (state.status.isNotBlank()) state.status else "Скачиваем базу…", color = TextBlack)
 
-          }
+            if (!showArticlePicker           }          } state.mode !is ScreenMode.ArticleEditor) {
         }
       } else {
           if (state.mode !is ScreenMode.ArticleEditor) {
@@ -133,24 +136,36 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
             }
 
           
-          }
-        }
+          if (showArticlePicker) {
+            ArticlePickerScreen(
+              bagIds = state.timeline.flatMap { day -> day.byBags.map { bag -> bag.bagId } }.distinct().sorted(),
+              onCreateNew = {
+                showArticlePicker = false
+                vm.openArticleEditor()
+              },
+              onPick = { pickedBagId ->
+                showArticlePicker = false
+                vm.openArticleEditor(pickedBagId)
+              },
+              onCancel = { showArticlePicker = false }
+            )
+          } else when (state.mode) {
+            is ScreenMode.Timeline -> TimelineList(
+              items = state.timeline,
+              cardTypes = state.cardTypes,
+              onOpen = { vm.openDetails(LocalDate.parse(it.date)) }
+            )
 
-        when (state.mode) {
-          is ScreenMode.Timeline -> TimelineList(
-            items = state.timeline,
-            cardTypes = state.cardTypes,
-            onOpen = { vm.openDetails(LocalDate.parse(it.date)) }
-          )
+            is ScreenMode.Details -> DetailsList(
+              rows = state.rows,
+              cardTypes = state.cardTypes
+            )
 
-          is ScreenMode.Details -> DetailsList(
-            rows = state.rows,
-            cardTypes = state.cardTypes
-          )
-
-        
             is ScreenMode.ArticleEditor -> AddEditArticleScreen(
-              bagId = (state.mode as ScreenMode.ArticleEditor).bagId,
+        onArticleClick = { showArticlePicker = true },
+              onDone = { vm.backFromArticleEditor() }
+            )
+          }
               onDone = { vm.backFromArticleEditor() }
             )
 }
