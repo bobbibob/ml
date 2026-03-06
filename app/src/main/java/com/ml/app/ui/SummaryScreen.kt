@@ -116,6 +116,7 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
           }
         }
       } else {
+          if (state.mode !is ScreenMode.ArticleEditor) {
         Row(
           modifier = Modifier
             .fillMaxWidth()
@@ -132,6 +133,7 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
             }
 
           
+          }
         }
 
         when (state.mode) {
