@@ -11,6 +11,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalContext
+import com.ml.app.data.SQLiteRepo
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilterChip
@@ -64,12 +69,22 @@ fun AddEditArticleScreen(
         newColor = ""
     }
 
-    fun removeColor(color: String) {
-        colors.remove(color)
-        colorPrices.remove(color)
-    }
-
+      val ctx = LocalContext.current
+      val repo = remember { SQLiteRepo(ctx) }
+      var bagIds by remember { mutableStateOf<List<String>>(emptyList()) }
       var tab by remember { mutableStateOf(0) }
+        var selectedBagId by remember { mutableStateOf(bagId) }
+
+
+      LaunchedEffect(tab) {
+        if (tab == 1) {
+          bagIds = repo.loadTimeline(180)
+            .flatMap { it.byBags }
+            .map { it.bagId }
+            .distinct()
+            .sorted()
+        }
+      }
 
       Column(
         modifier = Modifier
@@ -94,9 +109,28 @@ fun AddEditArticleScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         if (tab == 1) {
-          Text("Список артикулов появится здесь")
+          Text("Выберите артикул")
+          Spacer(modifier = Modifier.height(12.dp))
+
+          LazyColumn {
+                onClick = {
+                  selectedBagId = bag
+                  tab = 0
+                },
+                modifier = Modifier.fillMaxWidth()
+              ) {
+                Text(bag)
+              }
+              ) {
+                Text(bag)
+              }
+              Spacer(modifier = Modifier.height(8.dp))
+            }
+          }
+
           return@Column
         }
+
 
         Text(
             text = if (bagId.isNullOrBlank()) "Добавить артикул" else "Редактировать артикул",
