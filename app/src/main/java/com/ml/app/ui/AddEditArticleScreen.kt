@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -19,21 +21,31 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.ml.app.data.SQLiteRepo
 
 @Composable
 fun AddEditArticleScreen(
     bagId: String? = null,
     onDone: (() -> Unit)? = null
 ) {
+    val ctx = LocalContext.current
+    val repo = remember { SQLiteRepo(ctx) }
+
+    var selectedBagId by remember { mutableStateOf(bagId) }
+    var tab by remember { mutableStateOf(if (bagId.isNullOrBlank()) 0 else 1) }
+    var bagIds by remember { mutableStateOf<List<String>>(emptyList()) }
+
     var name by remember { mutableStateOf("") }
     var hypothesis by remember { mutableStateOf("") }
     var cost by remember { mutableStateOf("") }
@@ -54,6 +66,16 @@ fun AddEditArticleScreen(
         priceAll.isNotBlank() ||
         colors.isNotEmpty()
 
+    LaunchedEffect(tab) {
+        if (tab == 1) {
+            bagIds = repo.loadTimeline(180)
+                .flatMap { it.byBags }
+                .map { it.bagId }
+                .distinct()
+                .sorted()
+        }
+    }
+
     fun addColor() {
         val value = newColor.trim()
         if (value.isBlank()) return
@@ -69,29 +91,51 @@ fun AddEditArticleScreen(
         colorPrices.remove(color)
     }
 
-      var tab by remember { mutableStateOf(0) }
-
-      Column(
+    Column(
         modifier = Modifier
-          .fillMaxSize()
-          .verticalScroll(rememberScrollState())
-          .padding(16.dp)
-      ) {
-
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp)
+    ) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-          FilterChip(selected = tab == 0, onClick = { tab = 0 }, label = { Text("Добавить") })
-          FilterChip(selected = tab == 1, onClick = { tab = 1 }, label = { Text("Редактировать") })
+            FilterChip(
+                selected = tab == 0,
+                onClick = { tab = 0 },
+                label = { Text("Добавить") }
+            )
+            FilterChip(
+                selected = tab == 1,
+                onClick = { tab = 1 },
+                label = { Text("Редактировать") }
+            )
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
         if (tab == 1) {
-          Text("Здесь будет список артикулов")
-          return@Column
+            Text("Выберите артикул")
+            Spacer(modifier = Modifier.height(12.dp))
+
+            LazyColumn(modifier = Modifier.fillMaxWidth()) {
+                items(bagIds) { bag ->
+                    OutlinedButton(
+                        onClick = {
+                            selectedBagId = bag
+                            tab = 0
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(bag)
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+            }
+
+            return@Column
         }
 
         Text(
-            text = if (bagId.isNullOrBlank()) "Добавить артикул" else "Редактировать артикул",
+            text = if (selectedBagId.isNullOrBlank()) "Добавить артикул" else "Редактировать артикул",
             style = MaterialTheme.typography.headlineSmall
         )
 
@@ -267,7 +311,7 @@ fun AddEditArticleScreen(
             enabled = hasChanges,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text(if (bagId.isNullOrBlank()) "Сохранить" else "Сохранить изменения")
+            Text(if (selectedBagId.isNullOrBlank()) "Сохранить" else "Сохранить изменения")
         }
     }
 }
