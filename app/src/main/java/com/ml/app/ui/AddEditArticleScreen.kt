@@ -176,9 +176,9 @@ fun AddEditArticleScreen(
                                 .padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            if (!bag.imagePath.isNullOrBlank()) {
+                            if (!bag.photoPath.isNullOrBlank()) {
                                 AsyncImage(
-                                    model = bag.imagePath,
+                                    model = bag.photoPath,
                                     contentDescription = bag.bagName,
                                     modifier = Modifier
                                         .width(72.dp)
