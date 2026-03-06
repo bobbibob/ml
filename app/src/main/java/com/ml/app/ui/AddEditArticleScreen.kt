@@ -140,6 +140,7 @@ fun AddEditArticleScreen(
         val id = selectedBagId ?: return@LaunchedEffect
         val row = repo.getBagUser(id)
         val rowColors = repo.getBagUserColors(id)
+        val rowColorRows = repo.getBagUserColorRows(id)
         val seed = repo.getBagEditorSeed(id)
 
         resetForm()
@@ -159,6 +160,11 @@ fun AddEditArticleScreen(
             colors.addAll(seed?.colors.orEmpty().distinct())
         }
         colorPrices.clear()
+        for (rowColor in rowColorRows) {
+            if (rowColor.price != null) {
+                colorPrices[rowColor.color] = rowColor.price.toString()
+            }
+        }
     }
 
     fun addColor() {
@@ -460,6 +466,15 @@ fun AddEditArticleScreen(
                             photoPath = photoPath
                         )
                         repo.replaceBagUserColors(id, colors.toList())
+                        repo.replaceBagUserColorRows(
+                            id,
+                            colors.toList().map { color ->
+                                SQLiteRepo.BagUserColorRow(
+                                    color = color,
+                                    price = colorPrices[color]?.replace(",", ".")?.toDoubleOrNull()
+                                )
+                            }
+                        )
                         onDone?.invoke()
                     }
                 },
