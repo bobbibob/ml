@@ -31,7 +31,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -47,6 +46,11 @@ import com.ml.app.data.SQLiteRepo.BagPickerRow
 import java.io.File
 import java.util.UUID
 import kotlinx.coroutines.launch
+
+private data class ColorDraft(
+    val color: String,
+    val priceText: String = ""
+)
 
 private fun copyImageToInternalStorage(context: Context, uri: Uri): String? {
     return try {
@@ -98,8 +102,7 @@ fun AddEditArticleScreen(
     var cardType by remember { mutableStateOf("classic") }
     var newColor by remember { mutableStateOf("") }
 
-    val colors = remember { mutableStateListOf<String>() }
-    val colorPrices = remember { mutableStateMapOf<String, String>() }
+    val colorDrafts = remember { mutableStateListOf<ColorDraft>() }
 
     fun resetForm() {
         name = ""
@@ -110,8 +113,7 @@ fun AddEditArticleScreen(
         cardType = "classic"
         newColor = ""
         priceForAllEnabled = true
-        colors.clear()
-        colorPrices.clear()
+        colorDrafts.clear()
     }
 
     val hasChanges =
@@ -119,7 +121,7 @@ fun AddEditArticleScreen(
         hypothesis.isNotBlank() ||
         cost.isNotBlank() ||
         priceAll.isNotBlank() ||
-        colors.isNotEmpty() ||
+        colorDrafts.isNotEmpty() ||
         !photoPath.isNullOrBlank()
 
     LaunchedEffect(tab) {
@@ -141,30 +143,42 @@ fun AddEditArticleScreen(
         priceAll = row?.price?.toString() ?: seed?.price?.toString().orEmpty()
         cost = row?.cogs?.toString() ?: seed?.cogs?.toString().orEmpty()
         cardType = row?.cardType ?: "classic"
-        photoPath = row?.photoPath
-            ?: bagItems.firstOrNull { it.bagId == id }?.photoPath
+        photoPath = row?.photoPath ?: bagItems.firstOrNull { it.bagId == id }?.photoPath
 
-        if (rowColors.isNotEmpty()) {
-            colors.addAll(rowColors.distinct())
-        } else {
-            colors.addAll(seed?.colors.orEmpty().distinct())
-        }
-        colorPrices.clear()
+        val loadedColors =
+            if (rowColors.isNotEmpty()) rowColors.distinct()
+            else seed?.colors.orEmpty().distinct()
+
+        colorDrafts.clear()
+        colorDrafts.addAll(loadedColors.map { ColorDraft(color = it) })
     }
 
     fun addColor() {
         val value = newColor.trim()
         if (value.isBlank()) return
-        if (!colors.contains(value)) {
-            colors.add(value)
-            if (!priceForAllEnabled) colorPrices[value] = priceAll
+        if (colorDrafts.none { it.color == value }) {
+            colorDrafts.add(
+                ColorDraft(
+                    color = value,
+                    priceText = if (priceForAllEnabled) "" else priceAll
+                )
+            )
         }
         newColor = ""
     }
 
     fun removeColor(color: String) {
-        colors.remove(color)
-        colorPrices.remove(color)
+        val idx = colorDrafts.indexOfFirst { it.color == color }
+        if (idx >= 0) colorDrafts.removeAt(idx)
+    }
+
+    fun seedColorPricesFromCommon() {
+        for (i in colorDrafts.indices) {
+            val item = colorDrafts[i]
+            if (item.priceText.isBlank()) {
+                colorDrafts[i] = item.copy(priceText = priceAll)
+            }
+        }
     }
 
     Column(
@@ -196,7 +210,7 @@ fun AddEditArticleScreen(
             Spacer(modifier = Modifier.height(12.dp))
 
             LazyColumn(modifier = Modifier.fillMaxSize()) {
-                items(bagItems) { bag ->
+                items(bagItems, key = { it.bagId }) { bag ->
                     val previewPhoto = bag.photoPath
 
                     Card(
@@ -317,11 +331,7 @@ fun AddEditArticleScreen(
                     onCheckedChange = { checked ->
                         priceForAllEnabled = checked
                         if (!checked) {
-                            for (c in colors.toList()) {
-                                if (!colorPrices.containsKey(c) || colorPrices[c].isNullOrBlank()) {
-                                    colorPrices[c] = priceAll
-                                }
-                            }
+                            seedColorPricesFromCommon()
                         }
                     }
                 )
@@ -341,9 +351,10 @@ fun AddEditArticleScreen(
                 onValueChange = {
                     priceAll = it
                     if (!priceForAllEnabled) {
-                        for (c in colors.toList()) {
-                            if (!colorPrices.containsKey(c) || colorPrices[c].isNullOrBlank()) {
-                                colorPrices[c] = it
+                        for (i in colorDrafts.indices) {
+                            val item = colorDrafts[i]
+                            if (item.priceText.isBlank()) {
+                                colorDrafts[i] = item.copy(priceText = it)
                             }
                         }
                     }
@@ -371,24 +382,28 @@ fun AddEditArticleScreen(
                 }
             }
 
-            if (colors.isNotEmpty()) {
+            if (colorDrafts.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(12.dp))
             }
 
-            for (color in colors.toList()) {
+            for (i in colorDrafts.indices) {
+                val item = colorDrafts[i]
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = color,
+                        text = item.color,
                         modifier = Modifier.weight(1f)
                     )
 
                     if (!priceForAllEnabled) {
                         OutlinedTextField(
-                            value = colorPrices[color] ?: "",
-                            onValueChange = { value -> val map = colorPrices.toMutableMap(); map[color] = value; colorPrices.clear(); colorPrices.putAll(map) },
+                            value = item.priceText,
+                            onValueChange = { value ->
+                                colorDrafts[i] = item.copy(priceText = value)
+                            },
                             label = { Text("Цена") },
                             modifier = Modifier.width(140.dp)
                         )
@@ -396,11 +411,12 @@ fun AddEditArticleScreen(
                     }
 
                     OutlinedButton(
-                        onClick = { removeColor(color) }
+                        onClick = { removeColor(item.color) }
                     ) {
                         Text("Удалить")
                     }
                 }
+
                 Spacer(modifier = Modifier.height(8.dp))
             }
 
@@ -450,7 +466,10 @@ fun AddEditArticleScreen(
                             cardType = cardType,
                             photoPath = photoPath
                         )
-                        repo.replaceBagUserColors(id, colors.toList())
+                        repo.replaceBagUserColors(
+                            id,
+                            colorDrafts.map { it.color }
+                        )
                         onDone?.invoke()
                     }
                 },
