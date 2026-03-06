@@ -128,7 +128,6 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
             colors = ButtonDefaults.buttonColors(containerColor = SoftGray, contentColor = TextBlack),
             modifier = Modifier.weight(1f)
           ) {
-              Text("Дата: ${state.selectedDate}", color = TextBlack)
 
           }
 
@@ -437,7 +436,6 @@ private fun ArticleBottomBar(
         onClick = onArticleClick,
         modifier = Modifier.weight(1f)
       ) {
-              Text("Дата: ${state.selectedDate}", color = TextBlack)
         Text("Добавить/редактировать артикул")
       }
     }
