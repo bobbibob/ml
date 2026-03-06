@@ -69,12 +69,35 @@ fun AddEditArticleScreen(
         colorPrices.remove(color)
     }
 
-    Column(
+      var tab by remember { mutableStateOf(0) }
+
+      Column(
         modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp)
-    ) {
+          .fillMaxSize()
+          .verticalScroll(rememberScrollState())
+          .padding(16.dp)
+      ) {
+
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+          FilterChip(
+            selected = tab == 0,
+            onClick = { tab = 0 },
+            label = { Text("Добавить") }
+          )
+          FilterChip(
+            selected = tab == 1,
+            onClick = { tab = 1 },
+            label = { Text("Редактировать") }
+          )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        if (tab == 1) {
+          Text("Список артикулов появится здесь")
+          return@Column
+        }
+
         Text(
             text = if (bagId.isNullOrBlank()) "Добавить артикул" else "Редактировать артикул",
             style = MaterialTheme.typography.headlineSmall
