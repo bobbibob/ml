@@ -2,8 +2,7 @@ package com.ml.app.ui
 
 import android.content.Context
 import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -18,6 +17,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -34,7 +35,6 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,11 +42,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
-import com.ml.app.data.SQLiteRepo
-import com.ml.app.data.SQLiteRepo.BagPickerRow
 import java.io.File
 import java.util.UUID
-import kotlinx.coroutines.launch
+import com.ml.app.data.SQLiteRepo
+import com.ml.app.data.SQLiteRepo.BagPickerRow
+
 
 private fun copyImageToInternalStorage(context: Context, uri: Uri): String? {
     return try {
@@ -74,10 +74,8 @@ fun AddEditArticleScreen(
 ) {
     val ctx = LocalContext.current
     val repo = remember { SQLiteRepo(ctx) }
-    val scope = rememberCoroutineScope()
 
     var photoPath by remember { mutableStateOf<String?>(null) }
-
     val imagePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
@@ -89,13 +87,15 @@ fun AddEditArticleScreen(
     var selectedBagId by remember { mutableStateOf(bagId) }
     var tab by remember { mutableStateOf(if (bagId.isNullOrBlank()) 0 else 1) }
     var bagItems by remember { mutableStateOf<List<BagPickerRow>>(emptyList()) }
-    var packImageByBagId by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
 
     var name by remember { mutableStateOf("") }
     var hypothesis by remember { mutableStateOf("") }
     var cost by remember { mutableStateOf("") }
+    var photoPath by remember { mutableStateOf<String?>(null) }
+
     var priceForAllEnabled by remember { mutableStateOf(true) }
     var priceAll by remember { mutableStateOf("") }
+
     var cardType by remember { mutableStateOf("classic") }
     var newColor by remember { mutableStateOf("") }
 
@@ -120,15 +120,7 @@ fun AddEditArticleScreen(
         hypothesis.isNotBlank() ||
         cost.isNotBlank() ||
         priceAll.isNotBlank() ||
-        colors.isNotEmpty() ||
-        !photoPath.isNullOrBlank()
-
-    LaunchedEffect(Unit) {
-        packImageByBagId = repo.loadTimeline(180)
-            .flatMap { day -> day.byBags }
-            .associate { bag -> bag.bagId to (bag.imagePath ?: "") }
-            .filterValues { it.isNotBlank() }
-    }
+        colors.isNotEmpty()
 
     LaunchedEffect(tab) {
         if (tab == 1) {
@@ -136,8 +128,10 @@ fun AddEditArticleScreen(
         }
     }
 
-    LaunchedEffect(selectedBagId, packImageByBagId, bagItems) {
-        val id = selectedBagId ?: return@LaunchedEffect
+    LaunchedEffect(selectedBagId) {
+        val id = selectedBagId
+        if (id.isNullOrBlank()) return@LaunchedEffect
+
         val row = repo.getBagUser(id)
         val rowColors = repo.getBagUserColors(id)
         val seed = repo.getBagEditorSeed(id)
@@ -149,10 +143,9 @@ fun AddEditArticleScreen(
         priceAll = row?.price?.toString() ?: seed?.price?.toString().orEmpty()
         cost = row?.cogs?.toString() ?: seed?.cogs?.toString().orEmpty()
         cardType = row?.cardType ?: "classic"
-        photoPath = row?.photoPath
-            ?: bagItems.firstOrNull { it.bagId == id }?.photoPath
-            ?: packImageByBagId[id]
+        photoPath = row?.photoPath ?: bagItems.firstOrNull { it.bagId == id }?.photoPath
 
+        colors.clear()
         if (rowColors.isNotEmpty()) {
             colors.addAll(rowColors.distinct())
         } else {
@@ -166,7 +159,9 @@ fun AddEditArticleScreen(
         if (value.isBlank()) return
         if (!colors.contains(value)) {
             colors.add(value)
-            if (!priceForAllEnabled) colorPrices[value] = priceAll
+            if (!priceForAllEnabled) {
+                colorPrices[value] = priceAll
+            }
         }
         newColor = ""
     }
@@ -206,8 +201,6 @@ fun AddEditArticleScreen(
 
             LazyColumn(modifier = Modifier.fillMaxSize()) {
                 items(bagItems) { bag ->
-                    val previewPhoto = bag.photoPath ?: packImageByBagId[bag.bagId]
-
                     Card(
                         colors = CardDefaults.cardColors(),
                         shape = RoundedCornerShape(20.dp),
@@ -219,9 +212,9 @@ fun AddEditArticleScreen(
                                 .padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            if (!previewPhoto.isNullOrBlank()) {
+                            if (!bag.photoPath.isNullOrBlank()) {
                                 AsyncImage(
-                                    model = previewPhoto,
+                                    model = bag.photoPath,
                                     contentDescription = bag.bagName,
                                     modifier = Modifier
                                         .width(72.dp)
@@ -248,7 +241,6 @@ fun AddEditArticleScreen(
                             }
                         }
                     }
-
                     Spacer(modifier = Modifier.height(8.dp))
                 }
             }
@@ -267,30 +259,16 @@ fun AddEditArticleScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (!photoPath.isNullOrBlank()) {
-                    AsyncImage(
-                        model = photoPath,
-                        contentDescription = name,
-                        modifier = Modifier
-                            .width(96.dp)
-                            .height(96.dp)
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                }
-
-                Button(
-                    onClick = { imagePicker.launch("image/*") },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Обновить фото")
-                }
+            if (!photoPath.isNullOrBlank()) {
+                AsyncImage(
+                    model = photoPath,
+                    contentDescription = name,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(180.dp)
+                )
+                Spacer(modifier = Modifier.height(12.dp))
             }
-
-            Spacer(modifier = Modifier.height(16.dp))
 
             OutlinedTextField(
                 value = name,
@@ -326,7 +304,7 @@ fun AddEditArticleScreen(
                     onCheckedChange = { checked ->
                         priceForAllEnabled = checked
                         if (!checked) {
-                            for (c in colors.toList()) {
+                            for (c in colors) {
                                 if (!colorPrices.containsKey(c) || colorPrices[c].isNullOrBlank()) {
                                     colorPrices[c] = priceAll
                                 }
@@ -350,7 +328,7 @@ fun AddEditArticleScreen(
                 onValueChange = {
                     priceAll = it
                     if (!priceForAllEnabled) {
-                        for (c in colors.toList()) {
+                        for (c in colors) {
                             if (!colorPrices.containsKey(c) || colorPrices[c].isNullOrBlank()) {
                                 colorPrices[c] = it
                             }
@@ -384,7 +362,7 @@ fun AddEditArticleScreen(
                 Spacer(modifier = Modifier.height(12.dp))
             }
 
-            for (color in colors.toList()) {
+            for (color in colors) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
@@ -397,7 +375,7 @@ fun AddEditArticleScreen(
                     if (!priceForAllEnabled) {
                         OutlinedTextField(
                             value = colorPrices[color] ?: "",
-                            onValueChange = { value -> val map = colorPrices.toMutableMap(); map[color] = value; colorPrices.clear(); colorPrices.putAll(map) },
+                            onValueChange = { colorPrices[color] = it },
                             label = { Text("Цена") },
                             modifier = Modifier.width(140.dp)
                         )
@@ -444,25 +422,19 @@ fun AddEditArticleScreen(
                 modifier = Modifier.fillMaxWidth()
             )
 
+            Spacer(modifier = Modifier.height(18.dp))
+
+            Button(
+                onClick = { imagePicker.launch("image/*") },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(if (photoPath.isNullOrBlank()) "Загрузить фото" else "Сменить фото")
+            }
+
             Spacer(modifier = Modifier.height(24.dp))
 
             Button(
-                onClick = {
-                    scope.launch {
-                        val id = selectedBagId ?: name.trim().ifBlank { return@launch }
-                        repo.upsertBagUser(
-                            bagId = id,
-                            name = name.ifBlank { null },
-                            hypothesis = hypothesis.ifBlank { null },
-                            price = priceAll.toDoubleOrNull(),
-                            cogs = cost.toDoubleOrNull(),
-                            cardType = cardType,
-                            photoPath = photoPath
-                        )
-                        repo.replaceBagUserColors(id, colors.toList())
-                        onDone?.invoke()
-                    }
-                },
+                onClick = { onDone?.invoke() },
                 enabled = hasChanges,
                 modifier = Modifier.fillMaxWidth()
             ) {
