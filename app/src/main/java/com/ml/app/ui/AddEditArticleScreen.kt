@@ -12,8 +12,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -31,8 +34,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.ml.app.data.SQLiteRepo
+import com.ml.app.domain.BagOrdersSummary
 
 @Composable
 fun AddEditArticleScreen(
@@ -44,7 +50,7 @@ fun AddEditArticleScreen(
 
     var selectedBagId by remember { mutableStateOf(bagId) }
     var tab by remember { mutableStateOf(if (bagId.isNullOrBlank()) 0 else 1) }
-    var bagIds by remember { mutableStateOf<List<String>>(emptyList()) }
+    var bagItems by remember { mutableStateOf<List<BagOrdersSummary>>(emptyList()) }
 
     var name by remember { mutableStateOf("") }
     var hypothesis by remember { mutableStateOf("") }
@@ -68,11 +74,10 @@ fun AddEditArticleScreen(
 
     LaunchedEffect(tab) {
         if (tab == 1) {
-            bagIds = repo.loadTimeline(180)
+            bagItems = repo.loadTimeline(180)
                 .flatMap { day -> day.byBags }
-                .map { bag -> bag.bagId }
-                .distinct()
-                .sorted()
+                .distinctBy { bag -> bag.bagId }
+                .sortedBy { bag -> bag.bagName.lowercase() }
         }
     }
 
@@ -81,7 +86,9 @@ fun AddEditArticleScreen(
         if (value.isBlank()) return
         if (!colors.contains(value)) {
             colors.add(value)
-            if (!priceForAllEnabled) colorPrices[value] = priceAll
+            if (!priceForAllEnabled) {
+                colorPrices[value] = priceAll
+            }
         }
         newColor = ""
     }
@@ -116,15 +123,47 @@ fun AddEditArticleScreen(
             Spacer(modifier = Modifier.height(12.dp))
 
             LazyColumn(modifier = Modifier.fillMaxSize()) {
-                items(bagIds) { bag ->
-                    OutlinedButton(
-                        onClick = {
-                            selectedBagId = bag
-                            tab = 0
-                        },
+                items(bagItems) { bag ->
+                    Card(
+                        colors = CardDefaults.cardColors(),
+                        shape = RoundedCornerShape(20.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(bag)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (!bag.imagePath.isNullOrBlank()) {
+                                AsyncImage(
+                                    model = bag.imagePath,
+                                    contentDescription = bag.bagName,
+                                    modifier = Modifier
+                                        .width(72.dp)
+                                        .height(72.dp)
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                            }
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = bag.bagName,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(text = bag.bagId)
+                            }
+
+                            OutlinedButton(
+                                onClick = {
+                                    selectedBagId = bag.bagId
+                                    tab = 0
+                                }
+                            ) {
+                                Text("Открыть")
+                            }
+                        }
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                 }
