@@ -89,7 +89,6 @@ fun AddEditArticleScreen(
     var selectedBagId by remember { mutableStateOf(bagId) }
     var tab by remember { mutableStateOf(if (bagId.isNullOrBlank()) 0 else 1) }
     var bagItems by remember { mutableStateOf<List<BagPickerRow>>(emptyList()) }
-    var packImageByBagId by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
 
     var name by remember { mutableStateOf("") }
     var hypothesis by remember { mutableStateOf("") }
@@ -123,20 +122,13 @@ fun AddEditArticleScreen(
         colors.isNotEmpty() ||
         !photoPath.isNullOrBlank()
 
-    LaunchedEffect(Unit) {
-        packImageByBagId = repo.loadTimeline(180)
-            .flatMap { day -> day.byBags }
-            .associate { bag -> bag.bagId to (bag.imagePath ?: "") }
-            .filterValues { it.isNotBlank() }
-    }
-
     LaunchedEffect(tab) {
         if (tab == 1) {
             bagItems = repo.listBagPickerRows()
         }
     }
 
-    LaunchedEffect(selectedBagId, packImageByBagId, bagItems) {
+    LaunchedEffect(selectedBagId, bagItems) {
         val id = selectedBagId ?: return@LaunchedEffect
         val row = repo.getBagUser(id)
         val rowColors = repo.getBagUserColors(id)
@@ -151,7 +143,6 @@ fun AddEditArticleScreen(
         cardType = row?.cardType ?: "classic"
         photoPath = row?.photoPath
             ?: bagItems.firstOrNull { it.bagId == id }?.photoPath
-            ?: packImageByBagId[id]
 
         if (rowColors.isNotEmpty()) {
             colors.addAll(rowColors.distinct())
@@ -206,7 +197,7 @@ fun AddEditArticleScreen(
 
             LazyColumn(modifier = Modifier.fillMaxSize()) {
                 items(bagItems) { bag ->
-                    val previewPhoto = bag.photoPath ?: packImageByBagId[bag.bagId]
+                    val previewPhoto = bag.photoPath
 
                     Card(
                         colors = CardDefaults.cardColors(),
