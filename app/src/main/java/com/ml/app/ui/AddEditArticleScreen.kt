@@ -326,7 +326,7 @@ fun AddEditArticleScreen(
                     onCheckedChange = { checked ->
                         priceForAllEnabled = checked
                         if (!checked) {
-                            for (c in colors) {
+                            for (c in colors.toList()) {
                                 if (!colorPrices.containsKey(c) || colorPrices[c].isNullOrBlank()) {
                                     colorPrices[c] = priceAll
                                 }
@@ -350,7 +350,7 @@ fun AddEditArticleScreen(
                 onValueChange = {
                     priceAll = it
                     if (!priceForAllEnabled) {
-                        for (c in colors) {
+                        for (c in colors.toList()) {
                             if (!colorPrices.containsKey(c) || colorPrices[c].isNullOrBlank()) {
                                 colorPrices[c] = it
                             }
@@ -384,7 +384,7 @@ fun AddEditArticleScreen(
                 Spacer(modifier = Modifier.height(12.dp))
             }
 
-            for (color in colors) {
+            for (color in colors.toList()) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
