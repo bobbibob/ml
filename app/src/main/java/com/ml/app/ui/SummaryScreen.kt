@@ -49,12 +49,11 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
 
   LaunchedEffect(Unit) { vm.init() }
 
-  BackHandler(enabled = (state.mode is ScreenMode.Details) || (state.mode is ScreenMode.ArticlePicker) || (state.mode is ScreenMode.ArticleEditor)) {
+  BackHandler(enabled = (state.mode is ScreenMode.Details) || (state.mode is ScreenMode.ArticleEditor)) {
     when (state.mode) {
-        is ScreenMode.ArticleEditor -> vm.backFromArticleEditor()
-        is ScreenMode.ArticlePicker -> vm.backFromArticlePicker()
-        else -> vm.backToTimeline()
-      }
+      is ScreenMode.ArticleEditor -> vm.backFromArticleEditor()
+      else -> vm.backToTimeline()
+    }
   }
 
   fun openDatePicker(current: LocalDate, onPicked: (LocalDate) -> Unit) {
@@ -117,7 +116,7 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
           }
         }
       } else {
-          if (state.mode !is ScreenMode.ArticleEditor && state.mode !is ScreenMode.ArticlePicker) {
+          if (state.mode !is ScreenMode.ArticleEditor) {
         Row(
           modifier = Modifier
             .fillMaxWidth()
@@ -145,17 +144,11 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
           )
 
           is ScreenMode.Details -> DetailsList(
-              rows = state.rows,
-              cardTypes = state.cardTypes
-            )
+            rows = state.rows,
+            cardTypes = state.cardTypes
+          )
 
-            is ScreenMode.ArticlePicker -> ArticlePickerScreen(
-              bagIds = state.timeline.flatMap { day -> day.byBags.map { bag -> bag.bagId } }.distinct().sorted(),
-              onCreateNew = { vm.openArticleEditor() },
-              onPick = { pickedBagId -> vm.openArticleEditor(pickedBagId) },
-              onCancel = { vm.backFromArticlePicker() }
-            )
-
+        
             is ScreenMode.ArticleEditor -> AddEditArticleScreen(
               bagId = (state.mode as ScreenMode.ArticleEditor).bagId,
               onDone = { vm.backFromArticleEditor() }
@@ -169,7 +162,7 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
     }
 
     ArticleBottomBar(
-      onArticleClick = { vm.openArticlePicker() },
+      onArticleClick = { vm.openArticleEditor() },
       modifier = Modifier.align(Alignment.BottomCenter)
     )
 
