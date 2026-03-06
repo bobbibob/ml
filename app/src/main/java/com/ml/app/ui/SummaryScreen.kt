@@ -116,6 +116,8 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
               }
               Text(if (state.status.isNotBlank()) state.status else "Скачиваем базу…", color = TextBlack)
             }
+          }
+        } else {
           if (state.mode !is ScreenMode.ArticleEditor) {
             Row(
               modifier = Modifier
@@ -135,7 +137,6 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
           }
 
           when (state.mode) {
-
             is ScreenMode.Timeline -> TimelineList(
               items = state.timeline,
               cardTypes = state.cardTypes,
@@ -152,8 +153,7 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
               onDone = { vm.backFromArticleEditor() }
             )
           }
-}
-
+        }
         if (state.status.isNotBlank()) {
           Text(text = state.status, modifier = Modifier.padding(12.dp), color = Color.Gray)
         }
@@ -229,7 +229,6 @@ private fun TimelineList(
             val t = cardTypes[b.bagId] ?: CardType.CLASSIC
             val price = b.price ?: 0.0
             val net = ProfitCalc.netProfit(t, b.orders.toDouble(), price, b.spend, b.cogs)
-
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
               BagThumb(b.imagePath)
               Spacer(Modifier.width(10.dp))
@@ -245,6 +244,10 @@ private fun TimelineList(
                   text = "Заказы: ${b.orders} • Расход: ${fmtMoney(b.spend)} • Прибыль: ${fmtMoney(net)}",
                   color = Color.Gray,
                   maxLines = 1,
+                Spacer(Modifier.width(8.dp))
+                TextButton(onClick = { vm.openArticleEditor(b.bagId) }) {
+                  Text("Редактировать")
+                }
                   overflow = TextOverflow.Ellipsis
                 )
               }
