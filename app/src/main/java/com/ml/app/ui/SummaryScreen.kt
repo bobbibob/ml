@@ -125,7 +125,6 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
         ) {
           Button(
             onClick = { openDatePicker(state.selectedDate) { vm.setDateFromPicker(it) } },
-        Text("Дата: ${state.selectedDate}", maxLines = 1, overflow = TextOverflow.Ellipsis)
             colors = ButtonDefaults.buttonColors(containerColor = SoftGray, contentColor = TextBlack),
             modifier = Modifier.weight(1f)
           ) {
