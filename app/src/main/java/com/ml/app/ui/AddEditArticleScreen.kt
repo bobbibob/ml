@@ -35,6 +35,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import java.io.File
 import java.util.UUID
+import kotlinx.coroutines.launch
 import com.ml.app.data.SQLiteRepo
 import com.ml.app.data.SQLiteRepo.BagPickerRow
 
@@ -74,6 +76,7 @@ fun AddEditArticleScreen(
 ) {
     val ctx = LocalContext.current
     val repo = remember { SQLiteRepo(ctx) }
+    val scope = rememberCoroutineScope()
 
     var photoPath by remember { mutableStateOf<String?>(null) }
 
@@ -422,19 +425,27 @@ fun AddEditArticleScreen(
                 modifier = Modifier.fillMaxWidth()
             )
 
-            Spacer(modifier = Modifier.height(18.dp))
 
-            Button(
-                onClick = { imagePicker.launch("image/*") },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(if (photoPath.isNullOrBlank()) "Загрузить фото" else "Сменить фото")
-            }
 
             Spacer(modifier = Modifier.height(24.dp))
 
             Button(
-                onClick = { onDone?.invoke() },
+                onClick = {
+                    scope.launch {
+                        val id = selectedBagId ?: name.trim().ifBlank { return@launch }
+                        repo.upsertBagUser(
+                            bagId = id,
+                            name = name.ifBlank { null },
+                            hypothesis = hypothesis.ifBlank { null },
+                            price = priceAll.toDoubleOrNull(),
+                            cogs = cost.toDoubleOrNull(),
+                            cardType = cardType,
+                            photoPath = photoPath
+                        )
+                        repo.replaceBagUserColors(id, colors.toList())
+                        onDone?.invoke()
+                    }
+                },
                 enabled = hasChanges,
                 modifier = Modifier.fillMaxWidth()
             ) {
