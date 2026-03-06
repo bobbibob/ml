@@ -55,6 +55,7 @@ fun AddEditArticleScreen(
     var name by remember { mutableStateOf("") }
     var hypothesis by remember { mutableStateOf("") }
     var cost by remember { mutableStateOf("") }
+    var photoPath by remember { mutableStateOf<String?>(null) }
 
     var priceForAllEnabled by remember { mutableStateOf(true) }
     var priceAll by remember { mutableStateOf("") }
