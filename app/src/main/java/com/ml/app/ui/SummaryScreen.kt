@@ -157,10 +157,12 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
       }
     }
 
-    ArticleBottomBar(
-      onArticleClick = { vm.openArticleEditor() },
-      modifier = Modifier.align(Alignment.BottomCenter)
-    )
+    if (state.mode !is ScreenMode.ArticleEditor) {
+      ArticleBottomBar(
+        onArticleClick = { vm.openArticleEditor() },
+        modifier = Modifier.align(Alignment.BottomCenter)
+      )
+    }
 
     PullRefreshIndicator(
       refreshing = state.loading,

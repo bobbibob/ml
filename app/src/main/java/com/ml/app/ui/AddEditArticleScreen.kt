@@ -1,5 +1,8 @@
 package com.ml.app.ui
 
+import android.content.Context
+import android.net.Uri
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,6 +17,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -37,8 +42,30 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import java.io.File
+import java.util.UUID
 import com.ml.app.data.SQLiteRepo
 import com.ml.app.data.SQLiteRepo.BagPickerRow
+
+
+private fun copyImageToInternalStorage(context: Context, uri: Uri): String? {
+    return try {
+        val ext = when (context.contentResolver.getType(uri)) {
+            "image/png" -> ".png"
+            "image/webp" -> ".webp"
+            else -> ".jpg"
+        }
+        val dir = File(context.filesDir, "bag_user_photos")
+        if (!dir.exists()) dir.mkdirs()
+        val file = File(dir, "bag_${UUID.randomUUID()}$ext")
+        context.contentResolver.openInputStream(uri)?.use { input ->
+            file.outputStream().use { output -> input.copyTo(output) }
+        }
+        file.absolutePath
+    } catch (_: Throwable) {
+        null
+    }
+}
 
 @Composable
 fun AddEditArticleScreen(
@@ -47,6 +74,14 @@ fun AddEditArticleScreen(
 ) {
     val ctx = LocalContext.current
     val repo = remember { SQLiteRepo(ctx) }
+
+    val imagePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            photoPath = copyImageToInternalStorage(ctx, uri)
+        }
+    }
 
     var selectedBagId by remember { mutableStateOf(bagId) }
     var tab by remember { mutableStateOf(if (bagId.isNullOrBlank()) 0 else 1) }
@@ -142,7 +177,7 @@ fun AddEditArticleScreen(
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             FilterChip(
-                selected = tab == 0,
+                selected = tab == 0 && selectedBagId.isNullOrBlank(),
                 onClick = {
                     tab = 0
                     selectedBagId = null
@@ -151,7 +186,7 @@ fun AddEditArticleScreen(
                 label = { Text("Добавить") }
             )
             FilterChip(
-                selected = tab == 1,
+                selected = tab == 1 || selectedBagId != null,
                 onClick = { tab = 1 },
                 label = { Text("Редактировать") }
             )
@@ -222,6 +257,17 @@ fun AddEditArticleScreen(
             )
 
             Spacer(modifier = Modifier.height(16.dp))
+
+            if (!photoPath.isNullOrBlank()) {
+                AsyncImage(
+                    model = photoPath,
+                    contentDescription = name,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(180.dp)
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+            }
 
             OutlinedTextField(
                 value = name,
@@ -378,10 +424,10 @@ fun AddEditArticleScreen(
             Spacer(modifier = Modifier.height(18.dp))
 
             Button(
-                onClick = { },
+                onClick = { imagePicker.launch("image/*") },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Загрузить фото")
+                Text(if (photoPath.isNullOrBlank()) "Загрузить фото" else "Сменить фото")
             }
 
             Spacer(modifier = Modifier.height(24.dp))
