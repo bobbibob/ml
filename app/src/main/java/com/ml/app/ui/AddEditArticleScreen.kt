@@ -33,6 +33,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.ml.app.data.SQLiteRepo
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Composable
 fun AddEditArticleScreen(
@@ -68,12 +70,13 @@ fun AddEditArticleScreen(
 
     LaunchedEffect(tab) {
         if (tab == 1) {
-            bagIds = emptyList()
-                .flatMap { it.byBags }
-                .map { it.bagId }
+            bagIds = repo.loadTimeline(180)
+                .flatMap { day -> day.byBags }
+                .map { bag -> bag.bagId }
                 .distinct()
                 .sorted()
         }
+    }
     }
 
     fun addColor() {
