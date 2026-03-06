@@ -38,7 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.ml.app.data.SQLiteRepo
-import com.ml.app.domain.BagOrdersSummary
+import com.ml.app.data.SQLiteRepo.BagPickerRow
 
 @Composable
 fun AddEditArticleScreen(
@@ -50,7 +50,7 @@ fun AddEditArticleScreen(
 
     var selectedBagId by remember { mutableStateOf(bagId) }
     var tab by remember { mutableStateOf(if (bagId.isNullOrBlank()) 0 else 1) }
-    var bagItems by remember { mutableStateOf<List<BagOrdersSummary>>(emptyList()) }
+    var bagItems by remember { mutableStateOf<List<BagPickerRow>>(emptyList()) }
 
     var name by remember { mutableStateOf("") }
     var hypothesis by remember { mutableStateOf("") }
@@ -70,6 +70,7 @@ fun AddEditArticleScreen(
         name = ""
         hypothesis = ""
         cost = ""
+        photoPath = null
         priceAll = ""
         cardType = "classic"
         newColor = ""
@@ -87,10 +88,7 @@ fun AddEditArticleScreen(
 
     LaunchedEffect(tab) {
         if (tab == 1) {
-            bagItems = repo.loadTimeline(180)
-                .flatMap { day -> day.byBags }
-                .distinctBy { bag -> bag.bagId }
-                .sortedBy { bag -> bag.bagName.lowercase() }
+            bagItems = repo.listBagPickerRows()
         }
     }
 
@@ -104,12 +102,12 @@ fun AddEditArticleScreen(
 
         resetForm()
 
-        name = row?.name ?: seed?.bagName.orEmpty()
+        name = row?.name ?: seed?.bagName ?: bagItems.firstOrNull { it.bagId == id }?.bagName.orEmpty()
         hypothesis = row?.hypothesis ?: seed?.hypothesis.orEmpty()
         priceAll = row?.price?.toString() ?: seed?.price?.toString().orEmpty()
         cost = row?.cogs?.toString() ?: seed?.cogs?.toString().orEmpty()
         cardType = row?.cardType ?: "classic"
-        photoPath = row?.photoPath
+        photoPath = row?.photoPath ?: bagItems.firstOrNull { it.bagId == id }?.photoPath
 
         colors.clear()
         if (rowColors.isNotEmpty()) {
@@ -200,7 +198,6 @@ fun AddEditArticleScreen(
                             OutlinedButton(
                                 onClick = {
                                     selectedBagId = bag.bagId
-                                    name = bag.bagName
                                     tab = 0
                                 }
                             ) {
