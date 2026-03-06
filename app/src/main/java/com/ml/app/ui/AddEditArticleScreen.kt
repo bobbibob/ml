@@ -19,11 +19,11 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,7 +59,9 @@ fun AddEditArticleScreen(
         if (value.isBlank()) return
         if (!colors.contains(value)) {
             colors.add(value)
-            if (!priceForAllEnabled) colorPrices[value] = priceAll
+            if (!priceForAllEnabled) {
+                colorPrices[value] = priceAll
+            }
         }
         newColor = ""
     }
@@ -117,7 +119,7 @@ fun AddEditArticleScreen(
                     priceForAllEnabled = checked
                     if (!checked) {
                         for (c in colors) {
-                            if (!colorPrices.containsKey(c) || colorPrices[c].isNullOrBlank()) {
+                            if ((colorPrices[c] ?: "").isBlank()) {
                                 colorPrices[c] = priceAll
                             }
                         }
@@ -141,7 +143,7 @@ fun AddEditArticleScreen(
                 priceAll = it
                 if (!priceForAllEnabled) {
                     for (c in colors) {
-                        if (!colorPrices.containsKey(c) || colorPrices[c].isNullOrBlank()) {
+                        if ((colorPrices[c] ?: "").isBlank()) {
                             colorPrices[c] = it
                         }
                     }
