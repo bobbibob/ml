@@ -99,15 +99,23 @@ fun AddEditArticleScreen(
 
         val row = repo.getBagUser(id)
         val rowColors = repo.getBagUserColors(id)
+        val seed = repo.getBagEditorSeed(id)
 
-        if (!row?.name.isNullOrBlank()) name = row?.name.orEmpty()
-        if (!row?.hypothesis.isNullOrBlank()) hypothesis = row?.hypothesis.orEmpty()
-        if (row?.price != null) priceAll = row.price.toString()
-        if (row?.cogs != null) cost = row.cogs.toString()
-        if (!row?.cardType.isNullOrBlank()) cardType = row?.cardType.orEmpty()
+        resetForm()
+
+        name = row?.name ?: seed?.bagName.orEmpty()
+        hypothesis = row?.hypothesis ?: seed?.hypothesis.orEmpty()
+        priceAll = row?.price?.toString() ?: seed?.price?.toString().orEmpty()
+        cost = row?.cogs?.toString() ?: seed?.cogs?.toString().orEmpty()
+        cardType = row?.cardType ?: "classic"
+        photoPath = row?.photoPath
 
         colors.clear()
-        colors.addAll(rowColors.distinct())
+        if (rowColors.isNotEmpty()) {
+            colors.addAll(rowColors.distinct())
+        } else {
+            colors.addAll(seed?.colors.orEmpty().distinct())
+        }
         colorPrices.clear()
     }
 

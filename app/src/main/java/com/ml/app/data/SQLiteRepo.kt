@@ -431,4 +431,83 @@ class SQLiteRepo(private val context: Context) {
     }
   }
 
+
+
+  data class BagEditorSeed(
+    val bagId: String,
+    val bagName: String,
+    val hypothesis: String?,
+    val price: Double?,
+    val cogs: Double?,
+    val colors: List<String>
+  )
+
+  suspend fun getBagEditorSeed(bagId: String): BagEditorSeed? = withContext(Dispatchers.IO) {
+    openDbReadOnly().use { db ->
+      val latestDate = db.rawQuery(
+        """
+        SELECT MAX(date) AS d
+        FROM svodka
+        WHERE bag_id=? AND date IS NOT NULL AND date!=''
+        """.trimIndent(),
+        arrayOf(bagId)
+      ).use { c ->
+        if (!c.moveToFirst() || c.isNull(0)) null else c.getString(0)
+      } ?: return@withContext null
+
+      val head = db.rawQuery(
+        """
+        SELECT
+          s.bag_id AS bag_id,
+          COALESCE(NULLIF(u.name,''), b.bag_name, s.bag_id) AS bag_name,
+          COALESCE(NULLIF(u.hypothesis,''), MAX(s.hypothesis)) AS hypothesis,
+          COALESCE(u.price, MAX(s.price)) AS price,
+          COALESCE(u.cogs, MAX(s.cogs)) AS cogs
+        FROM svodka s
+        LEFT JOIN bags b ON b.bag_id = s.bag_id
+        LEFT JOIN bag_user u ON u.bag_id = s.bag_id
+        WHERE s.bag_id=? AND s.date=? AND s.color IN ('__TOTAL__','TOTAL')
+        GROUP BY s.bag_id, COALESCE(NULLIF(u.name,''), b.bag_name, s.bag_id), COALESCE(NULLIF(u.hypothesis,''), MAX(s.hypothesis)), COALESCE(u.price, MAX(s.price)), COALESCE(u.cogs, MAX(s.cogs))
+        """.trimIndent(),
+        arrayOf(bagId, latestDate)
+      ).use { c ->
+        if (!c.moveToFirst()) return@withContext null
+        val iBagId = c.getColumnIndexOrThrow("bag_id")
+        val iBagName = c.getColumnIndexOrThrow("bag_name")
+        val iHyp = c.getColumnIndexOrThrow("hypothesis")
+        val iPrice = c.getColumnIndexOrThrow("price")
+        val iCogs = c.getColumnIndexOrThrow("cogs")
+        arrayOf(
+          c.getString(iBagId),
+          c.getString(iBagName),
+          if (c.isNull(iHyp)) null else c.getString(iHyp),
+          if (c.isNull(iPrice)) null else c.getDouble(iPrice),
+          if (c.isNull(iCogs)) null else c.getDouble(iCogs)
+        )
+      }
+
+      val colors = ArrayList<String>()
+      db.rawQuery(
+        """
+        SELECT DISTINCT color
+        FROM svodka
+        WHERE bag_id=? AND date=? AND color IS NOT NULL AND color!='' AND color NOT IN ('__TOTAL__','TOTAL')
+        ORDER BY color COLLATE NOCASE
+        """.trimIndent(),
+        arrayOf(bagId, latestDate)
+      ).use { c ->
+        while (c.moveToNext()) colors.add(c.getString(0))
+      }
+
+      BagEditorSeed(
+        bagId = head[0] as String,
+        bagName = head[1] as String,
+        hypothesis = head[2] as String?,
+        price = head[3] as Double?,
+        cogs = head[4] as Double?,
+        colors = colors
+      )
+    }
+  }
+
 }
