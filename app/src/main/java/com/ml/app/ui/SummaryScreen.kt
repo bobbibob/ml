@@ -128,7 +128,7 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
             colors = ButtonDefaults.buttonColors(containerColor = SoftGray, contentColor = TextBlack),
             modifier = Modifier.weight(1f)
           ) {
-            if ((state.mode as ScreenMode.ArticleEditor == null) Text("Дата: ${state.selectedDate}", maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text("Дата: ${state.selectedDate}", maxLines = 1, overflow = TextOverflow.Ellipsis)
 
           }
 
