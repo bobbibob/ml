@@ -378,7 +378,6 @@ class SQLiteRepo(private val context: Context) {
 
   suspend fun listBagPickerRows(): List<BagPickerRow> = withContext(Dispatchers.IO) {
     openDbReadWrite().use { db ->
-      val images = queryImagesByBagId(db)
       val out = ArrayList<BagPickerRow>()
       db.rawQuery(
         """
@@ -402,22 +401,14 @@ class SQLiteRepo(private val context: Context) {
         val iPhoto = c.getColumnIndexOrThrow("photo_path")
 
         while (c.moveToNext()) {
-          val bagId = c.getString(iBagId)
-          val dbPhoto = if (c.isNull(iPhoto)) null else c.getString(iPhoto)
           out.add(
             BagPickerRow(
-              bagId = bagId,
+              bagId = c.getString(iBagId),
               bagName = c.getString(iBagName),
-              photoPath = dbPhoto ?: images[bagId]
+              photoPath = if (c.isNull(iPhoto)) null else c.getString(iPhoto)
             )
           )
         }
-      }
-      out
-    }
-  }
-
-
       }
       out
     }
