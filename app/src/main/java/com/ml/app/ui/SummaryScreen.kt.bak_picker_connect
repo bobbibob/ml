@@ -46,16 +46,13 @@ private fun fmtPct(v01: Double): String = String.format("%.2f%%", v01 * 100.0)
 fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
   val state by vm.state.collectAsState()
   val ctx = LocalContext.current
-  var showArticlePicker by remember { mutableStateOf(false) }
 
+  LaunchedEffect(Unit) { vm.init() }
 
-  BackHandler(enabled = showArticlePicker || (state.mode is ScreenMode.Details) || (state.mode is ScreenMode.ArticleEditor)) {
-    when {
-      showArticlePicker -> showArticlePicker = false
-      state.mode is ScreenMode.ArticleEditor -> vm.backFromArticleEditor()
+  BackHandler(enabled = (state.mode is ScreenMode.Details) || (state.mode is ScreenMode.ArticleEditor)) {
+    when (state.mode) {
+      is ScreenMode.ArticleEditor -> vm.backFromArticleEditor()
       else -> vm.backToTimeline()
-    }
-  }
     }
   }
 
@@ -107,51 +104,55 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
         }
       }
 
-        if (!state.hasPack) {
-          Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-              if (state.loading) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp))
-                Spacer(Modifier.height(12.dp))
-              }
-              Text(if (state.status.isNotBlank()) state.status else "Скачиваем базу…", color = TextBlack)
+      if (!state.hasPack) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+          Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            if (state.loading) {
+              LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp))
+              Spacer(Modifier.height(12.dp))
             }
-          if (state.mode !is ScreenMode.ArticleEditor) {
-            Row(
-              modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-              horizontalArrangement = Arrangement.spacedBy(12.dp),
-              verticalAlignment = Alignment.CenterVertically
-            ) {
-              Button(
-                onClick = { openDatePicker(state.selectedDate) { vm.setDateFromPicker(it) } },
-                colors = ButtonDefaults.buttonColors(containerColor = SoftGray, contentColor = TextBlack),
-                modifier = Modifier.weight(1f)
-              ){
-                Text("Дата: ${state.selectedDate}")
-              }
-            }
+            Text(if (state.status.isNotBlank()) state.status else "Скачиваем базу…", color = TextBlack)
+
           }
+        }
+      } else {
+          if (state.mode !is ScreenMode.ArticleEditor) {
+        Row(
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(12.dp),
+          horizontalArrangement = Arrangement.spacedBy(12.dp),
+          verticalAlignment = Alignment.CenterVertically
+        ) {
+          Button(
+            onClick = { openDatePicker(state.selectedDate) { vm.setDateFromPicker(it) } },
+            colors = ButtonDefaults.buttonColors(containerColor = SoftGray, contentColor = TextBlack),
+            modifier = Modifier.weight(1f)
+          ){
+                Text("Дата: ${state.selectedDate}")
+            }
 
-          when (state.mode) {
+          
+          }
+        }
 
-            is ScreenMode.Timeline -> TimelineList(
-              items = state.timeline,
-              cardTypes = state.cardTypes,
-              onOpen = { vm.openDetails(LocalDate.parse(it.date)) }
-            )
+        when (state.mode) {
+          is ScreenMode.Timeline -> TimelineList(
+            items = state.timeline,
+            cardTypes = state.cardTypes,
+            onOpen = { vm.openDetails(LocalDate.parse(it.date)) }
+          )
 
-            is ScreenMode.Details -> DetailsList(
-              rows = state.rows,
-              cardTypes = state.cardTypes
-            )
+          is ScreenMode.Details -> DetailsList(
+            rows = state.rows,
+            cardTypes = state.cardTypes
+          )
 
+        
             is ScreenMode.ArticleEditor -> AddEditArticleScreen(
               bagId = (state.mode as ScreenMode.ArticleEditor).bagId,
               onDone = { vm.backFromArticleEditor() }
             )
-          }
 }
 
         if (state.status.isNotBlank()) {
