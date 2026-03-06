@@ -46,16 +46,13 @@ private fun fmtPct(v01: Double): String = String.format("%.2f%%", v01 * 100.0)
 fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
   val state by vm.state.collectAsState()
   val ctx = LocalContext.current
-  var showArticlePicker by remember { mutableStateOf(false) }
 
+  LaunchedEffect(Unit) { vm.init() }
 
-  BackHandler(enabled = showArticlePicker || (state.mode is ScreenMode.Details) || (state.mode is ScreenMode.ArticleEditor)) {
-    when {
-      showArticlePicker -> showArticlePicker = false
-      state.mode is ScreenMode.ArticleEditor -> vm.backFromArticleEditor()
+  BackHandler(enabled = (state.mode is ScreenMode.Details) || (state.mode is ScreenMode.ArticleEditor)) {
+    when (state.mode) {
+      is ScreenMode.ArticleEditor -> vm.backFromArticleEditor()
       else -> vm.backToTimeline()
-    }
-  }
     }
   }
 
@@ -107,16 +104,17 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
         }
       }
 
-        if (!state.hasPack) {
-          Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-              if (state.loading) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp))
-                Spacer(Modifier.height(12.dp))
-              }
-              Text(if (state.status.isNotBlank()) state.status else "Скачиваем базу…", color = TextBlack)
+      if (!state.hasPack) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+          Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            if (state.loading) {
+              LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp))
+              Spacer(Modifier.height(12.dp))
             }
+            Text(if (state.status.isNotBlank()) state.status else "Скачиваем базу…", color = TextBlack)
+
           }
+        }
         } else {
           if (state.mode !is ScreenMode.ArticleEditor) {
             Row(
@@ -130,7 +128,7 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
                 onClick = { openDatePicker(state.selectedDate) { vm.setDateFromPicker(it) } },
                 colors = ButtonDefaults.buttonColors(containerColor = SoftGray, contentColor = TextBlack),
                 modifier = Modifier.weight(1f)
-              ){
+              ) {
                 Text("Дата: ${state.selectedDate}")
               }
             }
@@ -153,7 +151,6 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
               onDone = { vm.backFromArticleEditor() }
             )
           }
-        }
         if (state.status.isNotBlank()) {
           Text(text = state.status, modifier = Modifier.padding(12.dp), color = Color.Gray)
         }
@@ -229,6 +226,7 @@ private fun TimelineList(
             val t = cardTypes[b.bagId] ?: CardType.CLASSIC
             val price = b.price ?: 0.0
             val net = ProfitCalc.netProfit(t, b.orders.toDouble(), price, b.spend, b.cogs)
+
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
               BagThumb(b.imagePath)
               Spacer(Modifier.width(10.dp))
@@ -244,10 +242,6 @@ private fun TimelineList(
                   text = "Заказы: ${b.orders} • Расход: ${fmtMoney(b.spend)} • Прибыль: ${fmtMoney(net)}",
                   color = Color.Gray,
                   maxLines = 1,
-                Spacer(Modifier.width(8.dp))
-                TextButton(onClick = { vm.openArticleEditor(b.bagId) }) {
-                  Text("Редактировать")
-                }
                   overflow = TextOverflow.Ellipsis
                 )
               }

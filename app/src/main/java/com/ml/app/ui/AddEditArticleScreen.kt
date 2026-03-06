@@ -1,9 +1,5 @@
 package com.ml.app.ui
 
-import com.ml.app.data.SQLiteRepo
-import androidx.compose.ui.platform.LocalContext
-import kotlinx.coroutines.launch
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -23,24 +19,17 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
 @Composable
-    val ctx = LocalContext.current
-    val repo = remember { SQLiteRepo(ctx) }
-    val scope = rememberCoroutineScope()
-
-    var editMode by remember { mutableStateOf(false) }
-    var bagList by remember { mutableStateOf<List<String>>(emptyList()) }
-
 fun AddEditArticleScreen(
     bagId: String? = null,
     onDone: (() -> Unit)? = null
@@ -70,9 +59,7 @@ fun AddEditArticleScreen(
         if (value.isBlank()) return
         if (!colors.contains(value)) {
             colors.add(value)
-            if (!priceForAllEnabled) {
-                colorPrices[value] = priceAll
-            }
+            if (!priceForAllEnabled) colorPrices[value] = priceAll
         }
         newColor = ""
     }
@@ -83,34 +70,6 @@ fun AddEditArticleScreen(
     }
 
     Column(
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Button(onClick = { editMode = false }) { Text("Новый") }
-            Button(onClick = {
-                editMode = true
-                scope.launch {
-                    bagList = repo.loadTimeline(180).flatMap { it.byBags }.map { it.bagId }.distinct().sorted()
-                }
-            }) { Text("Редактировать") }
-        }
-
-        if (editMode) {
-            Spacer(modifier = Modifier.height(12.dp))
-            Text("Выберите артикул")
-
-            for (bag in bagList) {
-                OutlinedButton(
-                    modifier = Modifier.fillMaxWidth(),
-                    onClick = { }
-                ) {
-                    Text(bag)
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-        }
-
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
@@ -158,7 +117,7 @@ fun AddEditArticleScreen(
                     priceForAllEnabled = checked
                     if (!checked) {
                         for (c in colors) {
-                            if ((colorPrices[c] ?: "").isBlank()) {
+                            if (!colorPrices.containsKey(c) || colorPrices[c].isNullOrBlank()) {
                                 colorPrices[c] = priceAll
                             }
                         }
@@ -182,7 +141,7 @@ fun AddEditArticleScreen(
                 priceAll = it
                 if (!priceForAllEnabled) {
                     for (c in colors) {
-                        if ((colorPrices[c] ?: "").isBlank()) {
+                        if (!colorPrices.containsKey(c) || colorPrices[c].isNullOrBlank()) {
                             colorPrices[c] = it
                         }
                     }
