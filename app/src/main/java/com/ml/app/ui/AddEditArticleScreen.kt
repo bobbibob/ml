@@ -68,7 +68,7 @@ fun AddEditArticleScreen(
 
     LaunchedEffect(tab) {
         if (tab == 1) {
-            bagIds = repo.loadTimeline(180)
+            bagIds = emptyList()
                 .flatMap { it.byBags }
                 .map { it.bagId }
                 .distinct()
