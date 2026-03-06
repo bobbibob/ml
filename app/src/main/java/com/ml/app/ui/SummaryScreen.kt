@@ -45,15 +45,55 @@ private fun fmtPct(v01: Double): String = String.format("%.2f%%", v01 * 100.0)
 @Composable
 fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
   val state by vm.state.collectAsState()
+  var showArticlePicker by remember { mutableStateOf(false) }
+  var localEditorBagId by remember { mutableStateOf<String?>(null) }
   val ctx = LocalContext.current
 
   LaunchedEffect(Unit) { vm.init() }
 
   BackHandler(enabled = (state.mode is ScreenMode.Details) || (state.mode is ScreenMode.ArticleEditor)) {
-    when (state.mode) {
-      is ScreenMode.ArticleEditor -> vm.backFromArticleEditor()
-      else -> vm.backToTimeline()
-    }
+          val pickerBags = state.timeline
+            .flatMap { day -> day.byBags.map { bag -> bag.bagId } }
+            .distinct()
+            .sorted()
+
+          when {
+            showArticlePicker -> ArticlePickerList(
+              bagIds = pickerBags,
+              onCreateNew = {
+                localEditorBagId = ""
+                showArticlePicker = false
+              },
+              onPick = { pickedBagId ->
+                localEditorBagId = pickedBagId
+                showArticlePicker = false
+              },
+              onCancel = { showArticlePicker = false }
+            )
+
+            localEditorBagId != null -> AddEditArticleScreen(
+              bagId = localEditorBagId?.ifBlank { null },
+              onDone = { localEditorBagId = null }
+            )
+
+            else -> when (state.mode) {
+              is ScreenMode.Timeline -> TimelineList(
+                items = state.timeline,
+                cardTypes = state.cardTypes,
+                onOpen = { vm.openDetails(LocalDate.parse(it.date)) }
+              )
+
+              is ScreenMode.Details -> DetailsList(
+                rows = state.rows,
+                cardTypes = state.cardTypes
+              )
+
+              is ScreenMode.ArticleEditor -> AddEditArticleScreen(
+                bagId = (state.mode as ScreenMode.ArticleEditor).bagId,
+                onDone = { vm.backFromArticleEditor() }
+              )
+            }
+          }
   }
 
   fun openDatePicker(current: LocalDate, onPicked: (LocalDate) -> Unit) {
@@ -116,7 +156,7 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
           }
         }
       } else {
-          if (state.mode !is ScreenMode.ArticleEditor) {
+          if (!showArticlePicker if (state.mode !is ScreenMode.ArticleEditor) {if (state.mode !is ScreenMode.ArticleEditor) { localEditorBagId == null if (state.mode !is ScreenMode.ArticleEditor) {if (state.mode !is ScreenMode.ArticleEditor) { state.mode !is ScreenMode.ArticleEditor) {
         Row(
           modifier = Modifier
             .fillMaxWidth()
@@ -162,7 +202,7 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
     }
 
     ArticleBottomBar(
-      onArticleClick = { vm.openArticleEditor() },
+      onArticleClick = { showArticlePicker = true },
       modifier = Modifier.align(Alignment.BottomCenter)
     )
 
@@ -440,6 +480,65 @@ private fun ArticleBottomBar(
       ) {
         Text("Добавить/редактировать артикул")
       }
+    }
+  }
+}
+
+@Composable
+private fun ArticlePickerList(
+  bagIds: List<String>,
+  onCreateNew: () -> Unit,
+  onPick: (String) -> Unit,
+  onCancel: () -> Unit
+) {
+  Column(
+    modifier = Modifier
+      .fillMaxSize()
+      .padding(12.dp),
+    verticalArrangement = Arrangement.spacedBy(12.dp)
+  ) {
+    Text(
+      text = "Выберите артикул",
+      style = MaterialTheme.typography.titleLarge,
+      color = TextBlack
+    )
+
+    Button(
+      onClick = onCreateNew,
+      modifier = Modifier.fillMaxWidth()
+    ) {
+      Text("Новый артикул")
+    }
+
+    if (bagIds.isEmpty()) {
+      Text("Пока нет артикулов", color = Color.Gray)
+    } else {
+      LazyColumn(
+        modifier = Modifier.weight(1f),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+      ) {
+        items(bagIds) { bagId ->
+          Card(
+            colors = CardDefaults.cardColors(containerColor = SoftGray),
+            modifier = Modifier
+              .fillMaxWidth()
+              .clickable { onPick(bagId) }
+          ) {
+            Text(
+              text = bagId,
+              modifier = Modifier.padding(14.dp),
+              color = TextBlack
+            )
+          }
+        }
+      }
+    }
+
+    Button(
+      onClick = onCancel,
+      modifier = Modifier.fillMaxWidth()
+    ) {
+      Text("Назад")
     }
   }
 }
