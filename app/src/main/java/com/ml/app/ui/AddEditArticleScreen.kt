@@ -65,6 +65,18 @@ fun AddEditArticleScreen(
     val colors = remember { mutableStateListOf<String>() }
     val colorPrices = remember { mutableStateMapOf<String, String>() }
 
+    fun resetForm() {
+        name = ""
+        hypothesis = ""
+        cost = ""
+        priceAll = ""
+        cardType = "classic"
+        newColor = ""
+        priceForAllEnabled = true
+        colors.clear()
+        colorPrices.clear()
+    }
+
     val hasChanges =
         name.isNotBlank() ||
         hypothesis.isNotBlank() ||
@@ -79,6 +91,24 @@ fun AddEditArticleScreen(
                 .distinctBy { bag -> bag.bagId }
                 .sortedBy { bag -> bag.bagName.lowercase() }
         }
+    }
+
+    LaunchedEffect(selectedBagId) {
+        val id = selectedBagId
+        if (id.isNullOrBlank()) return@LaunchedEffect
+
+        val row = repo.getBagUser(id)
+        val rowColors = repo.getBagUserColors(id)
+
+        if (!row?.name.isNullOrBlank()) name = row?.name.orEmpty()
+        if (!row?.hypothesis.isNullOrBlank()) hypothesis = row?.hypothesis.orEmpty()
+        if (row?.price != null) priceAll = row.price.toString()
+        if (row?.cogs != null) cost = row.cogs.toString()
+        if (!row?.cardType.isNullOrBlank()) cardType = row?.cardType.orEmpty()
+
+        colors.clear()
+        colors.addAll(rowColors.distinct())
+        colorPrices.clear()
     }
 
     fun addColor() {
@@ -106,7 +136,11 @@ fun AddEditArticleScreen(
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             FilterChip(
                 selected = tab == 0,
-                onClick = { tab = 0 },
+                onClick = {
+                    tab = 0
+                    selectedBagId = null
+                    resetForm()
+                },
                 label = { Text("Добавить") }
             )
             FilterChip(
@@ -152,12 +186,12 @@ fun AddEditArticleScreen(
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.SemiBold
                                 )
-                                Text(text = bag.bagId)
                             }
 
                             OutlinedButton(
                                 onClick = {
                                     selectedBagId = bag.bagId
+                                    name = bag.bagName
                                     tab = 0
                                 }
                             ) {
