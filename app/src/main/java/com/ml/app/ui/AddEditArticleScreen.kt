@@ -7,7 +7,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun AddEditArticleScreen() {
+fun AddEditArticleScreen(
+    bagId: String? = null,
+    onDone: (() -> Unit)? = null
+) {
+    val _bagId = bagId
+    val _onDone = onDone
 
     var article by remember { mutableStateOf("") }
     var name by remember { mutableStateOf("") }
