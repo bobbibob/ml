@@ -1,5 +1,9 @@
 package com.ml.app.ui
 
+import com.ml.app.data.SQLiteRepo
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -30,6 +34,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
 @Composable
+    val ctx = LocalContext.current
+    val repo = remember { SQLiteRepo(ctx) }
+    val scope = rememberCoroutineScope()
+
+    var editMode by remember { mutableStateOf(false) }
+    var bagList by remember { mutableStateOf<List<String>>(emptyList()) }
+
 fun AddEditArticleScreen(
     bagId: String? = null,
     onDone: (() -> Unit)? = null
@@ -72,6 +83,34 @@ fun AddEditArticleScreen(
     }
 
     Column(
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Button(onClick = { editMode = false }) { Text("Новый") }
+            Button(onClick = {
+                editMode = true
+                scope.launch {
+                    bagList = repo.loadTimeline(180).flatMap { it.byBags }.map { it.bagId }.distinct().sorted()
+                }
+            }) { Text("Редактировать") }
+        }
+
+        if (editMode) {
+            Spacer(modifier = Modifier.height(12.dp))
+            Text("Выберите артикул")
+
+            for (bag in bagList) {
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { }
+                ) {
+                    Text(bag)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+        }
+
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
