@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.ml.app.data.SQLiteRepo
 import com.ml.app.data.SQLiteRepo.BagPickerRow
+import com.ml.app.data.SQLiteRepo.BagUserColorRow
 import java.io.File
 import java.util.UUID
 import kotlinx.coroutines.launch
@@ -134,6 +135,7 @@ fun AddEditArticleScreen(
         val id = selectedBagId ?: return@LaunchedEffect
         val row = repo.getBagUser(id)
         val rowColors = repo.getBagUserColors(id)
+        val rowColorRows = repo.getBagUserColorRows(id)
         val seed = repo.getBagEditorSeed(id)
 
         resetForm()
@@ -469,6 +471,15 @@ fun AddEditArticleScreen(
                         repo.replaceBagUserColors(
                             id,
                             colorDrafts.map { it.color }
+                        )
+                        repo.replaceBagUserColorRows(
+                            id,
+                            colorDrafts.map {
+                                BagUserColorRow(
+                                    color = it.color,
+                                    price = if (priceForAllEnabled) null else it.priceText.replace(",", ".").toDoubleOrNull()
+                                )
+                            }
                         )
                         onDone?.invoke()
                     }
