@@ -75,6 +75,8 @@ fun AddEditArticleScreen(
     val ctx = LocalContext.current
     val repo = remember { SQLiteRepo(ctx) }
 
+    var photoPath by remember { mutableStateOf<String?>(null) }
+
     val imagePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
@@ -90,7 +92,6 @@ fun AddEditArticleScreen(
     var name by remember { mutableStateOf("") }
     var hypothesis by remember { mutableStateOf("") }
     var cost by remember { mutableStateOf("") }
-    var photoPath by remember { mutableStateOf<String?>(null) }
 
     var priceForAllEnabled by remember { mutableStateOf(true) }
     var priceAll by remember { mutableStateOf("") }
