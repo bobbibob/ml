@@ -115,24 +115,24 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
 
           }
         }
-        } else {
-          if (state.mode !is ScreenMode.ArticleEditor) {
-            Row(
-              modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-              horizontalArrangement = Arrangement.spacedBy(12.dp),
-              verticalAlignment = Alignment.CenterVertically
-            ) {
-              Button(
-                onClick = { openDatePicker(state.selectedDate) { vm.setDateFromPicker(it) } },
-                colors = ButtonDefaults.buttonColors(containerColor = SoftGray, contentColor = TextBlack),
-                modifier = Modifier.weight(1f)
-              ) {
-                Text("Дата: ${state.selectedDate}")
-              }
-            }
+      } else {
+        Row(
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(12.dp),
+          horizontalArrangement = Arrangement.spacedBy(12.dp),
+          verticalAlignment = Alignment.CenterVertically
+        ) {
+          Button(
+            onClick = { openDatePicker(state.selectedDate) { vm.setDateFromPicker(it) } },
+            colors = ButtonDefaults.buttonColors(containerColor = SoftGray, contentColor = TextBlack),
+            modifier = Modifier.weight(1f)
+          ) {
+
           }
+
+          
+        }
 
         when (state.mode) {
           is ScreenMode.Timeline -> TimelineList(
