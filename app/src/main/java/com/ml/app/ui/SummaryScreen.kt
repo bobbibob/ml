@@ -183,6 +183,31 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
       )
     }
 
+    if (showExitAppDialog) {
+      AlertDialog(
+        onDismissRequest = { showExitAppDialog = false },
+        title = { Text("Выйти из приложения?") },
+        text = { Text("Вы действительно хотите выйти?") },
+        confirmButton = {
+          Button(
+            onClick = {
+              showExitAppDialog = false
+              activity?.finish()
+            }
+          ) {
+            Text("Выйти")
+          }
+        },
+        dismissButton = {
+          OutlinedButton(
+            onClick = { showExitAppDialog = false }
+          ) {
+            Text("Отмена")
+          }
+        }
+      )
+    }
+
     PullRefreshIndicator(
       refreshing = state.loading,
       state = pullState,
