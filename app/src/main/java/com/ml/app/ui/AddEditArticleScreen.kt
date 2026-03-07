@@ -198,6 +198,8 @@ fun AddEditArticleScreen(
         }
 
         val savedPrices = kotlin.runCatching { repo.getBagColorPrices(id) }.getOrDefault(emptyList())
+        priceForAllEnabled = savedPrices.none { it.price != null }
+
         if (savedPrices.isNotEmpty()) {
             for (i in colorDrafts.indices) {
                 val item = colorDrafts[i]
