@@ -180,6 +180,45 @@ fun AddEditArticleScreen(
         val id = selectedBagId ?: return@LaunchedEffect
         loadBagFromPicker(id)
 
+        val row = kotlin.runCatching { repo.getBagUser(id) }.getOrNull()
+        if (row != null) {
+            if (!row.name.isNullOrBlank()) name = row.name
+            if (!row.hypothesis.isNullOrBlank()) hypothesis = row.hypothesis
+            if (row.price != null) priceAll = row.price.toString()
+            if (row.cogs != null) cost = row.cogs.toString()
+            if (!row.cardType.isNullOrBlank()) cardType = row.cardType
+            if (!row.photoPath.isNullOrBlank()) photoPath = row.photoPath
+        }
+
+        val seed = kotlin.runCatching { repo.getBagEditorSeed(id) }.getOrNull()
+        if (seed != null) {
+            if (name.isBlank()) name = seed.bagName
+            if (hypothesis.isBlank()) hypothesis = seed.hypothesis.orEmpty()
+            if (priceAll.isBlank()) priceAll = seed.price?.toString().orEmpty()
+            if (cost.isBlank()) cost = seed.cogs?.toString().orEmpty()
+
+            colorDrafts.clear()
+            colorDrafts.addAll(
+                seed.colors.distinct().map { color ->
+                    ColorDraft(color = color, priceText = "")
+                }
+            )
+        }
+
+        val savedPrices = kotlin.runCatching { repo.getBagColorPrices(id) }.getOrDefault(emptyList())
+        priceForAllEnabled = savedPrices.none { it.price != null }
+
+        if (savedPrices.isNotEmpty()) {
+            for (i in colorDrafts.indices) {
+                val item = colorDrafts[i]
+                val saved = savedPrices.firstOrNull { it.color == item.color }?.price
+                if (saved != null) {
+                    colorDrafts[i] = item.copy(priceText = saved.toString())
+                }
+            }
+        }
+    }
+
         val seed = kotlin.runCatching { repo.getBagEditorSeed(id) }.getOrNull()
         if (seed != null) {
             if (name.isBlank()) name = seed.bagName

@@ -18,7 +18,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import org.json.JSONObject
 import java.time.LocalDate
+import java.io.File
 
 sealed class ScreenMode {
   data object Timeline : ScreenMode()
@@ -145,14 +147,56 @@ fun setDateFromPicker(date: LocalDate) {
       try {
         _state.value = _state.value.copy(loading = true, status = "Checking updates…")
 
-        val remote = r2.headPack()
-        val remoteEtag = remote.etag?.trim()?.trim('"') ?: ""
-        val remoteToken = when {
-          remoteEtag.isNotBlank() -> "etag:$remoteEtag"
-          !remote.lastModified.isNullOrBlank() -> "lm:${remote.lastModified}"
-          remote.contentLength != null -> "len:${remote.contentLength}"
-          else -> ""
+        val hasLocal = PackPaths.dbFile(ctx).exists() && PackPaths.imagesDir(ctx).exists()
+        val localManifestFile = PackPaths.manifestFile(ctx)
+        val localVersion = if (localManifestFile.exists()) {
+          kotlin.runCatching { JSONObject(localManifestFile.readText()).optInt("version", 0) }.getOrDefault(0)
+        } else {
+          0
         }
+
+        val tmpDir = File(ctx.cacheDir, "pack_refresh_check")
+        if (tmpDir.exists()) tmpDir.deleteRecursively()
+        tmpDir.mkdirs()
+
+        val zip = r2.downloadPackZip()
+        ZipUtil.unzipToDir(zip, tmpDir)
+
+        val remoteManifestFile = File(tmpDir, "manifest.json")
+        val remoteVersion = if (remoteManifestFile.exists()) {
+          kotlin.runCatching { JSONObject(remoteManifestFile.readText()).optInt("version", 0) }.getOrDefault(0)
+        } else {
+          0
+        }
+
+        if (!hasLocal) {
+          _state.value = _state.value.copy(status = "Downloading…")
+          ZipUtil.unzipToDir(zip, PackPaths.packDir(ctx))
+          PackDbSync.mergedDbFile(ctx).delete()
+          PackDbSync.refreshMergedDb(ctx)
+
+          _state.value = _state.value.copy(hasPack = true, loading = false, status = "Downloaded")
+          refreshAfterSync()
+          return@launch
+        }
+
+        if (remoteVersion > localVersion) {
+          _state.value = _state.value.copy(status = "Updating…")
+          ZipUtil.unzipToDir(zip, PackPaths.packDir(ctx))
+          PackDbSync.mergedDbFile(ctx).delete()
+          PackDbSync.refreshMergedDb(ctx)
+
+          _state.value = _state.value.copy(hasPack = true, loading = false, status = "Updated")
+          refreshAfterSync()
+        } else {
+          _state.value = _state.value.copy(loading = false, status = "No changes")
+          refreshAfterSync()
+        }
+      } catch (t: Throwable) {
+        _state.value = _state.value.copy(loading = false, status = "Sync error: ${t.message}")
+      }
+    }
+  }
 
         val localEtag = prefsPack.getString("etag", "") ?: ""
         val localToken = prefsPack.getString("pack_token", "")?.ifBlank {
