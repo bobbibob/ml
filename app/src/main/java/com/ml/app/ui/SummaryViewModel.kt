@@ -6,6 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ml.app.data.CardTypeStore
 import com.ml.app.data.PackDbSync
+import com.ml.app.data.PackUploadManager
 import com.ml.app.data.PackPaths
 import com.ml.app.data.R2Client
 import com.ml.app.data.SQLiteRepo
@@ -99,6 +100,26 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
   fun backFromArticleEditor() {
     _state.value = _state.value.copy(mode = ScreenMode.Timeline)
   }
+
+  fun syncPackNow() {
+    viewModelScope.launch(Dispatchers.IO) {
+      try {
+        _state.value = _state.value.copy(loading = true, status = "Синхронизация pack…")
+        PackUploadManager.saveUserChangesAndUpload(ctx)
+        _state.value = _state.value.copy(loading = false, status = "Pack синхронизирован")
+        refreshAfterSync()
+      } catch (t: Throwable) {
+        _state.value = _state.value.copy(
+          loading = false,
+          status = when (t.message?.trim()) {
+            "Сначала обнови пакет" -> "Сначала обнови пакет"
+            else -> "Ошибка sync pack: ${t.message}"
+          }
+        )
+      }
+    }
+  }
+
 fun setDateFromPicker(date: LocalDate) {
     openDetails(date)
   }

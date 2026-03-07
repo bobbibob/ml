@@ -151,6 +151,16 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
               onDone = { vm.backFromArticleEditor() }
             )
           }
+        if (state.mode !is ScreenMode.ArticleEditor) {
+          Button(
+            onClick = { vm.syncPackNow() },
+            enabled = !state.loading,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+          ) {
+            Text("Синхронизировать pack")
+          }
+        }
+
         if (state.status.isNotBlank()) {
           Text(text = state.status, modifier = Modifier.padding(12.dp), color = Color.Gray)
         }
