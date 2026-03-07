@@ -105,7 +105,7 @@ object PackDbSync {
 
   private fun tableExists(db: SQLiteDatabase, name: String): Boolean {
     return db.rawQuery(
-      "SELECT 1 FROM sqlite_master WHERE type=table AND name=? LIMIT 1",
+      "SELECT 1 FROM sqlite_master WHERE type='table' AND name=? LIMIT 1",
       arrayOf(name)
     ).use { c -> c.moveToFirst() }
   }
