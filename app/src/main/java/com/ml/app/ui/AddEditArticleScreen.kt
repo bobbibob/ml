@@ -43,7 +43,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
-import com.ml.app.data.PackUploadManager
 import com.ml.app.data.SQLiteRepo
 import com.ml.app.data.SQLiteRepo.BagColorPriceRow
 import com.ml.app.data.SQLiteRepo.BagPickerRow
@@ -480,34 +479,30 @@ fun AddEditArticleScreen(
                         scope.launch {
                             val id = selectedBagId ?: name.trim().ifBlank { return@launch }
 
-                            kotlin.runCatching {
-                                repo.upsertBagUser(
-                                    bagId = id,
-                                    name = name.ifBlank { null },
-                                    hypothesis = hypothesis.ifBlank { null },
-                                    price = priceAll.replace(",", ".").toDoubleOrNull(),
-                                    cogs = cost.replace(",", ".").toDoubleOrNull(),
-                                    cardType = cardType,
-                                    photoPath = photoPath
-                                )
+                            repo.upsertBagUser(
+                                bagId = id,
+                                name = name.ifBlank { null },
+                                hypothesis = hypothesis.ifBlank { null },
+                                price = priceAll.replace(",", ".").toDoubleOrNull(),
+                                cogs = cost.replace(",", ".").toDoubleOrNull(),
+                                cardType = cardType,
+                                photoPath = photoPath
+                            )
 
-                                repo.replaceBagUserColors(
-                                    id,
-                                    colorDrafts.map { it.color }
-                                )
+                            repo.replaceBagUserColors(
+                                id,
+                                colorDrafts.map { it.color }
+                            )
 
-                                repo.replaceBagColorPrices(
-                                    id,
-                                    colorDrafts.map {
-                                        BagColorPriceRow(
-                                            color = it.color,
-                                            price = if (priceForAllEnabled) null else it.priceText.replace(",", ".").toDoubleOrNull()
-                                        )
-                                    }
-                                )
-
-                                PackUploadManager.saveUserChangesAndUpload(ctx)
-                            }
+                            repo.replaceBagColorPrices(
+                                id,
+                                colorDrafts.map {
+                                    BagColorPriceRow(
+                                        color = it.color,
+                                        price = if (priceForAllEnabled) null else it.priceText.replace(",", ".").toDoubleOrNull()
+                                    )
+                                }
+                            )
 
                             onDone?.invoke()
                         }
