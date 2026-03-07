@@ -313,6 +313,75 @@ class SQLiteRepo(private val context: Context) {
     }
   }
 
+
+  data class BagColorPriceRow(
+    val color: String,
+    val price: Double?
+  )
+
+  suspend fun getBagColorPrices(bagId: String): List<BagColorPriceRow> = withContext(Dispatchers.IO) {
+    openDbReadWrite().use { db ->
+      db.execSQL(
+        """
+        CREATE TABLE IF NOT EXISTS bag_user_color_price(
+          bag_id TEXT NOT NULL,
+          color TEXT NOT NULL,
+          price REAL,
+          PRIMARY KEY(bag_id, color)
+        )
+        """.trimIndent()
+      )
+      val out = ArrayList<BagColorPriceRow>()
+      db.rawQuery(
+        "SELECT color, price FROM bag_user_color_price WHERE bag_id=? ORDER BY color",
+        arrayOf(bagId)
+      ).use { c ->
+        val iColor = c.getColumnIndexOrThrow("color")
+        val iPrice = c.getColumnIndexOrThrow("price")
+        while (c.moveToNext()) {
+          out.add(
+            BagColorPriceRow(
+              color = c.getString(iColor),
+              price = if (c.isNull(iPrice)) null else c.getDouble(iPrice)
+            )
+          )
+        }
+      }
+      out
+    }
+  }
+
+  suspend fun replaceBagColorPrices(
+    bagId: String,
+    rows: List<BagColorPriceRow>
+  ) = withContext(Dispatchers.IO) {
+    openDbReadWrite().use { db ->
+      db.execSQL(
+        """
+        CREATE TABLE IF NOT EXISTS bag_user_color_price(
+          bag_id TEXT NOT NULL,
+          color TEXT NOT NULL,
+          price REAL,
+          PRIMARY KEY(bag_id, color)
+        )
+        """.trimIndent()
+      )
+      db.beginTransaction()
+      try {
+        db.execSQL("DELETE FROM bag_user_color_price WHERE bag_id=?", arrayOf(bagId))
+        for (row in rows.distinctBy { it.color }.filter { it.color.isNotBlank() }) {
+          db.execSQL(
+            "INSERT OR REPLACE INTO bag_user_color_price(bag_id,color,price) VALUES(?,?,?)",
+            arrayOf(bagId, row.color, row.price)
+          )
+        }
+        db.setTransactionSuccessful()
+      } finally {
+        db.endTransaction()
+      }
+    }
+  }
+
   suspend fun getBagUserColors(bagId: String): List<String> = withContext(Dispatchers.IO) {
     openDbReadWrite().use { db ->
       val out = ArrayList<String>()

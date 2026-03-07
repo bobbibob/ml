@@ -9,6 +9,7 @@ object PackDbSync {
   private const val T_CARD_TYPE = "bag_card_type"
   private const val T_BAG_USER = "bag_user"
   private const val T_BAG_USER_COLORS = "bag_user_colors"
+  private const val T_BAG_USER_COLOR_PRICE = "bag_user_color_price"
 
   fun mergedDbFile(ctx: Context): File {
     val dir = File(ctx.filesDir, "local_pack")
@@ -86,6 +87,19 @@ object PackDbSync {
       """.trimIndent()
     )
     db.execSQL("CREATE INDEX IF NOT EXISTS idx_${T_BAG_USER_COLORS}_bag ON $T_BAG_USER_COLORS(bag_id);")
+
+    // 4) bag user color prices
+    db.execSQL(
+      """
+      CREATE TABLE IF NOT EXISTS $T_BAG_USER_COLOR_PRICE(
+        bag_id TEXT NOT NULL,
+        color TEXT NOT NULL,
+        price REAL,
+        PRIMARY KEY(bag_id, color)
+      );
+      """.trimIndent()
+    )
+    db.execSQL("CREATE INDEX IF NOT EXISTS idx_${T_BAG_USER_COLOR_PRICE}_bag ON $T_BAG_USER_COLOR_PRICE(bag_id);")
   }
 
   private fun tableExists(db: SQLiteDatabase, name: String): Boolean {
@@ -162,6 +176,26 @@ object PackDbSync {
               toDb.execSQL(
                 "INSERT OR IGNORE INTO $T_BAG_USER_COLORS(bag_id,color) VALUES(?,?)",
                 arrayOf(c.getString(iId), c.getString(iColor))
+              )
+            }
+          }
+        }
+
+        // merge bag_user_color_price
+        if (tableExists(fromDb, T_BAG_USER_COLOR_PRICE)) {
+          fromDb.rawQuery("SELECT bag_id, color, price FROM $T_BAG_USER_COLOR_PRICE", null).use { c ->
+            val iId = c.getColumnIndexOrThrow("bag_id")
+            val iColor = c.getColumnIndexOrThrow("color")
+            val iPrice = c.getColumnIndexOrThrow("price")
+            while (c.moveToNext()) {
+              toDb.execSQL(
+                "INSERT INTO $T_BAG_USER_COLOR_PRICE(bag_id,color,price) VALUES(?,?,?) " +
+                  "ON CONFLICT(bag_id,color) DO UPDATE SET price=excluded.price",
+                arrayOf(
+                  c.getString(iId),
+                  c.getString(iColor),
+                  if (c.isNull(iPrice)) null else c.getDouble(iPrice)
+                )
               )
             }
           }

@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.ml.app.data.SQLiteRepo
 import com.ml.app.data.SQLiteRepo.BagPickerRow
+import com.ml.app.data.SQLiteRepo.BagColorPriceRow
 import java.io.File
 import java.util.UUID
 
@@ -174,6 +175,17 @@ fun AddEditArticleScreen(
     LaunchedEffect(selectedBagId) {
         val id = selectedBagId ?: return@LaunchedEffect
         loadBagFromPicker(id)
+
+        val savedPrices = kotlin.runCatching { repo.getBagColorPrices(id) }.getOrDefault(emptyList())
+        if (savedPrices.isNotEmpty()) {
+            for (i in colorDrafts.indices) {
+                val item = colorDrafts[i]
+                val saved = savedPrices.firstOrNull { it.color == item.color }?.price
+                if (saved != null) {
+                    colorDrafts[i] = item.copy(priceText = saved.toString())
+                }
+            }
+        }
     }
 
     Column(
@@ -443,7 +455,23 @@ fun AddEditArticleScreen(
                 Spacer(modifier = Modifier.height(24.dp))
 
                 Button(
-                    onClick = { showExitDialog = true },
+                    onClick = {
+                        val id = selectedBagId
+                        if (!id.isNullOrBlank()) {
+                            kotlin.runCatching {
+                                repo.replaceBagColorPrices(
+                                    id,
+                                    colorDrafts.map {
+                                        BagColorPriceRow(
+                                            color = it.color,
+                                            price = if (priceForAllEnabled) null else it.priceText.replace(",", ".").toDoubleOrNull()
+                                        )
+                                    }
+                                )
+                            }
+                        }
+                        showExitDialog = true
+                    },
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(if (selectedBagId.isNullOrBlank()) "Сохранить" else "Сохранить изменения")
