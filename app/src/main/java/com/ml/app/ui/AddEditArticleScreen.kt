@@ -456,21 +456,22 @@ fun AddEditArticleScreen(
             Button(
                 onClick = {
                     scope.launch {
-                        val id = selectedBagId ?: name.trim().ifBlank { return@launch }
-                        repo.upsertBagUser(
-                            bagId = id,
-                            name = name.ifBlank { null },
-                            hypothesis = hypothesis.ifBlank { null },
-                            price = priceAll.toDoubleOrNull(),
-                            cogs = cost.toDoubleOrNull(),
-                            cardType = cardType,
-                            photoPath = photoPath
-                        )
-                        repo.replaceBagUserColors(
-                            id,
-                            colorDrafts.map { it.color }
-                        )
-                        onDone?.invoke()
+                        kotlin.runCatching {
+                            val id = selectedBagId ?: name.trim().ifBlank { return@launch }
+                            repo.upsertBagUser(
+                                bagId = id,
+                                name = name.ifBlank { null },
+                                hypothesis = hypothesis.ifBlank { null },
+                                price = priceAll.toDoubleOrNull(),
+                                cogs = cost.toDoubleOrNull(),
+                                cardType = cardType,
+                                photoPath = photoPath
+                            )
+                            repo.replaceBagUserColors(
+                                id,
+                                colorDrafts.map { it.color }
+                            )
+                        }
                     }
                 },
                 enabled = hasChanges,
