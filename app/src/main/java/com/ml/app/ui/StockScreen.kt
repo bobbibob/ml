@@ -87,7 +87,14 @@ fun StockScreen(
         reload()
     }
 
-    BackHandler { onBack() }
+    BackHandler {
+        if (editingBagId != null) {
+            editingBagId = null
+            drafts.clear()
+        } else {
+            onBack()
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -149,13 +156,13 @@ fun StockScreen(
                                         if (editingBagId == bag.bagId) {
                                             val key = "${bag.bagId}::$color"
                                             OutlinedTextField(
-                                                value = drafts[key] ?: stock.toString(),
+                                                value = drafts[key] ?: stock.toInt().toString(),
                                                 onValueChange = { drafts[key] = it },
                                                 modifier = Modifier.width(120.dp),
                                                 singleLine = true
                                             )
                                         } else {
-                                            Text(stock.toString())
+                                            Text(stock.toInt().toString())
                                         }
                                     }
                                     Spacer(modifier = Modifier.height(6.dp))
@@ -166,23 +173,39 @@ fun StockScreen(
                         Spacer(modifier = Modifier.height(10.dp))
 
                         if (editingBagId == bag.bagId) {
-                            Button(
-                                onClick = {
-                                    scope.launch {
-                                        val rows = bag.colors.map { (color, stock) ->
-                                            val key = "${bag.bagId}::$color"
-                                            color to ((drafts[key] ?: stock.toString()).replace(",", ".").toDoubleOrNull() ?: stock)
-                                        }
-                                        repo.replaceBagStockOverrides(date, bag.bagId, rows)
-                                        PackUploadManager.saveUserChangesAndUpload(ctx)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                OutlinedButton(
+                                    onClick = {
                                         editingBagId = null
                                         drafts.clear()
-                                        reload()
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text("Сохранить остатки")
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text("Отменить")
+                                }
+
+                                Button(
+                                    onClick = {
+                                        scope.launch {
+                                            val rows = bag.colors.map { (color, stock) ->
+                                                val key = "${bag.bagId}::$color"
+                                                val value = (drafts[key] ?: stock.toInt().toString()).trim()
+                                                color to (value.toIntOrNull()?.toDouble() ?: stock.toInt().toDouble())
+                                            }
+                                            repo.replaceBagStockOverrides(date, bag.bagId, rows)
+                                            PackUploadManager.saveUserChangesAndUpload(ctx)
+                                            editingBagId = null
+                                            drafts.clear()
+                                            reload()
+                                        }
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text("Сохранить")
+                                }
                             }
                         } else {
                             Button(
@@ -190,7 +213,7 @@ fun StockScreen(
                                     editingBagId = bag.bagId
                                     drafts.clear()
                                     for ((color, stock) in bag.colors) {
-                                        drafts["${bag.bagId}::$color"] = stock.toString()
+                                        drafts["${bag.bagId}::$color"] = stock.toInt().toString()
                                     }
                                 },
                                 modifier = Modifier.fillMaxWidth()
