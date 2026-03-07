@@ -43,6 +43,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.ml.app.data.PackUploadManager
 import com.ml.app.data.SQLiteRepo
 import com.ml.app.data.SQLiteRepo.BagPickerRow
 import com.ml.app.data.SQLiteRepo.BagColorPriceRow
@@ -272,228 +273,39 @@ fun AddEditArticleScreen(
                             }
 
                             OutlinedButton(
-                                onClick = {
-                                    selectedBagId = bag.bagId
-                                    tab = 0
-                                }
-                            ) {
-                                Text("Открыть")
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
-            }
-        } else {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-            ) {
-                Text(
-                    text = if (selectedBagId.isNullOrBlank()) "Добавить артикул" else "Редактировать артикул",
-                    style = MaterialTheme.typography.headlineSmall
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (!photoPath.isNullOrBlank()) {
-                        AsyncImage(
-                            model = photoPath,
-                            contentDescription = name,
-                            modifier = Modifier
-                                .width(96.dp)
-                                .height(96.dp)
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                    }
-
-                    Button(
-                        onClick = { imagePicker.launch("image/*") },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("Обновить фото")
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Название") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                OutlinedTextField(
-                    value = hypothesis,
-                    onValueChange = { hypothesis = it },
-                    label = { Text("Гипотеза") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(modifier = Modifier.height(18.dp))
-
-                Text(
-                    text = "Цвета",
-                    style = MaterialTheme.typography.titleMedium
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Checkbox(
-                        checked = priceForAllEnabled,
-                        onCheckedChange = { checked ->
-                            priceForAllEnabled = checked
-                            if (!checked) seedColorPricesFromCommon()
-                        }
-                    )
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Цена для всех цветов")
-                        Text(
-                            text = "если выключить — цена по каждому цвету",
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                OutlinedTextField(
-                    value = priceAll,
-                    onValueChange = {
-                        priceAll = it
-                        if (!priceForAllEnabled) {
-                            for (i in colorDrafts.indices) {
-                                val item = colorDrafts[i]
-                                if (item.priceText.isBlank()) {
-                                    colorDrafts[i] = item.copy(priceText = it)
-                                }
-                            }
-                        }
-                    },
-                    enabled = priceForAllEnabled,
-                    label = { Text("Цена для всех") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedTextField(
-                        value = newColor,
-                        onValueChange = { newColor = it },
-                        label = { Text("Новый цвет") },
-                        modifier = Modifier.weight(1f)
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Button(onClick = { addColor() }) {
-                        Text("Добавить")
-                    }
-                }
-
-                if (colorDrafts.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                }
-
-                for (i in colorDrafts.indices) {
-                    val item = colorDrafts[i]
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = item.color,
-                            modifier = Modifier.weight(1f)
-                        )
-
-                        if (!priceForAllEnabled) {
-                            OutlinedTextField(
-                                value = item.priceText,
-                                onValueChange = { value ->
-                                    colorDrafts[i] = item.copy(priceText = value)
-                                },
-                                label = { Text("Цена") },
-                                modifier = Modifier.width(140.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                        }
-
-                        OutlinedButton(
-                            onClick = { removeColor(item.color) }
-                        ) {
-                            Text("Удалить")
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
-
-                Spacer(modifier = Modifier.height(18.dp))
-
-                Text(
-                    text = "Тип карточки",
-                    style = MaterialTheme.typography.titleMedium
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    FilterChip(
-                        selected = cardType == "classic",
-                        onClick = { cardType = "classic" },
-                        label = { Text("Классика") }
-                    )
-                    FilterChip(
-                        selected = cardType == "premium",
-                        onClick = { cardType = "premium" },
-                        label = { Text("Премиум") }
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(18.dp))
-
-                OutlinedTextField(
-                    value = cost,
-                    onValueChange = { cost = it },
-                    label = { Text("Себестоимость") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                Button(
                     onClick = {
                         scope.launch {
-                            val id = selectedBagId
-                            if (!id.isNullOrBlank()) {
-                                kotlin.runCatching {
-                                    repo.replaceBagColorPrices(
-                                        id,
-                                        colorDrafts.map {
-                                            BagColorPriceRow(
-                                                color = it.color,
-                                                price = if (priceForAllEnabled) null else it.priceText.replace(",", ".").toDoubleOrNull()
-                                            )
-                                        }
-                                    )
-                                }
+                            val id = selectedBagId ?: name.trim().ifBlank { return@launch }
+
+                            kotlin.runCatching {
+                                repo.upsertBagUser(
+                                    bagId = id,
+                                    name = name.ifBlank { null },
+                                    hypothesis = hypothesis.ifBlank { null },
+                                    price = priceAll.replace(",", ".").toDoubleOrNull(),
+                                    cogs = cost.replace(",", ".").toDoubleOrNull(),
+                                    cardType = cardType,
+                                    photoPath = photoPath
+                                )
+
+                                repo.replaceBagUserColors(
+                                    id,
+                                    colorDrafts.map { it.color }
+                                )
+
+                                repo.replaceBagColorPrices(
+                                    id,
+                                    colorDrafts.map {
+                                        BagColorPriceRow(
+                                            color = it.color,
+                                            price = if (priceForAllEnabled) null else it.priceText.replace(",", ".").toDoubleOrNull()
+                                        )
+                                    }
+                                )
+
+                                PackUploadManager.saveUserChangesAndUpload(ctx)
                             }
+
                             onDone?.invoke()
                         }
                     },
