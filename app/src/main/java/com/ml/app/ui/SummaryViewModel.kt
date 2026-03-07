@@ -56,6 +56,8 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
       val has = PackPaths.dbFile(ctx).exists() && PackPaths.imagesDir(ctx).exists()
       _state.value = _state.value.copy(hasPack = has)
 
+      if (has) PackDbSync.refreshMergedDb(ctx)
+
 
       syncIfChanged()
 
@@ -142,6 +144,8 @@ fun setDateFromPicker(date: LocalDate) {
           _state.value = _state.value.copy(status = "Downloading…")
           val zip = r2.downloadPackZip()
           ZipUtil.unzipToDir(zip, PackPaths.packDir(ctx))
+          PackDbSync.refreshMergedDb(ctx)
+          PackDbSync.refreshMergedDb(ctx)
 
           prefsPack.edit().putString("etag", remoteEtag).putString("pack_token", remoteToken).apply()
           _state.value = _state.value.copy(hasPack = true, loading = false, status = "Downloaded")
