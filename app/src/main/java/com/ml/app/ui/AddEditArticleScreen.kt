@@ -35,7 +35,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,7 +46,6 @@ import com.ml.app.data.SQLiteRepo
 import com.ml.app.data.SQLiteRepo.BagPickerRow
 import java.io.File
 import java.util.UUID
-import kotlinx.coroutines.launch
 
 private data class ColorDraft(
     val color: String,
@@ -80,8 +78,8 @@ fun AddEditArticleScreen(
 ) {
     val ctx = LocalContext.current
     val repo = remember { SQLiteRepo(ctx) }
-    val scope = rememberCoroutineScope()
 
+    var showExitDialog by remember { mutableStateOf(false) }
     var photoPath by remember { mutableStateOf<String?>(null) }
 
     val imagePicker = rememberLauncherForActivityResult(
@@ -92,7 +90,6 @@ fun AddEditArticleScreen(
         }
     }
 
-    var showExitDialog by remember { mutableStateOf(false) }
     var selectedBagId by remember { mutableStateOf(bagId) }
     var tab by remember { mutableStateOf(if (bagId.isNullOrBlank()) 0 else 1) }
     var bagItems by remember { mutableStateOf<List<BagPickerRow>>(emptyList()) }
@@ -119,41 +116,12 @@ fun AddEditArticleScreen(
         colorDrafts.clear()
     }
 
-    val hasChanges =
-        name.isNotBlank() ||
-        hypothesis.isNotBlank() ||
-        cost.isNotBlank() ||
-        priceAll.isNotBlank() ||
-        colorDrafts.isNotEmpty() ||
-        !photoPath.isNullOrBlank()
-
-    LaunchedEffect(tab) {
-        if (tab == 1) {
-            bagItems = repo.listBagPickerRows()
-        }
-    }
-
-    LaunchedEffect(selectedBagId) {
-        val id = selectedBagId ?: return@LaunchedEffect
-        val row = repo.getBagUser(id)
-        val rowColors = repo.getBagUserColors(id)
-        val seed = repo.getBagEditorSeed(id)
-
+    fun loadBag(id: String) {
         resetForm()
 
-        name = row?.name ?: seed?.bagName.orEmpty()
-        hypothesis = row?.hypothesis ?: seed?.hypothesis.orEmpty()
-        priceAll = row?.price?.toString() ?: seed?.price?.toString().orEmpty()
-        cost = row?.cogs?.toString() ?: seed?.cogs?.toString().orEmpty()
-        cardType = row?.cardType ?: "classic"
-        photoPath = row?.photoPath
-
-        val loadedColors =
-            if (rowColors.isNotEmpty()) rowColors.distinct()
-            else seed?.colors.orEmpty().distinct()
-
-        colorDrafts.clear()
-        colorDrafts.addAll(loadedColors.map { ColorDraft(color = it) })
+        val rowBag = bagItems.firstOrNull { it.bagId == id }
+        name = rowBag?.bagName.orEmpty()
+        photoPath = rowBag?.photoPath
     }
 
     fun addColor() {
@@ -184,8 +152,19 @@ fun AddEditArticleScreen(
         }
     }
 
-    BackHandler(enabled = true) {
+    BackHandler {
         showExitDialog = true
+    }
+
+    LaunchedEffect(tab) {
+        if (tab == 1) {
+            bagItems = repo.listBagPickerRows()
+        }
+    }
+
+    LaunchedEffect(selectedBagId) {
+        val id = selectedBagId ?: return@LaunchedEffect
+        loadBag(id)
     }
 
     Column(
@@ -218,8 +197,6 @@ fun AddEditArticleScreen(
 
             LazyColumn(modifier = Modifier.fillMaxSize()) {
                 items(bagItems, key = { it.bagId }) { bag ->
-                    val previewPhoto = bag.photoPath
-
                     Card(
                         colors = CardDefaults.cardColors(),
                         shape = RoundedCornerShape(20.dp),
@@ -231,9 +208,9 @@ fun AddEditArticleScreen(
                                 .padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            if (!previewPhoto.isNullOrBlank()) {
+                            if (!bag.photoPath.isNullOrBlank()) {
                                 AsyncImage(
-                                    model = previewPhoto,
+                                    model = bag.photoPath,
                                     contentDescription = bag.bagName,
                                     modifier = Modifier
                                         .width(72.dp)
@@ -461,27 +438,7 @@ fun AddEditArticleScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             Button(
-                onClick = {
-                    scope.launch {
-                        kotlin.runCatching {
-                            val id = selectedBagId ?: name.trim().ifBlank { return@launch }
-                            repo.upsertBagUser(
-                                bagId = id,
-                                name = name.ifBlank { null },
-                                hypothesis = hypothesis.ifBlank { null },
-                                price = priceAll.toDoubleOrNull(),
-                                cogs = cost.toDoubleOrNull(),
-                                cardType = cardType,
-                                photoPath = photoPath
-                            )
-                            repo.replaceBagUserColors(
-                                id,
-                                colorDrafts.map { it.color }
-                            )
-                        }
-                    }
-                },
-                enabled = hasChanges,
+                onClick = { showExitDialog = true },
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(if (selectedBagId.isNullOrBlank()) "Сохранить" else "Сохранить изменения")
@@ -513,5 +470,4 @@ fun AddEditArticleScreen(
             }
         )
     }
-
 }
