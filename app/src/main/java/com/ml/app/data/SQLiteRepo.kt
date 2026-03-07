@@ -289,36 +289,8 @@ class SQLiteRepo(private val context: Context) {
     val photoPath: String?
   )
 
-
-  private fun ensureBagUserTables(db: SQLiteDatabase) {
-    db.execSQL(
-      "CREATE TABLE IF NOT EXISTS bag_user (" +
-        "bag_id TEXT PRIMARY KEY," +
-        "name TEXT," +
-        "hypothesis TEXT," +
-        "price REAL," +
-        "cogs REAL," +
-        "card_type TEXT," +
-        "photo_path TEXT" +
-      ")"
-    )
-    db.execSQL(
-      "CREATE TABLE IF NOT EXISTS bag_user_colors (" +
-        "bag_id TEXT NOT NULL," +
-        "color TEXT NOT NULL," +
-        "price REAL," +
-        "PRIMARY KEY(bag_id,color)" +
-      ")"
-    )
-    try {
-      db.execSQL("ALTER TABLE bag_user_colors ADD COLUMN price REAL")
-    } catch (_: Throwable) {
-    }
-  }
-
   suspend fun getBagUser(bagId: String): BagUserRow? = withContext(Dispatchers.IO) {
     openDbReadWrite().use { db ->
-      ensureBagUserTables(db)
       db.rawQuery(
         "SELECT bag_id,name,hypothesis,price,cogs,card_type,photo_path FROM bag_user WHERE bag_id=?",
         arrayOf(bagId)
@@ -343,7 +315,6 @@ class SQLiteRepo(private val context: Context) {
 
   suspend fun getBagUserColors(bagId: String): List<String> = withContext(Dispatchers.IO) {
     openDbReadWrite().use { db ->
-      ensureBagUserTables(db)
       val out = ArrayList<String>()
       db.rawQuery(
         "SELECT color FROM bag_user_colors WHERE bag_id=? ORDER BY color",
@@ -366,7 +337,6 @@ class SQLiteRepo(private val context: Context) {
     photoPath: String?
   ) = withContext(Dispatchers.IO) {
     openDbReadWrite().use { db ->
-      ensureBagUserTables(db)
       db.beginTransaction()
       try {
         db.execSQL(
@@ -383,60 +353,8 @@ class SQLiteRepo(private val context: Context) {
     }
   }
 
-
-  data class BagUserColorRow(
-    val color: String,
-    val price: Double?
-  )
-
-  suspend fun getBagUserColorRows(bagId: String): List<BagUserColorRow> = withContext(Dispatchers.IO) {
-    openDbReadWrite().use { db ->
-      ensureBagUserTables(db)
-      val out = ArrayList<BagUserColorRow>()
-      db.rawQuery(
-        "SELECT color, price FROM bag_user_colors WHERE bag_id=? ORDER BY color",
-        arrayOf(bagId)
-      ).use { c ->
-        val iColor = c.getColumnIndexOrThrow("color")
-        val iPrice = c.getColumnIndexOrThrow("price")
-        while (c.moveToNext()) {
-          out.add(
-            BagUserColorRow(
-              color = c.getString(iColor),
-              price = if (c.isNull(iPrice)) null else c.getDouble(iPrice)
-            )
-          )
-        }
-      }
-      out
-    }
-  }
-
-  suspend fun replaceBagUserColorRows(
-    bagId: String,
-    rows: List<BagUserColorRow>
-  ) = withContext(Dispatchers.IO) {
-    openDbReadWrite().use { db ->
-      ensureBagUserTables(db)
-      db.beginTransaction()
-      try {
-        db.execSQL("DELETE FROM bag_user_colors WHERE bag_id=?", arrayOf(bagId))
-        for (row in rows.distinctBy { it.color }.filter { it.color.isNotBlank() }) {
-          db.execSQL(
-            "INSERT OR REPLACE INTO bag_user_colors(bag_id,color,price) VALUES(?,?,?)",
-            arrayOf(bagId, row.color, row.price)
-          )
-        }
-        db.setTransactionSuccessful()
-      } finally {
-        db.endTransaction()
-      }
-    }
-  }
-
   suspend fun replaceBagUserColors(bagId: String, colors: List<String>) = withContext(Dispatchers.IO) {
     openDbReadWrite().use { db ->
-      ensureBagUserTables(db)
       db.beginTransaction()
       try {
         db.execSQL("DELETE FROM bag_user_colors WHERE bag_id=?", arrayOf(bagId))
