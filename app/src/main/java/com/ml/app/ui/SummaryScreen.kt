@@ -2,6 +2,8 @@
 
 package com.ml.app.ui
 
+import android.app.Activity
+
 import android.app.DatePickerDialog
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -29,6 +31,7 @@ import coil.compose.AsyncImage
 import com.ml.app.domain.*
 import java.io.File
 import java.time.LocalDate
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 private val MercadoYellow = Color(0xFFFFE600)
@@ -45,6 +48,9 @@ private fun fmtPct(v01: Double): String = String.format("%.2f%%", v01 * 100.0)
 @Composable
 fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
   val state by vm.state.collectAsState()
+  val activity = (LocalContext.current as? Activity)
+  val scope = rememberCoroutineScope()
+  var showExitAppDialog by remember { mutableStateOf(false) }
   val ctx = LocalContext.current
 
   LaunchedEffect(Unit) { vm.init() }
