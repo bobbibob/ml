@@ -695,4 +695,56 @@ class SQLiteRepo(private val context: Context) {
   }
 
 
+
+  data class StockResolvedRow(
+    val bagId: String,
+    val color: String,
+    val stock: Double
+  )
+
+  suspend fun getResolvedStocksForDate(date: String): List<StockResolvedRow> = withContext(Dispatchers.IO) {
+    openDbReadWrite().use { db ->
+      val base = LinkedHashMap<Pair<String, String>, Double>()
+
+      db.rawQuery(
+        """
+        SELECT bag_id, color, stock
+        FROM svodka
+        WHERE date=?
+          AND bag_id IS NOT NULL AND bag_id!=''
+          AND color IS NOT NULL AND color!=''
+          AND color NOT IN ('__TOTAL__','TOTAL')
+        ORDER BY bag_id, color
+        """.trimIndent(),
+        arrayOf(date)
+      ).use { c ->
+        val iBag = c.getColumnIndexOrThrow("bag_id")
+        val iColor = c.getColumnIndexOrThrow("color")
+        val iStock = c.getColumnIndexOrThrow("stock")
+        while (c.moveToNext()) {
+          val bagId = c.getString(iBag)
+          val color = c.getString(iColor)
+          val stock = if (c.isNull(iStock)) 0.0 else c.getDouble(iStock)
+          base[bagId to color] = stock
+        }
+      }
+
+      val overrides = getEffectiveStockOverrides(date)
+      for (o in overrides) {
+        base[o.bagId to o.color] = o.stock
+      }
+
+      base.entries
+        .sortedWith(compareBy({ it.key.first }, { it.key.second }))
+        .map {
+          StockResolvedRow(
+            bagId = it.key.first,
+            color = it.key.second,
+            stock = it.value
+          )
+        }
+    }
+  }
+
+
 }

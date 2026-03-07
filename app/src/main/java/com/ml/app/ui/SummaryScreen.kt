@@ -63,6 +63,7 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
     when (state.mode) {
       is ScreenMode.Details -> vm.backToTimeline()
       is ScreenMode.ArticleEditor -> vm.backFromArticleEditor()
+      is ScreenMode.Stocks -> vm.backFromStocks()
       else -> showExitAppDialog = true
     }
   }
@@ -168,6 +169,11 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
               bagId = (state.mode as ScreenMode.ArticleEditor).bagId,
               onDone = { vm.backFromArticleEditor() }
             )
+
+            is ScreenMode.Stocks -> StockScreen(
+              date = state.selectedDate.toString(),
+              onBack = { vm.backFromStocks() }
+            )
           }
 
           if (state.status.isNotBlank()) {
@@ -179,6 +185,7 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
     if (state.mode !is ScreenMode.ArticleEditor) {
       ArticleBottomBar(
         onArticleClick = { vm.openArticleEditor() },
+        onStocksClick = { vm.openStocks() },
         modifier = Modifier.align(Alignment.BottomCenter)
       )
     }
@@ -464,6 +471,7 @@ private fun BagThumb(absPath: String?) {
 @Composable
 private fun ArticleBottomBar(
   onArticleClick: () -> Unit,
+  onStocksClick: () -> Unit,
   modifier: Modifier = Modifier
 ) {
   Surface(
