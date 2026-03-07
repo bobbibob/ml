@@ -476,7 +476,8 @@ private fun ArticleBottomBar(
 ) {
   Surface(
     modifier = modifier.fillMaxWidth(),
-    tonalElevation = 4.dp
+    tonalElevation = 6.dp,
+    shadowElevation = 8.dp
   ) {
     Row(
       modifier = Modifier
@@ -488,7 +489,14 @@ private fun ArticleBottomBar(
         onClick = onArticleClick,
         modifier = Modifier.weight(1f)
       ) {
-        Text("Добавить/редактировать артикул")
+        Text("Артикулы")
+      }
+
+      Button(
+        onClick = onStocksClick,
+        modifier = Modifier.weight(1f)
+      ) {
+        Text("Остатки")
       }
     }
   }
