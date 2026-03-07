@@ -156,8 +156,20 @@ fun AddEditArticleScreen(
         }
     }
 
+    val hasChanges =
+        name.isNotBlank() ||
+        hypothesis.isNotBlank() ||
+        cost.isNotBlank() ||
+        priceAll.isNotBlank() ||
+        colorDrafts.isNotEmpty() ||
+        !photoPath.isNullOrBlank()
+
     BackHandler {
-        showExitDialog = true
+        if (hasChanges) {
+            showExitDialog = true
+        } else {
+            onDone?.invoke()
+        }
     }
 
     LaunchedEffect(tab) {
