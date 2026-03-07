@@ -6,38 +6,34 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ml.app.data.CardTypeStore
 import com.ml.app.data.PackDbSync
-import com.ml.app.data.PackUploadManager
 import com.ml.app.data.PackPaths
+import com.ml.app.data.PackUploadManager
 import com.ml.app.data.R2Client
 import com.ml.app.data.SQLiteRepo
 import com.ml.app.data.ZipUtil
 import com.ml.app.domain.BagDayRow
 import com.ml.app.domain.CardType
 import com.ml.app.domain.DaySummary
+import java.io.File
+import java.time.LocalDate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import org.json.JSONObject
-import java.time.LocalDate
-import java.io.File
 
 sealed class ScreenMode {
   data object Timeline : ScreenMode()
   data class Details(val date: LocalDate) : ScreenMode()
   data class ArticleEditor(val bagId: String? = null) : ScreenMode()
-
 }
 
 data class SummaryState(
   val mode: ScreenMode = ScreenMode.Timeline,
   val selectedDate: LocalDate = LocalDate.now(),
-
   val timeline: List<DaySummary> = emptyList(),
   val rows: List<BagDayRow> = emptyList(),
-
   val cardTypes: Map<String, CardType> = emptyMap(),
-
   val status: String = "",
   val loading: Boolean = false,
   val hasPack: Boolean = false
@@ -48,7 +44,6 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
   private val repo = SQLiteRepo(ctx)
   private val r2 = R2Client(ctx)
   private val typeStore = CardTypeStore(ctx)
-
   private val prefsPack = ctx.getSharedPreferences("ml_pack", Context.MODE_PRIVATE)
 
   private val _state = MutableStateFlow(SummaryState())
@@ -59,41 +54,59 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
       val has = PackPaths.dbFile(ctx).exists() && PackPaths.imagesDir(ctx).exists()
       _state.value = _state.value.copy(hasPack = has)
 
-      if (has) PackDbSync.refreshMergedDb(ctx)
-
+      if (has) {
+        kotlin.runCatching {
+          PackDbSync.refreshMergedDb(ctx)
+        }
+      }
 
       syncIfChanged()
 
-      if (_state.value.hasPack) refreshTimeline()
+      if (_state.value.hasPack) {
+        refreshTimeline()
+      }
     }
   }
 
   fun refreshTimeline() {
     viewModelScope.launch(Dispatchers.IO) {
       try {
-        _state.value = _state.value.copy(loading = true, status = "Loading…", mode = ScreenMode.Timeline)
-        val t = repo.loadTimeline(limitDays = 180)
+        _state.value = _state.value.copy(
+          loading = true,
+          status = "Loading…",
+          mode = ScreenMode.Timeline
+        )
 
+        val t = repo.loadTimeline(limitDays = 180)
         val ids = t.flatMap { it.byBags }.map { it.bagId }.distinct()
         val types = typeStore.getTypes(ids)
 
-        _state.value = _state.value.copy(timeline = t, cardTypes = types, loading = false, status = "OK")
+        _state.value = _state.value.copy(
+          timeline = t,
+          cardTypes = types,
+          loading = false,
+          status = "OK"
+        )
       } catch (t: Throwable) {
-        _state.value = _state.value.copy(loading = false, status = "Error: ${t.message}")
+        _state.value = _state.value.copy(
+          loading = false,
+          status = "Error: ${t.message}"
+        )
       }
     }
   }
 
   fun openDetails(date: LocalDate) {
-    _state.value = _state.value.copy(selectedDate = date, mode = ScreenMode.Details(date))
+    _state.value = _state.value.copy(
+      selectedDate = date,
+      mode = ScreenMode.Details(date)
+    )
     refreshDetails()
   }
 
   fun backToTimeline() {
     _state.value = _state.value.copy(mode = ScreenMode.Timeline)
   }
-
-  
 
   fun openArticleEditor(bagId: String? = null) {
     _state.value = _state.value.copy(mode = ScreenMode.ArticleEditor(bagId))
@@ -106,9 +119,18 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
   fun syncPackNow() {
     viewModelScope.launch(Dispatchers.IO) {
       try {
-        _state.value = _state.value.copy(loading = true, status = "Синхронизация pack…")
+        _state.value = _state.value.copy(
+          loading = true,
+          status = "Синхронизация pack…"
+        )
+
         PackUploadManager.saveUserChangesAndUpload(ctx)
-        _state.value = _state.value.copy(loading = false, status = "Pack синхронизирован")
+
+        _state.value = _state.value.copy(
+          loading = false,
+          status = "Pack синхронизирован"
+        )
+
         refreshAfterSync()
       } catch (t: Throwable) {
         _state.value = _state.value.copy(
@@ -122,22 +144,33 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
     }
   }
 
-fun setDateFromPicker(date: LocalDate) {
+  fun setDateFromPicker(date: LocalDate) {
     openDetails(date)
   }
 
   fun refreshDetails() {
     viewModelScope.launch(Dispatchers.IO) {
       try {
-        _state.value = _state.value.copy(loading = true, status = "Loading…")
-        val rows = repo.loadForDate(_state.value.selectedDate.toString())
+        _state.value = _state.value.copy(
+          loading = true,
+          status = "Loading…"
+        )
 
+        val rows = repo.loadForDate(_state.value.selectedDate.toString())
         val ids = rows.map { it.bagId }.distinct()
         val types = typeStore.getTypes(ids)
 
-        _state.value = _state.value.copy(rows = rows, cardTypes = types, loading = false, status = "OK")
+        _state.value = _state.value.copy(
+          rows = rows,
+          cardTypes = types,
+          loading = false,
+          status = "OK"
+        )
       } catch (t: Throwable) {
-        _state.value = _state.value.copy(loading = false, status = "Error: ${t.message}")
+        _state.value = _state.value.copy(
+          loading = false,
+          status = "Error: ${t.message}"
+        )
       }
     }
   }
@@ -145,12 +178,18 @@ fun setDateFromPicker(date: LocalDate) {
   fun syncIfChanged() {
     viewModelScope.launch(Dispatchers.IO) {
       try {
-        _state.value = _state.value.copy(loading = true, status = "Checking updates…")
+        _state.value = _state.value.copy(
+          loading = true,
+          status = "Checking updates…"
+        )
 
         val hasLocal = PackPaths.dbFile(ctx).exists() && PackPaths.imagesDir(ctx).exists()
+
         val localManifestFile = PackPaths.manifestFile(ctx)
         val localVersion = if (localManifestFile.exists()) {
-          kotlin.runCatching { JSONObject(localManifestFile.readText()).optInt("version", 0) }.getOrDefault(0)
+          kotlin.runCatching {
+            JSONObject(localManifestFile.readText()).optInt("version", 0)
+          }.getOrDefault(0)
         } else {
           0
         }
@@ -164,83 +203,65 @@ fun setDateFromPicker(date: LocalDate) {
 
         val remoteManifestFile = File(tmpDir, "manifest.json")
         val remoteVersion = if (remoteManifestFile.exists()) {
-          kotlin.runCatching { JSONObject(remoteManifestFile.readText()).optInt("version", 0) }.getOrDefault(0)
+          kotlin.runCatching {
+            JSONObject(remoteManifestFile.readText()).optInt("version", 0)
+          }.getOrDefault(0)
         } else {
           0
         }
 
         if (!hasLocal) {
           _state.value = _state.value.copy(status = "Downloading…")
+
           ZipUtil.unzipToDir(zip, PackPaths.packDir(ctx))
           PackDbSync.mergedDbFile(ctx).delete()
           PackDbSync.refreshMergedDb(ctx)
 
-          _state.value = _state.value.copy(hasPack = true, loading = false, status = "Downloaded")
+          _state.value = _state.value.copy(
+            hasPack = true,
+            loading = false,
+            status = "Downloaded"
+          )
           refreshAfterSync()
           return@launch
         }
 
         if (remoteVersion > localVersion) {
           _state.value = _state.value.copy(status = "Updating…")
+
           ZipUtil.unzipToDir(zip, PackPaths.packDir(ctx))
           PackDbSync.mergedDbFile(ctx).delete()
           PackDbSync.refreshMergedDb(ctx)
 
-          _state.value = _state.value.copy(hasPack = true, loading = false, status = "Updated")
+          _state.value = _state.value.copy(
+            hasPack = true,
+            loading = false,
+            status = "Updated"
+          )
           refreshAfterSync()
         } else {
-          _state.value = _state.value.copy(loading = false, status = "No changes")
+          _state.value = _state.value.copy(
+            loading = false,
+            status = "No changes"
+          )
           refreshAfterSync()
         }
       } catch (t: Throwable) {
-        _state.value = _state.value.copy(loading = false, status = "Sync error: ${t.message}")
+        _state.value = _state.value.copy(
+          loading = false,
+          status = "Sync error: ${t.message}"
+        )
       }
     }
   }
 
-        val localEtag = prefsPack.getString("etag", "") ?: ""
-        val localToken = prefsPack.getString("pack_token", "")?.ifBlank {
-          if (localEtag.isNotBlank()) "etag:$localEtag" else ""
-        } ?: ""
-
-        val hasLocal = PackPaths.dbFile(ctx).exists() && PackPaths.imagesDir(ctx).exists()
-
-        if (!hasLocal) {
-          _state.value = _state.value.copy(status = "Downloading…")
-          val zip = r2.downloadPackZip()
-          ZipUtil.unzipToDir(zip, PackPaths.packDir(ctx))
-          PackDbSync.mergedDbFile(ctx).delete()
-          PackDbSync.refreshMergedDb(ctx)
-          PackDbSync.refreshMergedDb(ctx)
-
-          prefsPack.edit().putString("etag", remoteEtag).putString("pack_token", remoteToken).apply()
-          _state.value = _state.value.copy(hasPack = true, loading = false, status = "Downloaded")
-          refreshAfterSync()
-          return@launch
-        }
-
-        if (remoteToken.isNotBlank() && remoteToken != localToken) {
-          _state.value = _state.value.copy(status = "Updating…")
-          val zip = r2.downloadPackZip()
-          ZipUtil.unzipToDir(zip, PackPaths.packDir(ctx))
-
-          prefsPack.edit().putString("etag", remoteEtag).putString("pack_token", remoteToken).apply()
-          _state.value = _state.value.copy(hasPack = true, loading = false, status = "Updated")
-          refreshAfterSync()
-        } else {
-          _state.value = _state.value.copy(loading = false, status = "No changes")
-          refreshAfterSync()
-        }
-      } catch (t: Throwable) {
-        _state.value = _state.value.copy(loading = false, status = "Sync error: ${t.message}")
-      }
-    }
-  }
   private fun refreshAfterSync() {
     when (state.value.mode) {
       is ScreenMode.Timeline -> refreshTimeline()
       is ScreenMode.Details -> refreshDetails()
-      is ScreenMode.ArticleEditor -> { /* stay */ }
+      is ScreenMode.ArticleEditor -> {
+        // stay on editor
+      }
     }
   }
 }
