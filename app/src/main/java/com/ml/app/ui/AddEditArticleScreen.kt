@@ -2,6 +2,7 @@ package com.ml.app.ui
 
 import android.content.Context
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -18,6 +19,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -90,6 +92,7 @@ fun AddEditArticleScreen(
         }
     }
 
+    var showExitDialog by remember { mutableStateOf(false) }
     var selectedBagId by remember { mutableStateOf(bagId) }
     var tab by remember { mutableStateOf(if (bagId.isNullOrBlank()) 0 else 1) }
     var bagItems by remember { mutableStateOf<List<BagPickerRow>>(emptyList()) }
@@ -179,6 +182,10 @@ fun AddEditArticleScreen(
                 colorDrafts[i] = item.copy(priceText = priceAll)
             }
         }
+    }
+
+    BackHandler(enabled = true) {
+        showExitDialog = true
     }
 
     Column(
@@ -481,4 +488,30 @@ fun AddEditArticleScreen(
             }
         }
     }
+
+    if (showExitDialog) {
+        AlertDialog(
+            onDismissRequest = { showExitDialog = false },
+            title = { Text("Выйти?") },
+            text = { Text("Изменения могут быть потеряны") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showExitDialog = false
+                        onDone?.invoke()
+                    }
+                ) {
+                    Text("Да")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = { showExitDialog = false }
+                ) {
+                    Text("Нет")
+                }
+            }
+        )
+    }
+
 }
