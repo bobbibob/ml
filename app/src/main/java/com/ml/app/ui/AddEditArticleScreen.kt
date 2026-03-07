@@ -494,7 +494,7 @@ fun AddEditArticleScreen(
                                     )
                                 }
                             }
-                            showExitDialog = true
+                            onDone?.invoke()
                         }
                     },
                     modifier = Modifier.fillMaxWidth()
