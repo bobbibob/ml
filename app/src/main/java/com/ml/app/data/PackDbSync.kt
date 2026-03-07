@@ -17,8 +17,7 @@ object PackDbSync {
   }
 
   fun dbFileToUse(ctx: Context): File {
-    val merged = mergedDbFile(ctx)
-    return if (merged.exists() && merged.length() > 0) merged else PackPaths.dbFile(ctx)
+    return PackPaths.dbFile(ctx)
   }
 
   fun refreshMergedDb(ctx: Context) {
