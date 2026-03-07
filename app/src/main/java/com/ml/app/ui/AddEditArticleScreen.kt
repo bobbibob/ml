@@ -43,6 +43,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.ml.app.data.PackUploadManager
 import com.ml.app.data.SQLiteRepo
 import com.ml.app.data.SQLiteRepo.BagColorPriceRow
 import com.ml.app.data.SQLiteRepo.BagPickerRow
@@ -504,6 +505,7 @@ fun AddEditArticleScreen(
                                 }
                             )
 
+                            PackUploadManager.saveUserChangesAndUpload(ctx)
                             onDone?.invoke()
                         }
                     },
