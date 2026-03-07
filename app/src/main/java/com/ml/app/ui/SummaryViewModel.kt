@@ -165,6 +165,7 @@ fun setDateFromPicker(date: LocalDate) {
           _state.value = _state.value.copy(status = "Downloading…")
           val zip = r2.downloadPackZip()
           ZipUtil.unzipToDir(zip, PackPaths.packDir(ctx))
+          PackDbSync.mergedDbFile(ctx).delete()
           PackDbSync.refreshMergedDb(ctx)
           PackDbSync.refreshMergedDb(ctx)
 
