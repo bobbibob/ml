@@ -179,6 +179,24 @@ fun AddEditArticleScreen(
         val id = selectedBagId ?: return@LaunchedEffect
         loadBagFromPicker(id)
 
+        val seed = kotlin.runCatching { repo.getBagEditorSeed(id) }.getOrNull()
+        if (seed != null) {
+            if (name.isBlank()) name = seed.bagName
+            if (hypothesis.isBlank()) hypothesis = seed.hypothesis.orEmpty()
+            if (priceAll.isBlank()) priceAll = seed.price?.toString().orEmpty()
+            if (cost.isBlank()) cost = seed.cogs?.toString().orEmpty()
+
+            colorDrafts.clear()
+            colorDrafts.addAll(
+                seed.colors.distinct().map { color ->
+                    ColorDraft(
+                        color = color,
+                        priceText = ""
+                    )
+                }
+            )
+        }
+
         val savedPrices = kotlin.runCatching { repo.getBagColorPrices(id) }.getOrDefault(emptyList())
         if (savedPrices.isNotEmpty()) {
             for (i in colorDrafts.indices) {
