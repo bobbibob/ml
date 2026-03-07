@@ -157,88 +157,15 @@ fun AddEditArticleScreen(
 
     LaunchedEffect(tab) {
         if (tab == 1) {
-            bagItems = repo.listBagPickerRows()
-        }
-    }
-
-    LaunchedEffect(selectedBagId) {
-        val id = selectedBagId ?: return@LaunchedEffect
-        loadBagFromPicker(id)
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            FilterChip(
-                selected = tab == 0 && selectedBagId.isNullOrBlank(),
-                onClick = {
-                    tab = 0
-                    selectedBagId = null
-                    resetForm()
-                },
-                label = { Text("Добавить") }
-            )
-            FilterChip(
-                selected = tab == 1 || selectedBagId != null,
-                onClick = { tab = 1 },
-                label = { Text("Редактировать") }
-            )
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        if (tab == 1) {
-            Text("Выберите артикул")
+            Text("Редактирование временно отключено для диагностики")
             Spacer(modifier = Modifier.height(12.dp))
-
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
-                items(bagItems, key = { it.bagId }) { bag ->
-                    Card(
-                        colors = CardDefaults.cardColors(),
-                        shape = RoundedCornerShape(20.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            if (!bag.photoPath.isNullOrBlank()) {
-                                AsyncImage(
-                                    model = bag.photoPath,
-                                    contentDescription = bag.bagName,
-                                    modifier = Modifier
-                                        .width(72.dp)
-                                        .height(72.dp)
-                                )
-                                Spacer(modifier = Modifier.width(12.dp))
-                            }
-
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = bag.bagName,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
-
-                            OutlinedButton(
-                                onClick = {
-                                    selectedBagId = bag.bagId
-                                    tab = 0
-                                }
-                            ) {
-                                Text("Открыть")
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
+            OutlinedButton(
+                onClick = {
+                    selectedBagId = null
+                    tab = 0
                 }
+            ) {
+                Text("Назад")
             }
             return@Column
         }
