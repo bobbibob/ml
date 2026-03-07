@@ -592,4 +592,107 @@ class SQLiteRepo(private val context: Context) {
       )
     }
   }
+
+  data class BagStockOverrideRow(
+    val effectiveDate: String,
+    val bagId: String,
+    val color: String,
+    val stock: Double
+  )
+
+  data class BagStockResolvedRow(
+    val bagId: String,
+    val color: String,
+    val stock: Double
+  )
+
+  suspend fun replaceBagStockOverrides(
+    effectiveDate: String,
+    bagId: String,
+    rows: List<Pair<String, Double>>
+  ) = withContext(Dispatchers.IO) {
+    openDbReadWrite().use { db ->
+      db.execSQL(
+        """
+        CREATE TABLE IF NOT EXISTS bag_stock_override(
+          effective_date TEXT NOT NULL,
+          bag_id TEXT NOT NULL,
+          color TEXT NOT NULL,
+          stock REAL NOT NULL,
+          PRIMARY KEY(effective_date, bag_id, color)
+        )
+        """.trimIndent()
+      )
+
+      db.beginTransaction()
+      try {
+        db.execSQL(
+          "DELETE FROM bag_stock_override WHERE effective_date=? AND bag_id=?",
+          arrayOf(effectiveDate, bagId)
+        )
+
+        for ((color, stock) in rows.filter { it.first.isNotBlank() }) {
+          db.execSQL(
+            "INSERT OR REPLACE INTO bag_stock_override(effective_date, bag_id, color, stock) VALUES(?,?,?,?)",
+            arrayOf(effectiveDate, bagId, color, stock)
+          )
+        }
+
+        db.setTransactionSuccessful()
+      } finally {
+        db.endTransaction()
+      }
+    }
+  }
+
+  suspend fun getEffectiveStockOverrides(date: String): List<BagStockResolvedRow> = withContext(Dispatchers.IO) {
+    openDbReadWrite().use { db ->
+      db.execSQL(
+        """
+        CREATE TABLE IF NOT EXISTS bag_stock_override(
+          effective_date TEXT NOT NULL,
+          bag_id TEXT NOT NULL,
+          color TEXT NOT NULL,
+          stock REAL NOT NULL,
+          PRIMARY KEY(effective_date, bag_id, color)
+        )
+        """.trimIndent()
+      )
+
+      val out = ArrayList<BagStockResolvedRow>()
+      db.rawQuery(
+        """
+        SELECT o1.bag_id, o1.color, o1.stock
+        FROM bag_stock_override o1
+        JOIN (
+          SELECT bag_id, color, MAX(effective_date) AS max_date
+          FROM bag_stock_override
+          WHERE effective_date <= ?
+          GROUP BY bag_id, color
+        ) x
+          ON x.bag_id = o1.bag_id
+         AND x.color = o1.color
+         AND x.max_date = o1.effective_date
+        ORDER BY o1.bag_id, o1.color
+        """.trimIndent(),
+        arrayOf(date)
+      ).use { c ->
+        val iBag = c.getColumnIndexOrThrow("bag_id")
+        val iColor = c.getColumnIndexOrThrow("color")
+        val iStock = c.getColumnIndexOrThrow("stock")
+        while (c.moveToNext()) {
+          out.add(
+            BagStockResolvedRow(
+              bagId = c.getString(iBag),
+              color = c.getString(iColor),
+              stock = c.getDouble(iStock)
+            )
+          )
+        }
+      }
+      out
+    }
+  }
+
+
 }
