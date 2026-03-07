@@ -2,6 +2,10 @@
 
 package com.ml.app.ui
 
+import androidx.compose.runtime.rememberCoroutineScope
+
+import androidx.compose.material3.AlertDialog
+
 import android.app.Activity
 
 import android.app.DatePickerDialog
@@ -55,10 +59,11 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
 
   LaunchedEffect(Unit) { vm.init() }
 
-  BackHandler(enabled = (state.mode is ScreenMode.Details) || (state.mode is ScreenMode.ArticleEditor)) {
+  BackHandler {
     when (state.mode) {
+      is ScreenMode.Details -> vm.backToTimeline()
       is ScreenMode.ArticleEditor -> vm.backFromArticleEditor()
-      else -> vm.backToTimeline()
+      else -> showExitAppDialog = true
     }
   }
 
