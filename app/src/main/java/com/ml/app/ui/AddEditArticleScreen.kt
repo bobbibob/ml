@@ -130,7 +130,7 @@ fun AddEditArticleScreen(
         }
     }
 
-    LaunchedEffect(selectedBagId, bagItems) {
+    LaunchedEffect(selectedBagId) {
         val id = selectedBagId ?: return@LaunchedEffect
         val row = repo.getBagUser(id)
         val rowColors = repo.getBagUserColors(id)
@@ -138,12 +138,12 @@ fun AddEditArticleScreen(
 
         resetForm()
 
-        name = row?.name ?: seed?.bagName ?: bagItems.firstOrNull { it.bagId == id }?.bagName.orEmpty()
+        name = row?.name ?: seed?.bagName.orEmpty()
         hypothesis = row?.hypothesis ?: seed?.hypothesis.orEmpty()
         priceAll = row?.price?.toString() ?: seed?.price?.toString().orEmpty()
         cost = row?.cogs?.toString() ?: seed?.cogs?.toString().orEmpty()
         cardType = row?.cardType ?: "classic"
-        photoPath = row?.photoPath ?: bagItems.firstOrNull { it.bagId == id }?.photoPath
+        photoPath = row?.photoPath
 
         val loadedColors =
             if (rowColors.isNotEmpty()) rowColors.distinct()
