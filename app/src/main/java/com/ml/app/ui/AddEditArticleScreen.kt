@@ -157,7 +157,17 @@ fun AddEditArticleScreen(
 
     LaunchedEffect(tab) {
         if (tab == 1) {
-            bagItems = repo.listBagPickerRows()
+            bagItems = repo.loadTimeline(180)
+                .flatMap { it.byBags }
+                .distinctBy { it.bagId }
+                .sortedBy { it.bagName.lowercase() }
+                .map {
+                    BagPickerRow(
+                        bagId = it.bagId,
+                        bagName = it.bagName,
+                        photoPath = it.imagePath
+                    )
+                }
         }
     }
 
