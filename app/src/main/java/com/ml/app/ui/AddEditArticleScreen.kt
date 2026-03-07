@@ -219,35 +219,6 @@ fun AddEditArticleScreen(
         }
     }
 
-        val seed = kotlin.runCatching { repo.getBagEditorSeed(id) }.getOrNull()
-        if (seed != null) {
-            if (name.isBlank()) name = seed.bagName
-            if (hypothesis.isBlank()) hypothesis = seed.hypothesis.orEmpty()
-            if (priceAll.isBlank()) priceAll = seed.price?.toString().orEmpty()
-            if (cost.isBlank()) cost = seed.cogs?.toString().orEmpty()
-
-            colorDrafts.clear()
-            colorDrafts.addAll(
-                seed.colors.distinct().map { color ->
-                    ColorDraft(color = color, priceText = "")
-                }
-            )
-        }
-
-        val savedPrices = kotlin.runCatching { repo.getBagColorPrices(id) }.getOrDefault(emptyList())
-        priceForAllEnabled = savedPrices.none { it.price != null }
-
-        if (savedPrices.isNotEmpty()) {
-            for (i in colorDrafts.indices) {
-                val item = colorDrafts[i]
-                val saved = savedPrices.firstOrNull { it.color == item.color }?.price
-                if (saved != null) {
-                    colorDrafts[i] = item.copy(priceText = saved.toString())
-                }
-            }
-        }
-    }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
