@@ -157,215 +157,287 @@ fun AddEditArticleScreen(
 
     LaunchedEffect(tab) {
         if (tab == 1) {
-            Text("Редактирование временно отключено для диагностики")
-            Spacer(modifier = Modifier.height(12.dp))
-            OutlinedButton(
+            bagItems = repo.listBagPickerRows()
+        }
+    }
+
+    LaunchedEffect(selectedBagId) {
+        val id = selectedBagId ?: return@LaunchedEffect
+        loadBagFromPicker(id)
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            FilterChip(
+                selected = tab == 0 && selectedBagId.isNullOrBlank(),
                 onClick = {
-                    selectedBagId = null
                     tab = 0
-                }
-            ) {
-                Text("Назад")
-            }
-            return@Column
+                    selectedBagId = null
+                    resetForm()
+                },
+                label = { Text("Добавить") }
+            )
+            FilterChip(
+                selected = tab == 1 || selectedBagId != null,
+                onClick = { tab = 1 },
+                label = { Text("Редактировать") }
+            )
         }
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-        ) {
-            Text(
-                text = if (selectedBagId.isNullOrBlank()) "Добавить артикул" else "Редактировать артикул",
-                style = MaterialTheme.typography.headlineSmall
-            )
+        Spacer(modifier = Modifier.height(16.dp))
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (!photoPath.isNullOrBlank()) {
-                    AsyncImage(
-                        model = photoPath,
-                        contentDescription = name,
-                        modifier = Modifier
-                            .width(96.dp)
-                            .height(96.dp)
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                }
-
-                Button(
-                    onClick = { imagePicker.launch("image/*") },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Обновить фото")
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = { Text("Название") },
-                modifier = Modifier.fillMaxWidth()
-            )
-
+        if (tab == 1) {
+            Text("Выберите артикул")
             Spacer(modifier = Modifier.height(12.dp))
 
-            OutlinedTextField(
-                value = hypothesis,
-                onValueChange = { hypothesis = it },
-                label = { Text("Гипотеза") },
-                modifier = Modifier.fillMaxWidth()
-            )
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                items(bagItems, key = { it.bagId }) { bag ->
+                    Card(
+                        colors = CardDefaults.cardColors(),
+                        shape = RoundedCornerShape(20.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (!bag.photoPath.isNullOrBlank()) {
+                                AsyncImage(
+                                    model = bag.photoPath,
+                                    contentDescription = bag.bagName,
+                                    modifier = Modifier
+                                        .width(72.dp)
+                                        .height(72.dp)
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                            }
 
-            Spacer(modifier = Modifier.height(18.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = bag.bagName,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
 
-            Text(
-                text = "Цвета",
-                style = MaterialTheme.typography.titleMedium
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Checkbox(
-                    checked = priceForAllEnabled,
-                    onCheckedChange = { checked ->
-                        priceForAllEnabled = checked
-                        if (!checked) seedColorPricesFromCommon()
-                    }
-                )
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Цена для всех цветов")
-                    Text(
-                        text = "если выключить — цена по каждому цвету",
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            OutlinedTextField(
-                value = priceAll,
-                onValueChange = {
-                    priceAll = it
-                    if (!priceForAllEnabled) {
-                        for (i in colorDrafts.indices) {
-                            val item = colorDrafts[i]
-                            if (item.priceText.isBlank()) {
-                                colorDrafts[i] = item.copy(priceText = it)
+                            OutlinedButton(
+                                onClick = {
+                                    selectedBagId = bag.bagId
+                                    tab = 0
+                                }
+                            ) {
+                                Text("Открыть")
                             }
                         }
                     }
-                },
-                enabled = priceForAllEnabled,
-                label = { Text("Цена для всех") },
-                modifier = Modifier.fillMaxWidth()
-            )
 
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                OutlinedTextField(
-                    value = newColor,
-                    onValueChange = { newColor = it },
-                    label = { Text("Новый цвет") },
-                    modifier = Modifier.weight(1f)
-                )
-                Spacer(modifier = Modifier.width(10.dp))
-                Button(onClick = { addColor() }) {
-                    Text("Добавить")
+                    Spacer(modifier = Modifier.height(8.dp))
                 }
             }
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+            ) {
+                Text(
+                    text = if (selectedBagId.isNullOrBlank()) "Добавить артикул" else "Редактировать артикул",
+                    style = MaterialTheme.typography.headlineSmall
+                )
 
-            if (colorDrafts.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(12.dp))
-            }
-
-            for (i in colorDrafts.indices) {
-                val item = colorDrafts[i]
+                Spacer(modifier = Modifier.height(16.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = item.color,
-                        modifier = Modifier.weight(1f)
-                    )
-
-                    if (!priceForAllEnabled) {
-                        OutlinedTextField(
-                            value = item.priceText,
-                            onValueChange = { value ->
-                                colorDrafts[i] = item.copy(priceText = value)
-                            },
-                            label = { Text("Цена") },
-                            modifier = Modifier.width(140.dp)
+                    if (!photoPath.isNullOrBlank()) {
+                        AsyncImage(
+                            model = photoPath,
+                            contentDescription = name,
+                            modifier = Modifier
+                                .width(96.dp)
+                                .height(96.dp)
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(12.dp))
                     }
 
-                    OutlinedButton(
-                        onClick = { removeColor(item.color) }
+                    Button(
+                        onClick = { imagePicker.launch("image/*") },
+                        modifier = Modifier.weight(1f)
                     ) {
-                        Text("Удалить")
+                        Text("Обновить фото")
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Название") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                OutlinedTextField(
+                    value = hypothesis,
+                    onValueChange = { hypothesis = it },
+                    label = { Text("Гипотеза") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(18.dp))
+
+                Text(
+                    text = "Цвета",
+                    style = MaterialTheme.typography.titleMedium
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(
+                        checked = priceForAllEnabled,
+                        onCheckedChange = { checked ->
+                            priceForAllEnabled = checked
+                            if (!checked) seedColorPricesFromCommon()
+                        }
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Цена для всех цветов")
+                        Text(
+                            text = "если выключить — цена по каждому цвету",
+                            style = MaterialTheme.typography.bodySmall
+                        )
                     }
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
-            }
 
-            Spacer(modifier = Modifier.height(18.dp))
-
-            Text(
-                text = "Тип карточки",
-                style = MaterialTheme.typography.titleMedium
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                FilterChip(
-                    selected = cardType == "classic",
-                    onClick = { cardType = "classic" },
-                    label = { Text("Классика") }
+                OutlinedTextField(
+                    value = priceAll,
+                    onValueChange = {
+                        priceAll = it
+                        if (!priceForAllEnabled) {
+                            for (i in colorDrafts.indices) {
+                                val item = colorDrafts[i]
+                                if (item.priceText.isBlank()) {
+                                    colorDrafts[i] = item.copy(priceText = it)
+                                }
+                            }
+                        }
+                    },
+                    enabled = priceForAllEnabled,
+                    label = { Text("Цена для всех") },
+                    modifier = Modifier.fillMaxWidth()
                 )
-                FilterChip(
-                    selected = cardType == "premium",
-                    onClick = { cardType = "premium" },
-                    label = { Text("Премиум") }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = newColor,
+                        onValueChange = { newColor = it },
+                        label = { Text("Новый цвет") },
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Button(onClick = { addColor() }) {
+                        Text("Добавить")
+                    }
+                }
+
+                if (colorDrafts.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+
+                for (i in colorDrafts.indices) {
+                    val item = colorDrafts[i]
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = item.color,
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        if (!priceForAllEnabled) {
+                            OutlinedTextField(
+                                value = item.priceText,
+                                onValueChange = { value ->
+                                    colorDrafts[i] = item.copy(priceText = value)
+                                },
+                                label = { Text("Цена") },
+                                modifier = Modifier.width(140.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
+
+                        OutlinedButton(
+                            onClick = { removeColor(item.color) }
+                        ) {
+                            Text("Удалить")
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+
+                Spacer(modifier = Modifier.height(18.dp))
+
+                Text(
+                    text = "Тип карточки",
+                    style = MaterialTheme.typography.titleMedium
                 )
-            }
 
-            Spacer(modifier = Modifier.height(18.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
-            OutlinedTextField(
-                value = cost,
-                onValueChange = { cost = it },
-                label = { Text("Себестоимость") },
-                modifier = Modifier.fillMaxWidth()
-            )
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    FilterChip(
+                        selected = cardType == "classic",
+                        onClick = { cardType = "classic" },
+                        label = { Text("Классика") }
+                    )
+                    FilterChip(
+                        selected = cardType == "premium",
+                        onClick = { cardType = "premium" },
+                        label = { Text("Премиум") }
+                    )
+                }
 
-            Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(18.dp))
 
-            Button(
-                onClick = { showExitDialog = true },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(if (selectedBagId.isNullOrBlank()) "Сохранить" else "Сохранить изменения")
+                OutlinedTextField(
+                    value = cost,
+                    onValueChange = { cost = it },
+                    label = { Text("Себестоимость") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Button(
+                    onClick = { showExitDialog = true },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(if (selectedBagId.isNullOrBlank()) "Сохранить" else "Сохранить изменения")
+                }
             }
         }
     }
