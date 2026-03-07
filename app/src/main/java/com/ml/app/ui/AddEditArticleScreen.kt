@@ -116,12 +116,11 @@ fun AddEditArticleScreen(
         colorDrafts.clear()
     }
 
-    fun loadBag(id: String) {
+    fun loadBagFromPicker(id: String) {
+        val bag = bagItems.firstOrNull { it.bagId == id }
         resetForm()
-
-        val rowBag = bagItems.firstOrNull { it.bagId == id }
-        name = rowBag?.bagName.orEmpty()
-        photoPath = rowBag?.photoPath
+        name = bag?.bagName.orEmpty()
+        photoPath = bag?.photoPath
     }
 
     fun addColor() {
@@ -164,7 +163,7 @@ fun AddEditArticleScreen(
 
     LaunchedEffect(selectedBagId) {
         val id = selectedBagId ?: return@LaunchedEffect
-        loadBag(id)
+        loadBagFromPicker(id)
     }
 
     Column(
@@ -314,9 +313,7 @@ fun AddEditArticleScreen(
                     checked = priceForAllEnabled,
                     onCheckedChange = { checked ->
                         priceForAllEnabled = checked
-                        if (!checked) {
-                            seedColorPricesFromCommon()
-                        }
+                        if (!checked) seedColorPricesFromCommon()
                     }
                 )
                 Column(modifier = Modifier.weight(1f)) {
