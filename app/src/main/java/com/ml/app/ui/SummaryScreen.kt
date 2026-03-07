@@ -131,6 +131,13 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
               ) {
                 Text("Дата: ${state.selectedDate}")
               }
+
+              Button(
+                onClick = { vm.syncPackNow() },
+                enabled = !state.loading
+              ) {
+                Text("Синхр.")
+              }
             }
           }
 
@@ -150,18 +157,7 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
               bagId = (state.mode as ScreenMode.ArticleEditor).bagId,
               onDone = { vm.backFromArticleEditor() }
             )
-          }
-        if (state.mode !is ScreenMode.ArticleEditor) {
-          Button(
-            onClick = { vm.syncPackNow() },
-            enabled = !state.loading,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-          ) {
-            Text("Синхронизировать pack")
-          }
-        }
-
-        if (state.status.isNotBlank()) {
+          }        if (state.status.isNotBlank()) {
           Text(text = state.status, modifier = Modifier.padding(12.dp), color = Color.Gray)
         }
       }
