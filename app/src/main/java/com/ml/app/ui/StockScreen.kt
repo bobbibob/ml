@@ -12,9 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -32,14 +30,14 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.platform.LocalContext
 import coil.compose.AsyncImage
 import com.ml.app.data.PackUploadManager
 import com.ml.app.data.SQLiteRepo
-import kotlinx.coroutines.launch
 import java.time.LocalDate
+import kotlinx.coroutines.launch
 
 private data class StockBagUi(
     val bagId: String,
@@ -55,8 +53,8 @@ fun StockScreen(
 ) {
     val ctx = LocalContext.current
     val repo = remember { SQLiteRepo(ctx) }
-    val effectiveDate = LocalDate.now().toString()
     val scope = rememberCoroutineScope()
+    val effectiveDate = LocalDate.now().toString()
 
     var items by remember { mutableStateOf<List<StockBagUi>>(emptyList()) }
     var editingBagId by remember { mutableStateOf<String?>(null) }
@@ -64,22 +62,23 @@ fun StockScreen(
 
     suspend fun reload() {
         val meta = repo.listStockBagMeta()
-
-        val stocks = repo.getResolvedStocksForDate(effectiveDate)
-            .groupBy { it.bagId }
+        val stocks = repo.getResolvedStocksForDate(effectiveDate).groupBy { it.bagId }
 
         items = meta.mapNotNull { bag ->
             val rows = stocks[bag.bagId]
                 ?.sortedBy { it.color.lowercase() }
                 ?.map { it.color to it.stock }
 
-            if (rows.isNullOrEmpty()) null
-            else StockBagUi(
-                bagId = bag.bagId,
-                bagName = bag.bagName,
-                photoPath = bag.photoPath,
-                colors = rows
-            )
+            if (rows.isNullOrEmpty()) {
+                null
+            } else {
+                StockBagUi(
+                    bagId = bag.bagId,
+                    bagName = bag.bagName,
+                    photoPath = bag.photoPath,
+                    colors = rows
+                )
+            }
         }
     }
 
@@ -157,7 +156,9 @@ fun StockScreen(
                                             val key = "${bag.bagId}::$color"
                                             OutlinedTextField(
                                                 value = drafts[key] ?: stock.toInt().toString(),
-                                                onValueChange = { drafts[key] = it },
+                                                onValueChange = { value ->
+                                                    drafts[key] = value.filter { it.isDigit() }
+                                                },
                                                 modifier = Modifier.width(120.dp),
                                                 singleLine = true
                                             )
@@ -195,6 +196,7 @@ fun StockScreen(
                                                 val value = (drafts[key] ?: stock.toInt().toString()).trim()
                                                 color to (value.toIntOrNull()?.toDouble() ?: stock.toInt().toDouble())
                                             }
+
                                             repo.replaceBagStockOverrides(effectiveDate, bag.bagId, rows)
                                             PackUploadManager.saveUserChangesAndUpload(ctx)
 
