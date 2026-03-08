@@ -128,7 +128,7 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
           }
         }
         } else {
-          if (state.mode !is ScreenMode.ArticleEditor) {
+          if (state.mode !is ScreenMode.ArticleEditor && state.mode !is ScreenMode.Stocks) {
             Row(
               modifier = Modifier
                 .fillMaxWidth()
