@@ -252,6 +252,134 @@ object PackUploadManager {
           }
         }
 
+        if (tableExists(fromDb, "svodka") && tableExists(toDb, "svodka")) {
+          fromDb.rawQuery(
+            """
+            SELECT
+              date, period_start, period_end, bag_id, color, source, hypothesis, price, orders, stock,
+              rk_spend, rk_impressions, rk_clicks, rk_ctr, rk_cpc,
+              ig_spend, ig_impressions, ig_clicks, ig_ctr, ig_cpc,
+              stake_pct, cr_pct, views, clicks, ctr, cpc, cpo,
+              cogs, profit_net, roi_pct, notes, updated_at
+            FROM svodka
+            WHERE source='android-app'
+            """.trimIndent(),
+            null
+          ).use { c ->
+            val iDate = c.getColumnIndexOrThrow("date")
+            val iPeriodStart = c.getColumnIndexOrThrow("period_start")
+            val iPeriodEnd = c.getColumnIndexOrThrow("period_end")
+            val iBagId = c.getColumnIndexOrThrow("bag_id")
+            val iColor = c.getColumnIndexOrThrow("color")
+            val iSource = c.getColumnIndexOrThrow("source")
+            val iHypothesis = c.getColumnIndexOrThrow("hypothesis")
+            val iPrice = c.getColumnIndexOrThrow("price")
+            val iOrders = c.getColumnIndexOrThrow("orders")
+            val iStock = c.getColumnIndexOrThrow("stock")
+            val iRkSpend = c.getColumnIndexOrThrow("rk_spend")
+            val iRkImp = c.getColumnIndexOrThrow("rk_impressions")
+            val iRkClicks = c.getColumnIndexOrThrow("rk_clicks")
+            val iRkCtr = c.getColumnIndexOrThrow("rk_ctr")
+            val iRkCpc = c.getColumnIndexOrThrow("rk_cpc")
+            val iIgSpend = c.getColumnIndexOrThrow("ig_spend")
+            val iIgImp = c.getColumnIndexOrThrow("ig_impressions")
+            val iIgClicks = c.getColumnIndexOrThrow("ig_clicks")
+            val iIgCtr = c.getColumnIndexOrThrow("ig_ctr")
+            val iIgCpc = c.getColumnIndexOrThrow("ig_cpc")
+            val iStake = c.getColumnIndexOrThrow("stake_pct")
+            val iCr = c.getColumnIndexOrThrow("cr_pct")
+            val iViews = c.getColumnIndexOrThrow("views")
+            val iClicks = c.getColumnIndexOrThrow("clicks")
+            val iCtr = c.getColumnIndexOrThrow("ctr")
+            val iCpc = c.getColumnIndexOrThrow("cpc")
+            val iCpo = c.getColumnIndexOrThrow("cpo")
+            val iCogs = c.getColumnIndexOrThrow("cogs")
+            val iProfit = c.getColumnIndexOrThrow("profit_net")
+            val iRoi = c.getColumnIndexOrThrow("roi_pct")
+            val iNotes = c.getColumnIndexOrThrow("notes")
+            val iUpdatedAt = c.getColumnIndexOrThrow("updated_at")
+
+            while (c.moveToNext()) {
+              toDb.execSQL(
+                """
+                INSERT INTO svodka(
+                  date, period_start, period_end, bag_id, color, source, hypothesis, price, orders, stock,
+                  rk_spend, rk_impressions, rk_clicks, rk_ctr, rk_cpc,
+                  ig_spend, ig_impressions, ig_clicks, ig_ctr, ig_cpc,
+                  stake_pct, cr_pct, views, clicks, ctr, cpc, cpo,
+                  cogs, profit_net, roi_pct, notes, updated_at
+                )
+                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                ON CONFLICT(date, bag_id, color) DO UPDATE SET
+                  period_start=excluded.period_start,
+                  period_end=excluded.period_end,
+                  source=excluded.source,
+                  hypothesis=excluded.hypothesis,
+                  price=excluded.price,
+                  orders=excluded.orders,
+                  stock=excluded.stock,
+                  rk_spend=excluded.rk_spend,
+                  rk_impressions=excluded.rk_impressions,
+                  rk_clicks=excluded.rk_clicks,
+                  rk_ctr=excluded.rk_ctr,
+                  rk_cpc=excluded.rk_cpc,
+                  ig_spend=excluded.ig_spend,
+                  ig_impressions=excluded.ig_impressions,
+                  ig_clicks=excluded.ig_clicks,
+                  ig_ctr=excluded.ig_ctr,
+                  ig_cpc=excluded.ig_cpc,
+                  stake_pct=excluded.stake_pct,
+                  cr_pct=excluded.cr_pct,
+                  views=excluded.views,
+                  clicks=excluded.clicks,
+                  ctr=excluded.ctr,
+                  cpc=excluded.cpc,
+                  cpo=excluded.cpo,
+                  cogs=excluded.cogs,
+                  profit_net=excluded.profit_net,
+                  roi_pct=excluded.roi_pct,
+                  notes=excluded.notes,
+                  updated_at=excluded.updated_at
+                """.trimIndent(),
+                arrayOf(
+                  c.getString(iDate),
+                  c.getString(iPeriodStart),
+                  c.getString(iPeriodEnd),
+                  c.getString(iBagId),
+                  c.getString(iColor),
+                  c.getString(iSource),
+                  if (c.isNull(iHypothesis)) null else c.getString(iHypothesis),
+                  if (c.isNull(iPrice)) null else c.getDouble(iPrice),
+                  if (c.isNull(iOrders)) null else c.getDouble(iOrders),
+                  if (c.isNull(iStock)) null else c.getDouble(iStock),
+                  if (c.isNull(iRkSpend)) null else c.getDouble(iRkSpend),
+                  if (c.isNull(iRkImp)) null else c.getDouble(iRkImp),
+                  if (c.isNull(iRkClicks)) null else c.getDouble(iRkClicks),
+                  if (c.isNull(iRkCtr)) null else c.getDouble(iRkCtr),
+                  if (c.isNull(iRkCpc)) null else c.getDouble(iRkCpc),
+                  if (c.isNull(iIgSpend)) null else c.getDouble(iIgSpend),
+                  if (c.isNull(iIgImp)) null else c.getDouble(iIgImp),
+                  if (c.isNull(iIgClicks)) null else c.getDouble(iIgClicks),
+                  if (c.isNull(iIgCtr)) null else c.getDouble(iIgCtr),
+                  if (c.isNull(iIgCpc)) null else c.getDouble(iIgCpc),
+                  if (c.isNull(iStake)) null else c.getDouble(iStake),
+                  if (c.isNull(iCr)) null else c.getDouble(iCr),
+                  if (c.isNull(iViews)) null else c.getDouble(iViews),
+                  if (c.isNull(iClicks)) null else c.getDouble(iClicks),
+                  if (c.isNull(iCtr)) null else c.getDouble(iCtr),
+                  if (c.isNull(iCpc)) null else c.getDouble(iCpc),
+                  if (c.isNull(iCpo)) null else c.getDouble(iCpo),
+                  if (c.isNull(iCogs)) null else c.getDouble(iCogs),
+                  if (c.isNull(iProfit)) null else c.getDouble(iProfit),
+                  if (c.isNull(iRoi)) null else c.getDouble(iRoi),
+                  if (c.isNull(iNotes)) null else c.getString(iNotes),
+                  if (c.isNull(iUpdatedAt)) null else c.getString(iUpdatedAt)
+                )
+              )
+            }
+          }
+        }
+
         toDb.setTransactionSuccessful()
       } finally {
         toDb.endTransaction()
