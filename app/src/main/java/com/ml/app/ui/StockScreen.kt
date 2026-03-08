@@ -201,11 +201,7 @@ fun StockScreen(
                                             PackUploadManager.saveUserChangesAndUpload(ctx)
 
                                             items = items.map {
-                                                if (it.bagId == bag.bagId) {
-                                                    it.copy(colors = rows)
-                                                } else {
-                                                    it
-                                                }
+                                                if (it.bagId == bag.bagId) it.copy(colors = rows) else it
                                             }
 
                                             editingBagId = null
