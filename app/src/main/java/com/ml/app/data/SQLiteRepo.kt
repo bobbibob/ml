@@ -1040,25 +1040,29 @@ class SQLiteRepo(private val context: Context) {
           for ((color, orders) in bag.ordersByColor) {
             db.execSQL(
               """
-              INSERT INTO svodka(date, bag_id, color, orders, source)
-              VALUES(?,?,?,?,?)
+              INSERT INTO svodka(date, period_start, period_end, bag_id, color, orders, source)
+              VALUES(?,?,?,?,?,?,?)
               ON CONFLICT(date, bag_id, color) DO UPDATE SET
+                period_start=excluded.period_start,
+                period_end=excluded.period_end,
                 orders=excluded.orders,
                 source=excluded.source
               """.trimIndent(),
-              arrayOf(date, bag.bagId, color, orders.toDouble(), "android-app")
+              arrayOf(date, date, date, bag.bagId, color, orders.toDouble(), "android-app")
             )
           }
 
           db.execSQL(
             """
             INSERT INTO svodka(
-              date, bag_id, color, orders, source,
+              date, period_start, period_end, bag_id, color, orders, source,
               rk_spend, rk_impressions, rk_clicks, stake_pct,
               ig_spend, ig_impressions, ig_clicks
             )
-            VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
+            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             ON CONFLICT(date, bag_id, color) DO UPDATE SET
+              period_start=excluded.period_start,
+              period_end=excluded.period_end,
               orders=excluded.orders,
               source=excluded.source,
               rk_spend=excluded.rk_spend,
@@ -1070,6 +1074,8 @@ class SQLiteRepo(private val context: Context) {
               ig_clicks=excluded.ig_clicks
             """.trimIndent(),
             arrayOf(
+              date,
+              date,
               date,
               bag.bagId,
               "__TOTAL__",
