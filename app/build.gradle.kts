@@ -44,6 +44,25 @@ android {
     buildConfigField("String", "UPDATED_BY", "\"$updatedBy\"")
   }
 
+
+  buildTypes {
+    getByName("debug") {
+      signingConfig = if ((System.getenv("KEYSTORE_PATH") ?: "").isNotBlank()) {
+        signingConfigs.getByName("release")
+      } else {
+        signingConfigs.getByName("debug")
+      }
+    }
+    getByName("release") {
+      signingConfig = if ((System.getenv("KEYSTORE_PATH") ?: "").isNotBlank()) {
+        signingConfigs.getByName("release")
+      } else {
+        null
+      }
+      isMinifyEnabled = false
+    }
+  }
+
   buildFeatures {
     compose = true
     buildConfig = true
