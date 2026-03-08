@@ -32,7 +32,7 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
 
     private val session = PrefsSessionStorage(app.applicationContext)
     private val api = ApiModule.createApi(
-        baseUrl = "http://ml.gamer.gd/api/",
+        baseUrl = "https://ml-tasks-api.bboobb666.workers.dev/",
         sessionStorage = session
     )
     private val authRepo = AuthRepository(api, session)
