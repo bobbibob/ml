@@ -369,10 +369,10 @@ fun AddDailySummaryScreen(
                                 repo.saveDailySummary(selectedDate.toString(), bags)
                                 PackUploadManager.saveUserChangesAndUpload(ctx)
                                 saveError = null
+                                onBack()
                             } catch (t: Throwable) {
                                 saveError = t.message ?: t.toString()
                             }
-                            onBack()
                         }
                     },
                     modifier = Modifier.fillMaxWidth()
