@@ -218,7 +218,15 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
       }
     }
 
-    if (state.mode !is ScreenMode.ArticleEditor) {
+    if (showTasks.value) {
+      TasksBottomBar(
+        onMyTasksClick = { tasksVm.selectTab("my") },
+        onAddTaskClick = { tasksVm.selectTab("create") },
+        onAllTasksClick = { tasksVm.selectTab("all") },
+        allTasksEnabled = tasksVm.state.currentUser?.role == "plus" || tasksVm.state.currentUser?.role == "admin",
+        modifier = Modifier.align(Alignment.BottomCenter)
+      )
+    } else if (state.mode !is ScreenMode.ArticleEditor) {
       ArticleBottomBar(
         onArticleClick = { vm.openArticleEditor() },
         onAddSummaryClick = { vm.openAddDailySummary() },
