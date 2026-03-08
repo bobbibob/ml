@@ -171,7 +171,6 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
             )
 
             is ScreenMode.Stocks -> StockScreen(
-              date = state.selectedDate.toString(),
               refreshKey = state.status,
               onBack = { vm.backFromStocks() }
             )

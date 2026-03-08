@@ -39,6 +39,7 @@ import coil.compose.AsyncImage
 import com.ml.app.data.PackUploadManager
 import com.ml.app.data.SQLiteRepo
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 
 private data class StockBagUi(
     val bagId: String,
@@ -49,12 +50,12 @@ private data class StockBagUi(
 
 @Composable
 fun StockScreen(
-    date: String,
     refreshKey: String,
     onBack: () -> Unit
 ) {
     val ctx = LocalContext.current
     val repo = remember { SQLiteRepo(ctx) }
+    val effectiveDate = LocalDate.now().toString()
     val scope = rememberCoroutineScope()
 
     var items by remember { mutableStateOf<List<StockBagUi>>(emptyList()) }
@@ -64,7 +65,7 @@ fun StockScreen(
     suspend fun reload() {
         val meta = repo.listStockBagMeta()
 
-        val stocks = repo.getResolvedStocksForDate(date)
+        val stocks = repo.getResolvedStocksForDate(effectiveDate)
             .groupBy { it.bagId }
 
         items = meta.mapNotNull { bag ->
@@ -82,7 +83,7 @@ fun StockScreen(
         }
     }
 
-    LaunchedEffect(date, refreshKey) {
+    LaunchedEffect(refreshKey) {
         reload()
     }
 
@@ -194,7 +195,7 @@ fun StockScreen(
                                                 val value = (drafts[key] ?: stock.toInt().toString()).trim()
                                                 color to (value.toIntOrNull()?.toDouble() ?: stock.toInt().toDouble())
                                             }
-                                            repo.replaceBagStockOverrides(date, bag.bagId, rows)
+                                            repo.replaceBagStockOverrides(effectiveDate, bag.bagId, rows)
                                             PackUploadManager.saveUserChangesAndUpload(ctx)
 
                                             items = items.map {
