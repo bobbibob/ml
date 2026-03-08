@@ -24,6 +24,9 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
+      - name: Signing report
+        run: ./gradlew :app:signingReport
+
       - name: Build Debug APK
         run: ./gradlew :app:assembleDebug
 
