@@ -55,11 +55,6 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
 
   val showTasks = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
 
-  if (showTasks.value) {
-    TasksScreen(onBack = { showTasks.value = false })
-    return
-  }
-
   val state by vm.state.collectAsState()
   val activity = (LocalContext.current as? Activity)
   val scope = rememberCoroutineScope()
@@ -109,18 +104,34 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
           modifier = Modifier.fillMaxWidth(),
           verticalAlignment = Alignment.CenterVertically
         ) {
-          Text(
-            text = "ml",
-            style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Black),
-            color = TextBlack
-          )
+          if (showTasks.value) {
+            Button(
+              onClick = { showTasks.value = false }
+            ) {
+              Text("ml")
+            }
 
-          Spacer(Modifier.width(24.dp))
+            Spacer(Modifier.width(24.dp))
 
-          Button(
-            onClick = { showTasks.value = true }
-          ) {
-            Text("Задачи")
+            Text(
+              text = "Задачи",
+              style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Black),
+              color = TextBlack
+            )
+          } else {
+            Text(
+              text = "ml",
+              style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Black),
+              color = TextBlack
+            )
+
+            Spacer(Modifier.width(24.dp))
+
+            Button(
+              onClick = { showTasks.value = true }
+            ) {
+              Text("Задачи")
+            }
           }
 
           Spacer(Modifier.weight(1f))
@@ -135,7 +146,9 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
         }
       }
 
-      if (!state.hasPack) {
+      if (showTasks.value) {
+        TasksScreen(onBack = { showTasks.value = false })
+      } else if (!state.hasPack) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
           Column(horizontalAlignment = Alignment.CenterHorizontally) {
             if (state.loading) {

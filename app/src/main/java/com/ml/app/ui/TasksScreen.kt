@@ -59,16 +59,6 @@ fun TasksScreen(
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(
-                text = "Задачи",
-                style = MaterialTheme.typography.headlineMedium
-            )
-            TextButton(onClick = onBack) {
-                Text("Назад")
-            }
-        }
-
         Spacer(modifier = Modifier.height(8.dp))
 
         state.error?.let {
