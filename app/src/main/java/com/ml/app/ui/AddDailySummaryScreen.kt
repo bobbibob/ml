@@ -24,12 +24,11 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -58,16 +57,16 @@ fun AddDailySummaryScreen(
     val items = remember { mutableStateListOf<DailySummaryBagUi>() }
     val orders = remember { mutableStateMapOf<String, Int>() }
 
-    var rkEnabled by remember { mutableStateOf(false) }
-    var rkSpend by remember { mutableStateOf("") }
-    var rkImpressions by remember { mutableStateOf("") }
-    var rkClicks by remember { mutableStateOf("") }
-    var rkStake by remember { mutableStateOf("") }
+    val rkEnabled = remember { mutableStateMapOf<String, Boolean>() }
+    val rkSpend = remember { mutableStateMapOf<String, String>() }
+    val rkImpressions = remember { mutableStateMapOf<String, String>() }
+    val rkClicks = remember { mutableStateMapOf<String, String>() }
+    val rkStake = remember { mutableStateMapOf<String, String>() }
 
-    var igEnabled by remember { mutableStateOf(false) }
-    var igSpend by remember { mutableStateOf("") }
-    var igImpressions by remember { mutableStateOf("") }
-    var igClicks by remember { mutableStateOf("") }
+    val igEnabled = remember { mutableStateMapOf<String, Boolean>() }
+    val igSpend = remember { mutableStateMapOf<String, String>() }
+    val igImpressions = remember { mutableStateMapOf<String, String>() }
+    val igClicks = remember { mutableStateMapOf<String, String>() }
 
     LaunchedEffect(Unit) {
         val meta = repo.listSummaryBagColorMeta()
@@ -82,10 +81,22 @@ fun AddDailySummaryScreen(
                 )
             }
         )
+
         for (bag in items) {
             for (color in bag.colors) {
                 orders.putIfAbsent("${bag.bagId}::$color", 0)
             }
+
+            rkEnabled.putIfAbsent(bag.bagId, false)
+            rkSpend.putIfAbsent(bag.bagId, "")
+            rkImpressions.putIfAbsent(bag.bagId, "")
+            rkClicks.putIfAbsent(bag.bagId, "")
+            rkStake.putIfAbsent(bag.bagId, "")
+
+            igEnabled.putIfAbsent(bag.bagId, false)
+            igSpend.putIfAbsent(bag.bagId, "")
+            igImpressions.putIfAbsent(bag.bagId, "")
+            igClicks.putIfAbsent(bag.bagId, "")
         }
     }
 
@@ -194,6 +205,97 @@ fun AddDailySummaryScreen(
 
                                     Spacer(modifier = Modifier.height(6.dp))
                                 }
+
+                                Spacer(modifier = Modifier.height(16.dp))
+
+                                Text(
+                                    text = "РК",
+                                    style = MaterialTheme.typography.titleMedium
+                                )
+
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Checkbox(
+                                        checked = rkEnabled[bag.bagId] == true,
+                                        onCheckedChange = { rkEnabled[bag.bagId] = it }
+                                    )
+                                    Text("Включить РК")
+                                }
+
+                                OutlinedTextField(
+                                    value = rkSpend[bag.bagId].orEmpty(),
+                                    onValueChange = { rkSpend[bag.bagId] = it },
+                                    enabled = rkEnabled[bag.bagId] == true,
+                                    label = { Text("Расход") },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                OutlinedTextField(
+                                    value = rkImpressions[bag.bagId].orEmpty(),
+                                    onValueChange = { rkImpressions[bag.bagId] = it.filter { ch -> ch.isDigit() } },
+                                    enabled = rkEnabled[bag.bagId] == true,
+                                    label = { Text("Показы") },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                OutlinedTextField(
+                                    value = rkClicks[bag.bagId].orEmpty(),
+                                    onValueChange = { rkClicks[bag.bagId] = it.filter { ch -> ch.isDigit() } },
+                                    enabled = rkEnabled[bag.bagId] == true,
+                                    label = { Text("Клики") },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                OutlinedTextField(
+                                    value = rkStake[bag.bagId].orEmpty(),
+                                    onValueChange = { rkStake[bag.bagId] = it },
+                                    enabled = rkEnabled[bag.bagId] == true,
+                                    label = { Text("Ставка") },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+
+                                Spacer(modifier = Modifier.height(16.dp))
+
+                                Text(
+                                    text = "Instagram",
+                                    style = MaterialTheme.typography.titleMedium
+                                )
+
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Checkbox(
+                                        checked = igEnabled[bag.bagId] == true,
+                                        onCheckedChange = { igEnabled[bag.bagId] = it }
+                                    )
+                                    Text("Включить Instagram")
+                                }
+
+                                OutlinedTextField(
+                                    value = igSpend[bag.bagId].orEmpty(),
+                                    onValueChange = { igSpend[bag.bagId] = it },
+                                    enabled = igEnabled[bag.bagId] == true,
+                                    label = { Text("Расход") },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                OutlinedTextField(
+                                    value = igImpressions[bag.bagId].orEmpty(),
+                                    onValueChange = { igImpressions[bag.bagId] = it.filter { ch -> ch.isDigit() } },
+                                    enabled = igEnabled[bag.bagId] == true,
+                                    label = { Text("Показы") },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                OutlinedTextField(
+                                    value = igClicks[bag.bagId].orEmpty(),
+                                    onValueChange = { igClicks[bag.bagId] = it.filter { ch -> ch.isDigit() } },
+                                    enabled = igEnabled[bag.bagId] == true,
+                                    label = { Text("Клики") },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
                             }
                         }
                     }
@@ -201,122 +303,11 @@ fun AddDailySummaryScreen(
             }
 
             item {
-                Card(
-                    colors = CardDefaults.cardColors(),
-                    shape = RoundedCornerShape(20.dp),
+                Button(
+                    onClick = { onBack() },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column(Modifier.padding(12.dp)) {
-                        Text(
-                            text = "Расходы",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.SemiBold
-                        )
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        Text(
-                            text = "РК",
-                            style = MaterialTheme.typography.titleMedium
-                        )
-
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Checkbox(
-                                checked = rkEnabled,
-                                onCheckedChange = { rkEnabled = it }
-                            )
-                            Text("Включить РК")
-                        }
-
-                        OutlinedTextField(
-                            value = rkSpend,
-                            onValueChange = { rkSpend = it },
-                            enabled = rkEnabled,
-                            label = { Text("Расход") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        OutlinedTextField(
-                            value = rkImpressions,
-                            onValueChange = { rkImpressions = it.filter { ch -> ch.isDigit() } },
-                            enabled = rkEnabled,
-                            label = { Text("Показы") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        OutlinedTextField(
-                            value = rkClicks,
-                            onValueChange = { rkClicks = it.filter { ch -> ch.isDigit() } },
-                            enabled = rkEnabled,
-                            label = { Text("Клики") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        OutlinedTextField(
-                            value = rkStake,
-                            onValueChange = { rkStake = it },
-                            enabled = rkEnabled,
-                            label = { Text("Ставка") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        Text(
-                            text = "Instagram",
-                            style = MaterialTheme.typography.titleMedium
-                        )
-
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Checkbox(
-                                checked = igEnabled,
-                                onCheckedChange = { igEnabled = it }
-                            )
-                            Text("Включить Instagram")
-                        }
-
-                        OutlinedTextField(
-                            value = igSpend,
-                            onValueChange = { igSpend = it },
-                            enabled = igEnabled,
-                            label = { Text("Расход") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        OutlinedTextField(
-                            value = igImpressions,
-                            onValueChange = { igImpressions = it.filter { ch -> ch.isDigit() } },
-                            enabled = igEnabled,
-                            label = { Text("Показы") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        OutlinedTextField(
-                            value = igClicks,
-                            onValueChange = { igClicks = it.filter { ch -> ch.isDigit() } },
-                            enabled = igEnabled,
-                            label = { Text("Клики") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        Button(
-                            onClick = { onBack() },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Дальше будет сохранение")
-                        }
-                    }
+                    Text("Дальше будет сохранение")
                 }
             }
         }

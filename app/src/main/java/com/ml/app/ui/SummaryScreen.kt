@@ -129,7 +129,7 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
           }
         }
         } else {
-          if (state.mode !is ScreenMode.ArticleEditor && state.mode !is ScreenMode.Stocks) {
+          if (state.mode !is ScreenMode.ArticleEditor && state.mode !is ScreenMode.Stocks && state.mode !is ScreenMode.AddDailySummary) {
             Row(
               modifier = Modifier
                 .fillMaxWidth()
