@@ -167,4 +167,8 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
     }
+
+    fun setError(message: String) {
+        state = state.copy(error = message)
+    }
 }

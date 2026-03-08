@@ -38,6 +38,44 @@ fun TasksScreen(
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
 
+    if (state.currentUser == null) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.Top
+        ) {
+            state.error?.let {
+                Text("Ошибка: $it")
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+
+            state.info?.let {
+                Text(it)
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+
+            Button(
+                onClick = {
+                    scope.launch {
+                        try {
+                            val idToken = GoogleAuthManager(ctx).signIn()
+                            if (!idToken.isNullOrBlank()) {
+                                vm.loginWithGoogleToken(idToken)
+                            }
+                        } catch (e: Exception) {
+                            vm.setError("Ошибка входа: ${e.message ?: "unknown"}")
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Войти через Google")
+            }
+        }
+        return
+    }
+
     var taskTitle by remember { mutableStateOf("") }
     var taskDescription by remember { mutableStateOf("") }
 
@@ -47,27 +85,6 @@ fun TasksScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        state.currentUser?.let { user ->
-            Text("${user.display_name} • ${user.role}")
-        } ?: run {
-            Button(
-                onClick = {
-                    scope.launch {
-                        try {
-                            val idToken = GoogleAuthManager(ctx).signIn()
-                            if (!idToken.isNullOrBlank()) {
-                                vm.loginWithGoogleToken(idToken)
-                            }
-                        } catch (_: Exception) {
-                        }
-                    }
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Войти через Google")
-            }
-        }
-
         state.error?.let {
             Text("Ошибка: $it")
         }
@@ -75,8 +92,6 @@ fun TasksScreen(
         state.info?.let {
             Text(it)
         }
-
-        Spacer(modifier = Modifier.height(8.dp))
 
         OutlinedTextField(
             value = taskTitle,
@@ -94,25 +109,22 @@ fun TasksScreen(
 
         Button(
             onClick = {
-                val assigneeId = state.currentUser?.user_id.orEmpty()
                 vm.createTask(
                     title = taskTitle,
                     description = taskDescription,
-                    assigneeUserId = assigneeId
+                    assigneeUserId = state.currentUser.user_id
                 )
                 taskTitle = ""
                 taskDescription = ""
             },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = state.currentUser != null
+            modifier = Modifier.fillMaxWidth()
         ) {
             Text("Создать тестовую задачу себе")
         }
 
         Button(
             onClick = { vm.loadMyTasks() },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = state.currentUser != null
+            modifier = Modifier.fillMaxWidth()
         ) {
             Text("Обновить мои задачи")
         }
