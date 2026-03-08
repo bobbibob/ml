@@ -38,6 +38,7 @@ import java.time.LocalDate
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import com.ml.app.ui.TasksScreen
+import androidx.compose.foundation.shape.CircleShape
 
 private val MercadoYellow = Color(0xFFFFE600)
 private val MercadoBlue = Color(0xFF2D3277)
@@ -55,6 +56,7 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
   val tasksVm: TasksViewModel = viewModel()
 
   val showTasks = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+  var accountMenuExpanded by remember { mutableStateOf(false) }
 
   val state by vm.state.collectAsState()
   val activity = (LocalContext.current as? Activity)
@@ -62,7 +64,10 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
   var showExitAppDialog by remember { mutableStateOf(false) }
   val ctx = LocalContext.current
 
-  LaunchedEffect(Unit) { vm.init() }
+  LaunchedEffect(Unit) {
+    vm.init()
+    tasksVm.init()
+  }
 
   BackHandler {
     when (state.mode) {
@@ -137,6 +142,43 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
 
           Spacer(Modifier.weight(1f))
 
+          tasksVm.state.currentUser?.let { accountUser ->
+            Box {
+              Button(
+                onClick = { accountMenuExpanded = true },
+                modifier = Modifier.size(44.dp),
+                shape = CircleShape,
+                contentPadding = PaddingValues(0.dp)
+              ) {
+                Text(
+                  text = accountUser.display_name.take(1).uppercase(),
+                  style = MaterialTheme.typography.titleMedium
+                )
+              }
+
+              DropdownMenu(
+                expanded = accountMenuExpanded,
+                onDismissRequest = { accountMenuExpanded = false }
+              ) {
+                Text(
+                  text = accountUser.email,
+                  modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                  color = TextBlack
+                )
+                HorizontalDivider()
+                DropdownMenuItem(
+                  text = { Text("Выйти") },
+                  onClick = {
+                    accountMenuExpanded = false
+                    tasksVm.logout()
+                  }
+                )
+              }
+            }
+
+            Spacer(Modifier.width(8.dp))
+          }
+
           if (state.mode is ScreenMode.Details) {
             TextButton(onClick = { vm.backToTimeline() }) { Text("Назад", color = TextBlack) }
 
@@ -148,7 +190,7 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
       }
 
       if (showTasks.value) {
-        TasksScreen(onBack = { showTasks.value = false })
+        TasksScreen(onBack = { showTasks.value = false }, vm = tasksVm)
       } else if (!state.hasPack) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
           Column(horizontalAlignment = Alignment.CenterHorizontally) {
