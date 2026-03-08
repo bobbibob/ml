@@ -56,6 +56,7 @@ fun AddDailySummaryScreen(
     val ctx = LocalContext.current
     val repo = remember { SQLiteRepo(ctx) }
     val scope = rememberCoroutineScope()
+    var saveError by remember { mutableStateOf<String?>(null) }
 
     var selectedDate by remember { mutableStateOf(LocalDate.now().minusDays(1)) }
     val items = remember { mutableStateListOf<DailySummaryBagUi>() }
@@ -166,6 +167,14 @@ fun AddDailySummaryScreen(
         }
 
         Spacer(modifier = Modifier.height(12.dp))
+
+        saveError?.let {
+            Text(
+                text = "Ошибка сохранения: $it",
+                color = androidx.compose.ui.graphics.Color.Red,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+        }
 
         LazyColumn(
             modifier = Modifier.weight(1f),
@@ -356,8 +365,13 @@ fun AddDailySummaryScreen(
                                 )
                             }
 
-                            repo.saveDailySummary(selectedDate.toString(), bags)
-                            PackUploadManager.saveUserChangesAndUpload(ctx)
+                            try {
+                                repo.saveDailySummary(selectedDate.toString(), bags)
+                                PackUploadManager.saveUserChangesAndUpload(ctx)
+                                saveError = null
+                            } catch (t: Throwable) {
+                                saveError = t.message ?: t.toString()
+                            }
                             onBack()
                         }
                     },
