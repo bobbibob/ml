@@ -25,6 +25,7 @@ import org.json.JSONObject
 sealed class ScreenMode {
   data object Timeline : ScreenMode()
   data object Stocks : ScreenMode()
+  data object AddDailySummary : ScreenMode()
   data class Details(val date: LocalDate) : ScreenMode()
   data class ArticleEditor(val bagId: String? = null) : ScreenMode()
 }
@@ -121,6 +122,14 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
   }
 
   fun backFromStocks() {
+    _state.value = _state.value.copy(mode = ScreenMode.Timeline)
+  }
+
+  fun openAddDailySummary() {
+    _state.value = _state.value.copy(mode = ScreenMode.AddDailySummary)
+  }
+
+  fun backFromAddDailySummary() {
     _state.value = _state.value.copy(mode = ScreenMode.Timeline)
   }
 
@@ -284,6 +293,9 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
       is ScreenMode.Timeline -> refreshTimeline()
       is ScreenMode.Details -> refreshDetails()
       is ScreenMode.Stocks -> {
+        _state.value = _state.value.copy(status = "Updated")
+      }
+      is ScreenMode.AddDailySummary -> {
         _state.value = _state.value.copy(status = "Updated")
       }
       is ScreenMode.ArticleEditor -> {

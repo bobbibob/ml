@@ -64,6 +64,7 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
       is ScreenMode.Details -> vm.backToTimeline()
       is ScreenMode.ArticleEditor -> vm.backFromArticleEditor()
       is ScreenMode.Stocks -> vm.backFromStocks()
+      is ScreenMode.AddDailySummary -> vm.backFromAddDailySummary()
       else -> showExitAppDialog = true
     }
   }
@@ -174,6 +175,10 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
               refreshKey = state.status,
               onBack = { vm.backFromStocks() }
             )
+
+            is ScreenMode.AddDailySummary -> AddDailySummaryScreen(
+              onBack = { vm.backFromAddDailySummary() }
+            )
           }
 
           if (state.status.isNotBlank()) {
@@ -185,6 +190,7 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
     if (state.mode !is ScreenMode.ArticleEditor) {
       ArticleBottomBar(
         onArticleClick = { vm.openArticleEditor() },
+        onAddSummaryClick = { vm.openAddDailySummary() },
         onStocksClick = { vm.openStocks() },
         modifier = Modifier.align(Alignment.BottomCenter)
       )
@@ -471,6 +477,7 @@ private fun BagThumb(absPath: String?) {
 @Composable
 private fun ArticleBottomBar(
   onArticleClick: () -> Unit,
+  onAddSummaryClick: () -> Unit,
   onStocksClick: () -> Unit,
   modifier: Modifier = Modifier
 ) {
@@ -483,13 +490,23 @@ private fun ArticleBottomBar(
       modifier = Modifier
         .fillMaxWidth()
         .padding(12.dp),
-      horizontalArrangement = Arrangement.spacedBy(12.dp)
+      horizontalArrangement = Arrangement.spacedBy(12.dp),
+      verticalAlignment = Alignment.CenterVertically
     ) {
       Button(
         onClick = onArticleClick,
         modifier = Modifier.weight(1f)
       ) {
         Text("Артикулы")
+      }
+
+      Button(
+        onClick = onAddSummaryClick,
+        modifier = Modifier.width(56.dp).height(56.dp),
+        shape = RoundedCornerShape(999.dp),
+        contentPadding = PaddingValues(0.dp)
+      ) {
+        Text("+")
       }
 
       Button(

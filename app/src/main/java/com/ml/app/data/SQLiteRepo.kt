@@ -851,4 +851,71 @@ class SQLiteRepo(private val context: Context) {
   }
 
 
+
+  data class SummaryBagColorMeta(
+    val bagId: String,
+    val bagName: String,
+    val photoPath: String?,
+    val colors: List<String>
+  )
+
+  suspend fun listSummaryBagColorMeta(): List<SummaryBagColorMeta> = withContext(Dispatchers.IO) {
+    val bagMeta = listStockBagMeta()
+
+    val bagToColors = LinkedHashMap<String, MutableSet<String>>()
+
+    openDbReadWrite().use { db ->
+      db.rawQuery(
+        """
+        SELECT bag_id, color
+        FROM bag_user_colors
+        WHERE bag_id IS NOT NULL AND bag_id!=''
+          AND color IS NOT NULL AND color!=''
+        ORDER BY bag_id, color
+        """.trimIndent(),
+        null
+      ).use { c ->
+        val iBag = c.getColumnIndexOrThrow("bag_id")
+        val iColor = c.getColumnIndexOrThrow("color")
+        while (c.moveToNext()) {
+          val bagId = c.getString(iBag)
+          val color = c.getString(iColor)
+          bagToColors.getOrPut(bagId) { linkedSetOf() }.add(color)
+        }
+      }
+
+      db.rawQuery(
+        """
+        SELECT DISTINCT bag_id, color
+        FROM svodka
+        WHERE bag_id IS NOT NULL AND bag_id!=''
+          AND color IS NOT NULL AND color!=''
+          AND color NOT IN ('__TOTAL__','TOTAL')
+        ORDER BY bag_id, color
+        """.trimIndent(),
+        null
+      ).use { c ->
+        val iBag = c.getColumnIndexOrThrow("bag_id")
+        val iColor = c.getColumnIndexOrThrow("color")
+        while (c.moveToNext()) {
+          val bagId = c.getString(iBag)
+          val color = c.getString(iColor)
+          bagToColors.getOrPut(bagId) { linkedSetOf() }.add(color)
+        }
+      }
+    }
+
+    bagMeta.mapNotNull { bag ->
+      val colors = bagToColors[bag.bagId]?.toList().orEmpty()
+      if (colors.isEmpty()) null
+      else SummaryBagColorMeta(
+        bagId = bag.bagId,
+        bagName = bag.bagName,
+        photoPath = bag.photoPath,
+        colors = colors
+      )
+    }
+  }
+
+
 }
