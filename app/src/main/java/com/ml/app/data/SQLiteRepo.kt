@@ -5,6 +5,7 @@ import android.database.sqlite.SQLiteDatabase
 import com.ml.app.domain.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.time.LocalDate
 import java.io.File
 import kotlin.math.roundToInt
 
@@ -860,53 +861,37 @@ class SQLiteRepo(private val context: Context) {
   )
 
   suspend fun listSummaryBagColorMeta(): List<SummaryBagColorMeta> = withContext(Dispatchers.IO) {
-    val bagMeta = listStockBagMeta()
-
-    val bagToColors = LinkedHashMap<String, MutableSet<String>>()
-
-    openDbReadWrite().use { db ->
-      db.rawQuery(
-        """
-        SELECT bag_id, color
-        FROM bag_user_colors
-        WHERE bag_id IS NOT NULL AND bag_id!=''
-          AND color IS NOT NULL AND color!=''
-        ORDER BY bag_id, color
-        """.trimIndent(),
-        null
-      ).use { c ->
-        val iBag = c.getColumnIndexOrThrow("bag_id")
-        val iColor = c.getColumnIndexOrThrow("color")
-        while (c.moveToNext()) {
-          val bagId = c.getString(iBag)
-          val color = c.getString(iColor)
-          bagToColors.getOrPut(bagId) { linkedSetOf() }.add(color)
-        }
-      }
-
-      db.rawQuery(
-        """
-        SELECT DISTINCT bag_id, color
-        FROM svodka
-        WHERE bag_id IS NOT NULL AND bag_id!=''
-          AND color IS NOT NULL AND color!=''
-          AND color NOT IN ('__TOTAL__','TOTAL')
-        ORDER BY bag_id, color
-        """.trimIndent(),
-        null
-      ).use { c ->
-        val iBag = c.getColumnIndexOrThrow("bag_id")
-        val iColor = c.getColumnIndexOrThrow("color")
-        while (c.moveToNext()) {
-          val bagId = c.getString(iBag)
-          val color = c.getString(iColor)
-          bagToColors.getOrPut(bagId) { linkedSetOf() }.add(color)
-        }
-      }
+    fun normalizeColorKey(value: String): String {
+      return value
+        .trim()
+        .replace(Regex("\\s+"), " ")
+        .lowercase()
+        .trimEnd('.')
     }
 
+    val today = LocalDate.now().toString()
+    val bagMeta = listStockBagMeta()
+
+    val currentInStock = getResolvedStocksForDate(today)
+      .filter { it.stock > 0.0 }
+      .groupBy { it.bagId }
+
     bagMeta.mapNotNull { bag ->
-      val colors = bagToColors[bag.bagId]?.toList().orEmpty()
+      val rawColors = currentInStock[bag.bagId]
+        ?.map { it.color.trim().replace(Regex("\\s+"), " ") }
+        .orEmpty()
+
+      val deduped = linkedMapOf<String, String>()
+      for (color in rawColors) {
+        val key = normalizeColorKey(color)
+        if (key.isNotBlank() && key !in deduped) {
+          deduped[key] = color
+        }
+      }
+
+      val colors = deduped.values
+        .sortedBy { it.lowercase() }
+
       if (colors.isEmpty()) null
       else SummaryBagColorMeta(
         bagId = bag.bagId,
