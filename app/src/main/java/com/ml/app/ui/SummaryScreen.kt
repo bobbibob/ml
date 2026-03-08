@@ -50,14 +50,6 @@ private fun fmtMoney(v: Double): String = String.format("%.2f", v)
 private fun fmtPct(v01: Double): String = String.format("%.2f%%", v01 * 100.0)
 
 @OptIn(ExperimentalMaterial3Api::class)
-
-  val showTasks = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
-
-  if (showTasks.value) {
-    TasksScreen(onBack = { showTasks.value = false })
-    return
-  }
-
 @Composable
 fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
 
