@@ -74,8 +74,7 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
       try {
         _state.value = _state.value.copy(
           loading = true,
-          status = "Loading…",
-          mode = ScreenMode.Timeline
+          status = "Loading…"
         )
 
         val t = repo.loadTimeline(limitDays = 180)
@@ -284,9 +283,11 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
     when (state.value.mode) {
       is ScreenMode.Timeline -> refreshTimeline()
       is ScreenMode.Details -> refreshDetails()
-      is ScreenMode.Stocks -> refreshTimeline()
+      is ScreenMode.Stocks -> {
+        _state.value = _state.value.copy(status = "Updated")
+      }
       is ScreenMode.ArticleEditor -> {
-        // stay on editor
+        _state.value = _state.value.copy(status = "Updated")
       }
     }
   }

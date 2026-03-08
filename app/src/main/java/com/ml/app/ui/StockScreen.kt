@@ -50,6 +50,7 @@ private data class StockBagUi(
 @Composable
 fun StockScreen(
     date: String,
+    refreshKey: String,
     onBack: () -> Unit
 ) {
     val ctx = LocalContext.current
@@ -81,7 +82,7 @@ fun StockScreen(
         }
     }
 
-    LaunchedEffect(date) {
+    LaunchedEffect(date, refreshKey) {
         reload()
     }
 
