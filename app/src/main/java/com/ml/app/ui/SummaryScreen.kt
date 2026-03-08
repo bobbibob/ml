@@ -124,21 +124,6 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
 ,
             color = TextBlack
           )
-
-          Spacer(Modifier.width(12.dp))
-
-          Button(
-            onClick = { showTasks.value = true },
-            shape = RoundedCornerShape(16.dp),
-            colors = ButtonDefaults.buttonColors(
-              containerColor = PurpleBtn,
-              contentColor = Color.White
-            ),
-            modifier = Modifier.shadow(8.dp, RoundedCornerShape(16.dp))
-          ) {
-            Text("Задачи")
-          }
-
           Spacer(Modifier.weight(1f))
 
           if (state.mode is ScreenMode.Details) {
