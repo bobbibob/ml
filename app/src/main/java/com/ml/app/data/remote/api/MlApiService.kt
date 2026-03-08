@@ -26,7 +26,7 @@ import retrofit2.http.POST
 
 interface MlApiService {
 
-    @POST("google_login.php")
+    @POST("google_login")
     suspend fun googleLogin(@Body request: GoogleLoginRequest): GoogleLoginResponse
 
     @POST("register.php")
@@ -38,19 +38,19 @@ interface MlApiService {
     @GET("me.php")
     suspend fun me(): MeResponse
 
-    @GET("users_list.php")
+    @GET("users_list")
     suspend fun getUsers(): UsersResponse
 
-    @POST("create_task.php")
+    @POST("create_task")
     suspend fun createTask(@Body request: CreateTaskRequest): CreateTaskResponse
 
-    @GET("my_tasks.php")
+    @GET("my_tasks")
     suspend fun getMyTasks(): TasksResponse
 
-    @GET("all_tasks.php")
+    @GET("all_tasks")
     suspend fun getAllTasks(): TasksResponse
 
-    @POST("complete_task.php")
+    @POST("complete_task")
     suspend fun completeTask(@Body request: CompleteTaskRequest): CompleteTaskResponse
 
     @POST("cancel_task.php")
