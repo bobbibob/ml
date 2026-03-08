@@ -166,4 +166,3 @@ fun TasksScreen(
             }
         }
     }
-}
