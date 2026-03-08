@@ -32,7 +32,7 @@ jobs:
           import os, base64
           data = os.environ["KEYSTORE_BASE64"].strip()
           data = "".join(data.split())
-          with open(os.path.expanduser("~/ml-release.keystore"), "wb") as f:
+          with open("/home/runner/ml-release.keystore", "wb") as f:
               f.write(base64.b64decode(data))
           print("keystore written")
           PY2
