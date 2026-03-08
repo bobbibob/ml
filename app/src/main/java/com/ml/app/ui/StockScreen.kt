@@ -100,7 +100,7 @@ fun StockScreen(
             .padding(12.dp)
     ) {
         Text(
-            text = "Остатки на $date",
+            text = "Остатки",
             style = MaterialTheme.typography.headlineSmall
         )
 
