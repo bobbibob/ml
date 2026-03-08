@@ -15,11 +15,15 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.ml.app.auth.GoogleAuthManager
+import kotlinx.coroutines.launch
 
 private val TextBlack = Color(0xFF111111)
 
@@ -30,16 +34,70 @@ fun TasksScreen(
 ) {
     LaunchedEffect(Unit) {
         vm.init()
-        vm.loadMyTasks()
     }
 
     val state = vm.state
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    if (state.currentUser == null) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.Top
+        ) {
+            state.error?.let {
+                Text("Ошибка: $it")
+            }
+
+            state.info?.let {
+                Text(
+                    text = it,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
+
+            Button(
+                onClick = {
+                    scope.launch {
+                        try {
+                            val idToken = GoogleAuthManager(ctx).signIn()
+                            if (!idToken.isNullOrBlank()) {
+                                vm.loginWithGoogleToken(idToken)
+                            }
+                        } catch (e: Exception) {
+                            vm.setError("Ошибка входа: ${e.message ?: "unknown"}")
+                        }
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp),
+                shape = RoundedCornerShape(24.dp)
+            ) {
+                Text("Войти через Google")
+            }
+        }
+        return
+    }
+
+    LaunchedEffect(state.currentUser.user_id) {
+        vm.loadMyTasks()
+    }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
     ) {
+        state.error?.let {
+            Text(
+                text = "Ошибка: $it",
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
+        }
+
         if (state.myTasks.isEmpty()) {
             Text("Задач пока нет")
         } else {
