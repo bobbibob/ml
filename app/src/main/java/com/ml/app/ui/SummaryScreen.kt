@@ -260,6 +260,49 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
   }
 }
 
+
+@Composable
+private fun TasksBottomBar(
+  onMyTasksClick: () -> Unit,
+  onAddTaskClick: () -> Unit,
+  onAllTasksClick: () -> Unit,
+  allTasksEnabled: Boolean,
+  modifier: Modifier = Modifier
+) {
+  Row(
+    modifier = modifier
+      .fillMaxWidth()
+      .background(Color(0xFFF1ECF8))
+      .padding(horizontal = 12.dp, vertical = 10.dp),
+    horizontalArrangement = Arrangement.spacedBy(12.dp),
+    verticalAlignment = Alignment.CenterVertically
+  ) {
+    Button(
+      onClick = onMyTasksClick,
+      modifier = Modifier.weight(1f)
+    ) {
+      Text("Мои задачи")
+    }
+
+    Button(
+      onClick = onAddTaskClick,
+      modifier = Modifier.size(72.dp),
+      shape = RoundedCornerShape(36.dp),
+      contentPadding = PaddingValues(0.dp)
+    ) {
+      Text("+")
+    }
+
+    Button(
+      onClick = onAllTasksClick,
+      enabled = allTasksEnabled,
+      modifier = Modifier.weight(1f)
+    ) {
+      Text("Все задачи")
+    }
+  }
+}
+
 @Composable
 private fun TimelineList(
   items: List<DaySummary>,
