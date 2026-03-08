@@ -1,4 +1,5 @@
 @file:OptIn(androidx.compose.material.ExperimentalMaterialApi::class)
+import com.ml.app.ui.TasksScreen
 
 package com.ml.app.ui
 
@@ -64,6 +65,10 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
       is ScreenMode.Details -> vm.backToTimeline()
       is ScreenMode.ArticleEditor -> vm.backFromArticleEditor()
       is ScreenMode.Stocks -> vm.backFromStocks()
+        is ScreenMode.Tasks -> TasksScreen(
+            onBack = { viewModel.backFromTasks() }
+        )
+
       is ScreenMode.AddDailySummary -> vm.backFromAddDailySummary()
       else -> showExitAppDialog = true
     }
@@ -130,6 +135,10 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
         }
         } else {
           if (state.mode !is ScreenMode.ArticleEditor && state.mode !is ScreenMode.Stocks && state.mode !is ScreenMode.AddDailySummary) {
+        is ScreenMode.Tasks -> TasksScreen(
+            onBack = { viewModel.backFromTasks() }
+        )
+
             Row(
               modifier = Modifier
                 .fillMaxWidth()
@@ -172,6 +181,10 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
             )
 
             is ScreenMode.Stocks -> StockScreen(
+        is ScreenMode.Tasks -> TasksScreen(
+            onBack = { viewModel.backFromTasks() }
+        )
+
               refreshKey = state.status,
               onBack = { vm.backFromStocks() }
             )
