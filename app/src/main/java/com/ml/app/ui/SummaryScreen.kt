@@ -37,7 +37,7 @@ import java.io.File
 import java.time.LocalDate
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
-import androidx.compose.ui.draw.shadow
+import com.ml.app.ui.TasksScreen
 
 private val MercadoYellow = Color(0xFFFFE600)
 private val MercadoBlue = Color(0xFF2D3277)
@@ -50,8 +50,24 @@ private fun fmtMoney(v: Double): String = String.format("%.2f", v)
 private fun fmtPct(v01: Double): String = String.format("%.2f%%", v01 * 100.0)
 
 @OptIn(ExperimentalMaterial3Api::class)
+
+  val showTasks = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+
+  if (showTasks.value) {
+    TasksScreen(onBack = { showTasks.value = false })
+    return
+  }
+
 @Composable
 fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
+
+  val showTasks = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+
+  if (showTasks.value) {
+    TasksScreen(onBack = { showTasks.value = false })
+    return
+  }
+
   val state by vm.state.collectAsState()
   val activity = (LocalContext.current as? Activity)
   val scope = rememberCoroutineScope()
@@ -103,27 +119,18 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
         ) {
           Text(
             text = "ml",
-            style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Black)
-                    Spacer(modifier = Modifier.width(12.dp))
-
-                    Button(
-                        onClick = { showTasks.value = true },
-                        modifier = Modifier
-                            .shadow(
-                                elevation = 8.dp,
-                                shape = RoundedCornerShape(16.dp)
-                            ),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF3F51B5),
-                            contentColor = Color.White
-                        )
-                    ) {
-                        Text("Задачи")
-                    }
-,
+            style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Black),
             color = TextBlack
           )
+
+          Spacer(Modifier.width(12.dp))
+
+          Button(
+            onClick = { showTasks.value = true }
+          ) {
+            Text("Задачи")
+          }
+
           Spacer(Modifier.weight(1f))
 
           if (state.mode is ScreenMode.Details) {
