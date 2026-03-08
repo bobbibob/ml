@@ -1040,9 +1040,9 @@ class SQLiteRepo(private val context: Context) {
           for ((color, orders) in bag.ordersByColor) {
             db.execSQL(
               """
-              INSERT INTO svodka(date, bag, color, orders, source)
+              INSERT INTO svodka(date, bag_id, color, orders, source)
               VALUES(?,?,?,?,?)
-              ON CONFLICT(date, bag, color) DO UPDATE SET
+              ON CONFLICT(date, bag_id, color) DO UPDATE SET
                 orders=excluded.orders,
                 source=excluded.source
               """.trimIndent(),
@@ -1053,12 +1053,12 @@ class SQLiteRepo(private val context: Context) {
           db.execSQL(
             """
             INSERT INTO svodka(
-              date, bag, color, orders, source,
+              date, bag_id, color, orders, source,
               rk_spend, rk_impressions, rk_clicks, stake_pct,
               ig_spend, ig_impressions, ig_clicks
             )
             VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
-            ON CONFLICT(date, bag, color) DO UPDATE SET
+            ON CONFLICT(date, bag_id, color) DO UPDATE SET
               orders=excluded.orders,
               source=excluded.source,
               rk_spend=excluded.rk_spend,
