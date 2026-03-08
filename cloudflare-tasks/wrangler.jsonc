@@ -1,0 +1,12 @@
+{
+  "name": "ml-tasks-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-03-08",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "ml_tasks",
+      "database_id": "bf812adb-03b6-41dd-8d34-e5f2f065b67b"
+    }
+  ]
+}
