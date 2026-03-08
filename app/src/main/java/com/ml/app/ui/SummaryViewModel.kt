@@ -131,6 +131,7 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
 
   fun backFromAddDailySummary() {
     _state.value = _state.value.copy(mode = ScreenMode.Timeline)
+    refreshTimeline()
   }
 
   fun syncPackNow() {
