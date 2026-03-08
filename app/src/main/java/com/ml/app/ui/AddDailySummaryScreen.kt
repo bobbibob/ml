@@ -28,6 +28,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -36,8 +37,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.ml.app.data.PackUploadManager
 import com.ml.app.data.SQLiteRepo
 import java.time.LocalDate
+import kotlinx.coroutines.launch
 
 private data class DailySummaryBagUi(
     val bagId: String,
@@ -52,6 +55,7 @@ fun AddDailySummaryScreen(
 ) {
     val ctx = LocalContext.current
     val repo = remember { SQLiteRepo(ctx) }
+    val scope = rememberCoroutineScope()
 
     var selectedDate by remember { mutableStateOf(LocalDate.now().minusDays(1)) }
     val items = remember { mutableStateListOf<DailySummaryBagUi>() }
@@ -68,7 +72,7 @@ fun AddDailySummaryScreen(
     val igImpressions = remember { mutableStateMapOf<String, String>() }
     val igClicks = remember { mutableStateMapOf<String, String>() }
 
-    LaunchedEffect(Unit) {
+    suspend fun loadForDate() {
         val meta = repo.listSummaryBagColorMeta()
         items.clear()
         items.addAll(
@@ -82,22 +86,50 @@ fun AddDailySummaryScreen(
             }
         )
 
+        orders.clear()
+        rkEnabled.clear()
+        rkSpend.clear()
+        rkImpressions.clear()
+        rkClicks.clear()
+        rkStake.clear()
+        igEnabled.clear()
+        igSpend.clear()
+        igImpressions.clear()
+        igClicks.clear()
+
         for (bag in items) {
             for (color in bag.colors) {
-                orders.putIfAbsent("${bag.bagId}::$color", 0)
+                orders["${bag.bagId}::$color"] = 0
             }
 
-            rkEnabled.putIfAbsent(bag.bagId, false)
-            rkSpend.putIfAbsent(bag.bagId, "")
-            rkImpressions.putIfAbsent(bag.bagId, "")
-            rkClicks.putIfAbsent(bag.bagId, "")
-            rkStake.putIfAbsent(bag.bagId, "")
+            rkEnabled[bag.bagId] = false
+            rkSpend[bag.bagId] = ""
+            rkImpressions[bag.bagId] = ""
+            rkClicks[bag.bagId] = ""
+            rkStake[bag.bagId] = ""
 
-            igEnabled.putIfAbsent(bag.bagId, false)
-            igSpend.putIfAbsent(bag.bagId, "")
-            igImpressions.putIfAbsent(bag.bagId, "")
-            igClicks.putIfAbsent(bag.bagId, "")
+            igEnabled[bag.bagId] = false
+            igSpend[bag.bagId] = ""
+            igImpressions[bag.bagId] = ""
+            igClicks[bag.bagId] = ""
         }
+
+        val draft = repo.loadDailySummaryDraft(selectedDate.toString())
+
+        for ((k, v) in draft.orders) orders[k] = v
+        for ((k, v) in draft.rkEnabled) rkEnabled[k] = v
+        for ((k, v) in draft.rkSpend) rkSpend[k] = v
+        for ((k, v) in draft.rkImpressions) rkImpressions[k] = v
+        for ((k, v) in draft.rkClicks) rkClicks[k] = v
+        for ((k, v) in draft.rkStake) rkStake[k] = v
+        for ((k, v) in draft.igEnabled) igEnabled[k] = v
+        for ((k, v) in draft.igSpend) igSpend[k] = v
+        for ((k, v) in draft.igImpressions) igImpressions[k] = v
+        for ((k, v) in draft.igClicks) igClicks[k] = v
+    }
+
+    LaunchedEffect(selectedDate) {
+        loadForDate()
     }
 
     BackHandler { onBack() }
@@ -304,10 +336,34 @@ fun AddDailySummaryScreen(
 
             item {
                 Button(
-                    onClick = { onBack() },
+                    onClick = {
+                        scope.launch {
+                            val bags = items.map { bag ->
+                                com.ml.app.data.SQLiteRepo.DailySummaryBagSave(
+                                    bagId = bag.bagId,
+                                    ordersByColor = bag.colors.map { color ->
+                                        color to (orders["${bag.bagId}::$color"] ?: 0)
+                                    },
+                                    rkEnabled = rkEnabled[bag.bagId] == true,
+                                    rkSpend = rkSpend[bag.bagId]?.replace(",", ".")?.toDoubleOrNull(),
+                                    rkImpressions = rkImpressions[bag.bagId]?.toLongOrNull(),
+                                    rkClicks = rkClicks[bag.bagId]?.toLongOrNull(),
+                                    rkStake = rkStake[bag.bagId]?.replace(",", ".")?.toDoubleOrNull(),
+                                    igEnabled = igEnabled[bag.bagId] == true,
+                                    igSpend = igSpend[bag.bagId]?.replace(",", ".")?.toDoubleOrNull(),
+                                    igImpressions = igImpressions[bag.bagId]?.toLongOrNull(),
+                                    igClicks = igClicks[bag.bagId]?.toLongOrNull()
+                                )
+                            }
+
+                            repo.saveDailySummary(selectedDate.toString(), bags)
+                            PackUploadManager.saveUserChangesAndUpload(ctx)
+                            onBack()
+                        }
+                    },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Дальше будет сохранение")
+                    Text("Сохранить сводку")
                 }
             }
         }
