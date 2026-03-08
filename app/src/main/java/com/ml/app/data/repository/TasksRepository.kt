@@ -19,10 +19,13 @@ class TasksRepository(
     suspend fun getUsers(): AppResult<List<UserDto>> {
         return when (val result = safeApiCall { api.getUsers() }) {
             is AppResult.Error -> result
-            is AppResult.Success -> if (result.data.ok) {
-                AppResult.Success(result.data.users)
-            } else {
-                AppResult.Error("Failed to load users")
+            is AppResult.Success<*> -> {
+                val body = result.data as com.ml.app.data.remote.response.UsersResponse
+                if (body.ok) {
+                    AppResult.Success(body.users)
+                } else {
+                    AppResult.Error("Failed to load users")
+                }
             }
         }
     }
@@ -44,9 +47,10 @@ class TasksRepository(
             }
         ) {
             is AppResult.Error -> result
-            is AppResult.Success -> {
-                val taskId = result.data.task_id
-                if (result.data.ok && taskId != null) {
+            is AppResult.Success<*> -> {
+                val body = result.data as com.ml.app.data.remote.response.CreateTaskResponse
+                val taskId = body.task_id
+                if (body.ok && taskId != null) {
                     AppResult.Success(taskId)
                 } else {
                     AppResult.Error("Failed to create task")
@@ -58,10 +62,13 @@ class TasksRepository(
     suspend fun getMyTasks(): AppResult<List<TaskDto>> {
         return when (val result = safeApiCall { api.getMyTasks() }) {
             is AppResult.Error -> result
-            is AppResult.Success -> if (result.data.ok) {
-                AppResult.Success(result.data.tasks)
-            } else {
-                AppResult.Error("Failed to load tasks")
+            is AppResult.Success<*> -> {
+                val body = result.data as com.ml.app.data.remote.response.TasksResponse
+                if (body.ok) {
+                    AppResult.Success(body.tasks)
+                } else {
+                    AppResult.Error("Failed to load tasks")
+                }
             }
         }
     }
@@ -69,10 +76,13 @@ class TasksRepository(
     suspend fun getAllTasks(): AppResult<List<TaskDto>> {
         return when (val result = safeApiCall { api.getAllTasks() }) {
             is AppResult.Error -> result
-            is AppResult.Success -> if (result.data.ok) {
-                AppResult.Success(result.data.tasks)
-            } else {
-                AppResult.Error("Failed to load tasks")
+            is AppResult.Success<*> -> {
+                val body = result.data as com.ml.app.data.remote.response.TasksResponse
+                if (body.ok) {
+                    AppResult.Success(body.tasks)
+                } else {
+                    AppResult.Error("Failed to load tasks")
+                }
             }
         }
     }
@@ -84,9 +94,10 @@ class TasksRepository(
             }
         ) {
             is AppResult.Error -> result
-            is AppResult.Success -> {
-                val id = result.data.task_id
-                if (result.data.ok && id != null) {
+            is AppResult.Success<*> -> {
+                val body = result.data as com.ml.app.data.remote.response.CompleteTaskResponse
+                val id = body.task_id
+                if (body.ok && id != null) {
                     AppResult.Success(id)
                 } else {
                     AppResult.Error("Failed to complete task")
@@ -102,9 +113,10 @@ class TasksRepository(
             }
         ) {
             is AppResult.Error -> result
-            is AppResult.Success -> {
-                val id = result.data.task_id
-                if (result.data.ok && id != null) {
+            is AppResult.Success<*> -> {
+                val body = result.data as com.ml.app.data.remote.response.CancelTaskResponse
+                val id = body.task_id
+                if (body.ok && id != null) {
                     AppResult.Success(id)
                 } else {
                     AppResult.Error("Failed to cancel task")
@@ -128,9 +140,10 @@ class TasksRepository(
             }
         ) {
             is AppResult.Error -> result
-            is AppResult.Success -> {
-                val id = result.data.task_id
-                if (result.data.ok && id != null) {
+            is AppResult.Success<*> -> {
+                val body = result.data as com.ml.app.data.remote.response.ReassignTaskResponse
+                val id = body.task_id
+                if (body.ok && id != null) {
                     AppResult.Success(id)
                 } else {
                     AppResult.Error("Failed to reassign task")
@@ -142,10 +155,13 @@ class TasksRepository(
     suspend fun getHistory(): AppResult<List<HistoryItemDto>> {
         return when (val result = safeApiCall { api.getHistory() }) {
             is AppResult.Error -> result
-            is AppResult.Success -> if (result.data.ok) {
-                AppResult.Success(result.data.history)
-            } else {
-                AppResult.Error("Failed to load history")
+            is AppResult.Success<*> -> {
+                val body = result.data as com.ml.app.data.remote.response.HistoryResponse
+                if (body.ok) {
+                    AppResult.Success(body.history)
+                } else {
+                    AppResult.Error("Failed to load history")
+                }
             }
         }
     }
@@ -160,11 +176,12 @@ class TasksRepository(
             }
         ) {
             is AppResult.Error -> result
-            is AppResult.Success -> {
-                val changedUserId = result.data.user_id
-                val changedRole = result.data.role
+            is AppResult.Success<*> -> {
+                val body = result.data as com.ml.app.data.remote.response.ChangeRoleResponse
+                val changedUserId = body.user_id
+                val changedRole = body.role
 
-                if (result.data.ok && changedUserId != null && changedRole != null) {
+                if (body.ok && changedUserId != null && changedRole != null) {
                     AppResult.Success(changedUserId to changedRole)
                 } else {
                     AppResult.Error("Failed to change role")
