@@ -37,6 +37,7 @@ import java.io.File
 import java.time.LocalDate
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
+import androidx.compose.ui.draw.shadow
 
 private val MercadoYellow = Color(0xFFFFE600)
 private val MercadoBlue = Color(0xFF2D3277)
@@ -102,9 +103,42 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
         ) {
           Text(
             text = "ml",
-            style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Black),
+            style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Black)
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Button(
+                        onClick = { showTasks.value = true },
+                        modifier = Modifier
+                            .shadow(
+                                elevation = 8.dp,
+                                shape = RoundedCornerShape(16.dp)
+                            ),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF3F51B5),
+                            contentColor = Color.White
+                        )
+                    ) {
+                        Text("Задачи")
+                    }
+,
             color = TextBlack
           )
+
+          Spacer(Modifier.width(12.dp))
+
+          Button(
+            onClick = { showTasks.value = true },
+            shape = RoundedCornerShape(16.dp),
+            colors = ButtonDefaults.buttonColors(
+              containerColor = PurpleBtn,
+              contentColor = Color.White
+            ),
+            modifier = Modifier.shadow(8.dp, RoundedCornerShape(16.dp))
+          ) {
+            Text("Задачи")
+          }
+
           Spacer(Modifier.weight(1f))
 
           if (state.mode is ScreenMode.Details) {
