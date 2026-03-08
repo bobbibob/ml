@@ -113,6 +113,9 @@ object PackDbSync {
       );
       """.trimIndent()
     )
+    db.execSQL("CREATE INDEX IF NOT EXISTS idx_bag_stock_override_date_bag_color ON $T_BAG_STOCK_OVERRIDE(effective_date, bag_id, color)")
+    db.execSQL("CREATE INDEX IF NOT EXISTS idx_bag_stock_override_bag_color_date ON $T_BAG_STOCK_OVERRIDE(bag_id, color, effective_date)")
+    db.execSQL("CREATE INDEX IF NOT EXISTS idx_svodka_date_bag_color ON svodka(date, bag_id, color)")
     db.execSQL("CREATE INDEX IF NOT EXISTS idx_${T_BAG_USER_COLOR_PRICE}_bag ON $T_BAG_USER_COLOR_PRICE(bag_id);")
   }
 

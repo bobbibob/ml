@@ -61,10 +61,7 @@ fun StockScreen(
     val drafts = remember { mutableStateMapOf<String, String>() }
 
     suspend fun reload() {
-        val meta = repo.loadTimeline(180)
-            .flatMap { it.byBags }
-            .distinctBy { it.bagId }
-            .sortedBy { it.bagName.lowercase() }
+        val meta = repo.listStockBagMeta()
 
         val stocks = repo.getResolvedStocksForDate(date)
             .groupBy { it.bagId }
@@ -78,7 +75,7 @@ fun StockScreen(
             else StockBagUi(
                 bagId = bag.bagId,
                 bagName = bag.bagName,
-                photoPath = bag.imagePath,
+                photoPath = bag.photoPath,
                 colors = rows
             )
         }

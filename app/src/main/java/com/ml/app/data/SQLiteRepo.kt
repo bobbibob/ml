@@ -747,4 +747,50 @@ class SQLiteRepo(private val context: Context) {
   }
 
 
+
+  data class StockBagMeta(
+    val bagId: String,
+    val bagName: String,
+    val photoPath: String?
+  )
+
+  suspend fun listStockBagMeta(): List<StockBagMeta> = withContext(Dispatchers.IO) {
+    openDbReadWrite().use { db ->
+      val out = ArrayList<StockBagMeta>()
+      db.rawQuery(
+        """
+        SELECT
+          s.bag_id AS bag_id,
+          COALESCE(NULLIF(u.name,''), b.bag_name, s.bag_id) AS bag_name,
+          COALESCE(NULLIF(u.photo_path,''), MAX(m.image_path)) AS photo_path
+        FROM svodka s
+        LEFT JOIN bags b ON b.bag_id = s.bag_id
+        LEFT JOIN bag_user u ON u.bag_id = s.bag_id
+        LEFT JOIN media m
+          ON m.entity_type='bag'
+         AND m.entity_key=s.bag_id
+        WHERE s.bag_id IS NOT NULL AND s.bag_id!=''
+        GROUP BY s.bag_id, COALESCE(NULLIF(u.name,''), b.bag_name, s.bag_id), COALESCE(NULLIF(u.photo_path,''), MAX(m.image_path))
+        ORDER BY bag_name COLLATE NOCASE
+        """.trimIndent(),
+        null
+      ).use { c ->
+        val iBag = c.getColumnIndexOrThrow("bag_id")
+        val iName = c.getColumnIndexOrThrow("bag_name")
+        val iPhoto = c.getColumnIndexOrThrow("photo_path")
+        while (c.moveToNext()) {
+          out.add(
+            StockBagMeta(
+              bagId = c.getString(iBag),
+              bagName = c.getString(iName),
+              photoPath = if (c.isNull(iPhoto)) null else c.getString(iPhoto)
+            )
+          )
+        }
+      }
+      out
+    }
+  }
+
+
 }
