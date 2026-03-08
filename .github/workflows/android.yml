@@ -25,6 +25,14 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Build Debug APK
+      - name: Signing report
+        run: ./gradlew :app:signingReport
+        env:
+          KEYSTORE_PATH: ${{ env.HOME }}/ml-release.keystore
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+
         run: ./gradlew :app:assembleDebug
 
       - name: Upload APK artifact
