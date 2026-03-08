@@ -115,7 +115,7 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
             color = TextBlack
           )
 
-          Spacer(Modifier.width(12.dp))
+          Spacer(Modifier.width(24.dp))
 
           Button(
             onClick = { showTasks.value = true }
