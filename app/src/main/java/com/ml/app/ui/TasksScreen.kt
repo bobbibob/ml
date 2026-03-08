@@ -82,6 +82,7 @@ fun TasksScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
@@ -160,6 +161,7 @@ fun TasksScreen(
                         enabled = task.status == "open"
                     ) {
                         Text("Выполнено")
+                    }
                     }
                 }
             }
