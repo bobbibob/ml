@@ -21,6 +21,7 @@ object PackUploadManager {
   private const val T_BAG_USER = "bag_user"
   private const val T_BAG_USER_COLORS = "bag_user_colors"
   private const val T_BAG_USER_COLOR_PRICE = "bag_user_color_price"
+  private const val T_BAG_STOCK_OVERRIDE = "bag_stock_override"
 
   suspend fun saveUserChangesAndUpload(context: Context) = withContext(Dispatchers.IO) {
     val packDir = PackPaths.packDir(context)
@@ -122,6 +123,18 @@ object PackUploadManager {
       );
       """.trimIndent()
     )
+
+    db.execSQL(
+      """
+      CREATE TABLE IF NOT EXISTS $T_BAG_STOCK_OVERRIDE(
+        effective_date TEXT NOT NULL,
+        bag_id TEXT NOT NULL,
+        color TEXT NOT NULL,
+        stock REAL NOT NULL,
+        PRIMARY KEY(effective_date, bag_id, color)
+      );
+      """.trimIndent()
+    )
   }
 
   private fun tableExists(db: SQLiteDatabase, name: String): Boolean {
@@ -212,6 +225,27 @@ object PackUploadManager {
                   c.getString(iId),
                   c.getString(iColor),
                   if (c.isNull(iPrice)) null else c.getDouble(iPrice)
+                )
+              )
+            }
+          }
+        }
+
+        if (tableExists(fromDb, T_BAG_STOCK_OVERRIDE)) {
+          fromDb.rawQuery("SELECT effective_date, bag_id, color, stock FROM $T_BAG_STOCK_OVERRIDE", null).use { c ->
+            val iDate = c.getColumnIndexOrThrow("effective_date")
+            val iId = c.getColumnIndexOrThrow("bag_id")
+            val iColor = c.getColumnIndexOrThrow("color")
+            val iStock = c.getColumnIndexOrThrow("stock")
+            while (c.moveToNext()) {
+              toDb.execSQL(
+                "INSERT INTO $T_BAG_STOCK_OVERRIDE(effective_date,bag_id,color,stock) VALUES(?,?,?,?) " +
+                  "ON CONFLICT(effective_date,bag_id,color) DO UPDATE SET stock=excluded.stock",
+                arrayOf(
+                  c.getString(iDate),
+                  c.getString(iId),
+                  c.getString(iColor),
+                  c.getDouble(iStock)
                 )
               )
             }
