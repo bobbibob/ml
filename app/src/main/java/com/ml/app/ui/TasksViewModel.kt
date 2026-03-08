@@ -62,7 +62,7 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
     fun loginWithGoogleToken(idToken: String) {
         viewModelScope.launch {
             state = state.copy(loading = true, error = null, info = null)
-            when (val res = authRepo.googleLogin(idToken)) {
+            when (val res = authRepo.googleLogin(GoogleLoginRequest(idToken))) {
                 is AppResult.Success -> {
                     state = state.copy(
                         loading = false,
