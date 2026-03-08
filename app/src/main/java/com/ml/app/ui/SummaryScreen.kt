@@ -52,6 +52,7 @@ private fun fmtPct(v01: Double): String = String.format("%.2f%%", v01 * 100.0)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
+  val tasksVm: TasksViewModel = viewModel()
 
   val showTasks = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
 
