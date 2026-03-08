@@ -23,7 +23,6 @@ import kotlinx.coroutines.launch
 import org.json.JSONObject
 
 sealed class ScreenMode {
-    object Tasks : ScreenMode()
   data object Timeline : ScreenMode()
   data object Stocks : ScreenMode()
   data object AddDailySummary : ScreenMode()
@@ -117,14 +116,6 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
   fun backFromArticleEditor() {
     _state.value = _state.value.copy(mode = ScreenMode.Timeline)
   }
-
-    fun openTasks() {
-        _screenMode.value = ScreenMode.Tasks
-    }
-
-    fun backFromTasks() {
-        _screenMode.value = ScreenMode.Main
-    }
 
   fun openStocks() {
     _state.value = _state.value.copy(mode = ScreenMode.Stocks)
