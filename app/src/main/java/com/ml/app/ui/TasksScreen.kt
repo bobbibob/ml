@@ -16,10 +16,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.ml.app.auth.GoogleAuthManager
+import kotlinx.coroutines.launch
 
 @Composable
 fun TasksScreen(
@@ -31,6 +35,8 @@ fun TasksScreen(
     }
 
     val state = vm.state
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     var taskTitle by remember { mutableStateOf("") }
     var taskDescription by remember { mutableStateOf("") }
@@ -41,15 +47,25 @@ fun TasksScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text(
-            text = "Задачи",
-            style = MaterialTheme.typography.headlineMedium
-        )
-
         state.currentUser?.let { user ->
             Text("${user.display_name} • ${user.role}")
         } ?: run {
-            Text("Пользователь не вошёл")
+            Button(
+                onClick = {
+                    scope.launch {
+                        try {
+                            val idToken = GoogleAuthManager(ctx).signIn()
+                            if (!idToken.isNullOrBlank()) {
+                                vm.loginWithGoogleToken(idToken)
+                            }
+                        } catch (_: Exception) {
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Войти через Google")
+            }
         }
 
         state.error?.let {
@@ -92,8 +108,6 @@ fun TasksScreen(
         ) {
             Text("Создать тестовую задачу себе")
         }
-
-        Spacer(modifier = Modifier.height(12.dp))
 
         Button(
             onClick = { vm.loadMyTasks() },

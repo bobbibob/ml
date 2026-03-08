@@ -13,6 +13,12 @@ data class LoginResponse(
     val user: UserDto?
 )
 
+data class GoogleLoginResponse(
+    val ok: Boolean,
+    val token: String?,
+    val user: UserDto?
+)
+
 data class MeResponse(
     val ok: Boolean,
     val user: UserDto?

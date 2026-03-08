@@ -46,31 +46,23 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
         if (!authRepo.isLoggedIn()) return
 
         viewModelScope.launch {
-            state = state.copy(loading = true, error = null)
             when (val res = authRepo.me()) {
                 is AppResult.Success -> {
-                    state = state.copy(
-                        loading = false,
-                        currentUser = res.data
-                    )
+                    state = state.copy(currentUser = res.data, error = null)
                     refreshAll()
                 }
                 is AppResult.Error -> {
                     authRepo.logout()
-                    state = state.copy(
-                        loading = false,
-                        currentUser = null,
-                        error = res.message
-                    )
+                    state = state.copy(currentUser = null, error = res.message)
                 }
             }
         }
     }
 
-    fun login(email: String, password: String) {
+    fun loginWithGoogleToken(idToken: String) {
         viewModelScope.launch {
             state = state.copy(loading = true, error = null, info = null)
-            when (val res = authRepo.login(email, password)) {
+            when (val res = authRepo.googleLogin(idToken)) {
                 is AppResult.Success -> {
                     state = state.copy(
                         loading = false,
@@ -78,26 +70,6 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
                         info = "Вход выполнен"
                     )
                     refreshAll()
-                }
-                is AppResult.Error -> {
-                    state = state.copy(
-                        loading = false,
-                        error = res.message
-                    )
-                }
-            }
-        }
-    }
-
-    fun register(displayName: String, email: String, password: String) {
-        viewModelScope.launch {
-            state = state.copy(loading = true, error = null, info = null)
-            when (val res = authRepo.register(email, password, displayName)) {
-                is AppResult.Success -> {
-                    state = state.copy(
-                        loading = false,
-                        info = "Пользователь создан. Теперь войдите."
-                    )
                 }
                 is AppResult.Error -> {
                     state = state.copy(
@@ -120,10 +92,8 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
 
     fun refreshAll() {
         val user = state.currentUser ?: return
-
         loadMyTasks()
         loadUsers()
-
         if (user.role == "plus" || user.role == "admin") {
             loadAllTasks()
             loadHistory()
@@ -176,17 +146,11 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
             state = state.copy(loading = true, error = null, info = null)
             when (val res = tasksRepo.createTask(title, description, assigneeUserId)) {
                 is AppResult.Success -> {
-                    state = state.copy(
-                        loading = false,
-                        info = "Задача создана"
-                    )
+                    state = state.copy(loading = false, info = "Задача создана")
                     refreshAll()
                 }
                 is AppResult.Error -> {
-                    state = state.copy(
-                        loading = false,
-                        error = res.message
-                    )
+                    state = state.copy(loading = false, error = res.message)
                 }
             }
         }
@@ -202,45 +166,5 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
                 is AppResult.Error -> state = state.copy(error = res.message)
             }
         }
-    }
-
-    fun cancelTask(taskId: String) {
-        viewModelScope.launch {
-            when (val res = tasksRepo.cancelTask(taskId)) {
-                is AppResult.Success -> {
-                    state = state.copy(info = "Задача отменена", error = null)
-                    refreshAll()
-                }
-                is AppResult.Error -> state = state.copy(error = res.message)
-            }
-        }
-    }
-
-    fun reassignTask(taskId: String, assigneeUserId: String) {
-        viewModelScope.launch {
-            when (val res = tasksRepo.reassignTask(taskId, assigneeUserId)) {
-                is AppResult.Success -> {
-                    state = state.copy(info = "Задача переназначена", error = null)
-                    refreshAll()
-                }
-                is AppResult.Error -> state = state.copy(error = res.message)
-            }
-        }
-    }
-
-    fun changeRole(userId: String, role: String) {
-        viewModelScope.launch {
-            when (val res = tasksRepo.changeRole(userId, role)) {
-                is AppResult.Success -> {
-                    state = state.copy(info = "Роль изменена", error = null)
-                    loadUsers()
-                }
-                is AppResult.Error -> state = state.copy(error = res.message)
-            }
-        }
-    }
-
-    fun clearMessage() {
-        state = state.copy(error = null, info = null)
     }
 }

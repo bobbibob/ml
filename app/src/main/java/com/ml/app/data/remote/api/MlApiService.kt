@@ -4,6 +4,7 @@ import com.ml.app.data.remote.request.CancelTaskRequest
 import com.ml.app.data.remote.request.ChangeRoleRequest
 import com.ml.app.data.remote.request.CompleteTaskRequest
 import com.ml.app.data.remote.request.CreateTaskRequest
+import com.ml.app.data.remote.request.GoogleLoginRequest
 import com.ml.app.data.remote.request.LoginRequest
 import com.ml.app.data.remote.request.ReassignTaskRequest
 import com.ml.app.data.remote.request.RegisterRequest
@@ -11,6 +12,7 @@ import com.ml.app.data.remote.response.CancelTaskResponse
 import com.ml.app.data.remote.response.ChangeRoleResponse
 import com.ml.app.data.remote.response.CompleteTaskResponse
 import com.ml.app.data.remote.response.CreateTaskResponse
+import com.ml.app.data.remote.response.GoogleLoginResponse
 import com.ml.app.data.remote.response.HistoryResponse
 import com.ml.app.data.remote.response.LoginResponse
 import com.ml.app.data.remote.response.MeResponse
@@ -23,6 +25,9 @@ import retrofit2.http.GET
 import retrofit2.http.POST
 
 interface MlApiService {
+
+    @POST("google_login.php")
+    suspend fun googleLogin(@Body request: GoogleLoginRequest): GoogleLoginResponse
 
     @POST("register.php")
     suspend fun register(@Body request: RegisterRequest): RegisterResponse
