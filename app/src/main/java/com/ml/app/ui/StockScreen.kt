@@ -195,9 +195,17 @@ fun StockScreen(
                                             }
                                             repo.replaceBagStockOverrides(date, bag.bagId, rows)
                                             PackUploadManager.saveUserChangesAndUpload(ctx)
+
+                                            items = items.map {
+                                                if (it.bagId == bag.bagId) {
+                                                    it.copy(colors = rows)
+                                                } else {
+                                                    it
+                                                }
+                                            }
+
                                             editingBagId = null
                                             drafts.clear()
-                                            reload()
                                         }
                                     },
                                     modifier = Modifier.weight(1f)
