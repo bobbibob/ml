@@ -24,8 +24,20 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ml.app.auth.GoogleAuthManager
 import kotlinx.coroutines.launch
+import java.time.OffsetDateTime
+import java.time.format.DateTimeFormatter
 
 private val TextBlack = Color(0xFF111111)
+
+private fun fmtTaskCreatedAt(v: String?): String {
+    if (v.isNullOrBlank()) return ""
+    return try {
+        val dt = OffsetDateTime.parse(v)
+        dt.format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"))
+    } catch (_: Exception) {
+        v
+    }
+}
 
 @Composable
 fun TasksScreen(
@@ -133,9 +145,14 @@ fun TasksScreen(
                             }
 
                             Text(
-                                text = "Статус: ${task.status}",
+                                text = "Создано: ${fmtTaskCreatedAt(task.created_at)}",
                                 color = TextBlack,
                                 modifier = Modifier.padding(top = 8.dp)
+                            )
+
+                            Text(
+                                text = "Статус: ${task.status}",
+                                color = TextBlack
                             )
 
                             Text(
