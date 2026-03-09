@@ -945,23 +945,45 @@ private fun AdminUsersTab(
             }
           }
 
-          Row(
+          Column(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp)
           ) {
-            Button(
-              onClick = {
-                val newRole = if (user.role == "admin") "basic" else "admin"
-                onChangeRole(user.user_id, newRole)
-              },
-              modifier = Modifier.weight(1f)
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-              Text(if (user.role == "admin") "Сделать basic" else "Сделать admin")
+              if (user.role != "basic") {
+                Button(
+                  onClick = { onChangeRole(user.user_id, "basic") },
+                  modifier = Modifier.weight(1f)
+                ) {
+                  Text("Сделать basic")
+                }
+              }
+
+              if (user.role != "plus") {
+                Button(
+                  onClick = { onChangeRole(user.user_id, "plus") },
+                  modifier = Modifier.weight(1f)
+                ) {
+                  Text("Сделать plus")
+                }
+              }
+
+              if (user.role != "admin") {
+                Button(
+                  onClick = { onChangeRole(user.user_id, "admin") },
+                  modifier = Modifier.weight(1f)
+                ) {
+                  Text("Сделать admin")
+                }
+              }
             }
 
             OutlinedButton(
               onClick = { onDeleteUser(user.user_id) },
-              modifier = Modifier.weight(1f)
+              modifier = Modifier.fillMaxWidth()
             ) {
               Text("Удалить")
             }
