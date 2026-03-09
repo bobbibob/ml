@@ -454,9 +454,6 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
           }
         )
       }
-          }
-        )
-      }
 
 
     PullRefreshIndicator(
