@@ -62,6 +62,8 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
     var showAdminDialog by remember { mutableStateOf(false) }
     var showAdminScreen by remember { mutableStateOf(false) }
     var adminTab by remember { mutableStateOf("users") }
+    var showAdminScreen by remember { mutableStateOf(false) }
+    var adminTab by remember { mutableStateOf("users") }
 
   val state by vm.state.collectAsState()
   val activity = (LocalContext.current as? Activity)
