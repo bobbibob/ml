@@ -98,6 +98,7 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
 
     fun refreshAll() {
         val user = state.currentUser ?: return
+        state = state.copy(error = null)
         when (state.selectedTab) {
             "all" -> if (user.role == "plus" || user.role == "admin") loadAllTasks() else loadMyTasks()
             else -> loadMyTasks()
@@ -118,13 +119,13 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             state = state.copy(loading = true, error = null)
             try {
-                val res = withTimeout(12000) { tasksRepo.getAllTasks() }
+                val res = withTimeout(30000) { tasksRepo.getAllTasks() }
                 when (res) {
                     is AppResult.Success -> state = state.copy(loading = false, allTasks = res.data, error = null)
                     is AppResult.Error -> state = state.copy(loading = false, error = res.message)
                 }
             } catch (_: Exception) {
-                state = state.copy(loading = false, error = "Не удалось загрузить все задачи")
+                state = state.copy(loading = false, error = "Все задачи загружаются слишком долго")
             }
         }
     }

@@ -81,6 +81,6 @@ interface MlApiService {
 
     @POST("update_profile")
     suspend fun updateProfileRaw(
-        @Body body: Map<String, Any?>
+        @Body body: Map<String, String>
     ): ResponseBody
 }
