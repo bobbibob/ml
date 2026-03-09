@@ -212,25 +212,66 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
           Spacer(Modifier.weight(1f))
 
           tasksVm.state.currentUser?.let { accountUser ->
-              Column(horizontalAlignment = Alignment.CenterHorizontally) {
+              if (accountUser.role == "admin") {
                 Button(
-                  onClick = { accountMenuExpanded = true },
-                  modifier = Modifier.size(44.dp),
-                  shape = CircleShape,
-                  contentPadding = PaddingValues(0.dp)
+                  onClick = { showAdminDialog = true },
+                  shape = RoundedCornerShape(20.dp)
                 ) {
-                  if (!accountUser.photo_url.isNullOrBlank()) {
-                    AsyncImage(
-                      model = accountUser.photo_url,
-                      contentDescription = "avatar",
-                      modifier = Modifier
-                        .fillMaxSize()
-                        .clip(CircleShape)
-                    )
-                  } else {
+                  Text("adm")
+                }
+                Spacer(Modifier.width(8.dp))
+              }
+
+              Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Box {
+                  Button(
+                    onClick = { accountMenuExpanded = true },
+                    modifier = Modifier.size(44.dp),
+                    shape = CircleShape,
+                    contentPadding = PaddingValues(0.dp)
+                  ) {
+                    if (!accountUser.photo_url.isNullOrBlank()) {
+                      AsyncImage(
+                        model = accountUser.photo_url,
+                        contentDescription = "avatar",
+                        modifier = Modifier
+                          .fillMaxSize()
+                          .clip(CircleShape)
+                      )
+                    } else {
+                      Text(
+                        text = accountUser.display_name.take(1).ifBlank { "?" }.uppercase(),
+                        style = MaterialTheme.typography.titleMedium
+                      )
+                    }
+                  }
+
+                  DropdownMenu(
+                    expanded = accountMenuExpanded,
+                    onDismissRequest = { accountMenuExpanded = false }
+                  ) {
                     Text(
-                      text = accountUser.display_name.take(1).ifBlank { "?" }.uppercase(),
-                      style = MaterialTheme.typography.titleMedium
+                      text = accountUser.email,
+                      modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                      color = TextBlack
+                    )
+                    HorizontalDivider()
+                    DropdownMenuItem(
+                      text = { Text("Изменить имя") },
+                      onClick = {
+                        accountMenuExpanded = false
+                        draftDisplayName = accountUser.display_name.ifBlank {
+                          accountUser.email.substringBefore("@").ifBlank { "Пользователь" }
+                        }
+                        showEditNameDialog = true
+                      }
+                    )
+                    DropdownMenuItem(
+                      text = { Text("Выйти") },
+                      onClick = {
+                        accountMenuExpanded = false
+                        tasksVm.logout()
+                      }
                     )
                   }
                 }
@@ -241,35 +282,6 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
                   style = MaterialTheme.typography.labelSmall,
                   modifier = Modifier.padding(top = 4.dp)
                 )
-
-                DropdownMenu(
-                  expanded = accountMenuExpanded,
-                  onDismissRequest = { accountMenuExpanded = false }
-                ) {
-                  Text(
-                    text = accountUser.email,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                    color = TextBlack
-                  )
-                  HorizontalDivider()
-                  DropdownMenuItem(
-                    text = { Text("Изменить имя") },
-                    onClick = {
-                      accountMenuExpanded = false
-                      draftDisplayName = accountUser.display_name.ifBlank {
-                        accountUser.email.substringBefore("@").ifBlank { "Пользователь" }
-                      }
-                      showEditNameDialog = true
-                    }
-                  )
-                  DropdownMenuItem(
-                    text = { Text("Выйти") },
-                    onClick = {
-                      accountMenuExpanded = false
-                      tasksVm.logout()
-                    }
-                  )
-                }
               }
 
               Spacer(Modifier.width(8.dp))
@@ -398,6 +410,60 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
         }
       )
     }
+      if (showEditNameDialog) {
+        val mustSetName = tasksVm.state.currentUser?.display_name?.isBlank() == true
+
+        AlertDialog(
+          onDismissRequest = {
+            if (!mustSetName) {
+              showEditNameDialog = false
+            }
+          },
+          title = { Text(if (mustSetName) "Укажите имя" else "Изменить имя") },
+          text = {
+            OutlinedTextField(
+              value = draftDisplayName,
+              onValueChange = { draftDisplayName = it },
+              singleLine = true,
+              label = { Text("Имя") }
+            )
+          },
+          confirmButton = {
+            Button(
+              onClick = {
+                val value = draftDisplayName.trim()
+                if (value.isNotBlank()) {
+                  tasksVm.updateOwnDisplayName(value)
+                  showEditNameDialog = false
+                }
+              }
+            ) {
+              Text("Сохранить")
+            }
+          },
+          dismissButton = {
+            if (!mustSetName) {
+              OutlinedButton(onClick = { showEditNameDialog = false }) {
+                Text("Отмена")
+              }
+            }
+          }
+        )
+      }
+
+      if (showAdminDialog) {
+        AlertDialog(
+          onDismissRequest = { showAdminDialog = false },
+          title = { Text("adm") },
+          text = { Text("Админ-панель подключим следующим пакетом.") },
+          confirmButton = {
+            Button(onClick = { showAdminDialog = false }) {
+              Text("OK")
+            }
+          }
+        )
+      }
+
 
     PullRefreshIndicator(
       refreshing = state.loading,
