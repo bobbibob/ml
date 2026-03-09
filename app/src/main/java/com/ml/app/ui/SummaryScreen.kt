@@ -59,6 +59,7 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
   var accountMenuExpanded by remember { mutableStateOf(false) }
     var showEditNameDialog by remember { mutableStateOf(false) }
     var draftDisplayName by remember { mutableStateOf("") }
+    var showAdminDialog by remember { mutableStateOf(false) }
     var showAdminScreen by remember { mutableStateOf(false) }
     var adminTab by remember { mutableStateOf("users") }
 
