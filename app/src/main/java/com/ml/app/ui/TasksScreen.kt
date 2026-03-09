@@ -648,6 +648,7 @@ private fun TasksListTab(
 ) {
     var editTask by remember { mutableStateOf<TaskDto?>(null) }
     var deleteTask by remember { mutableStateOf<TaskDto?>(null) }
+    var showEditWizard by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -769,6 +770,7 @@ private fun TasksListTab(
                                     onClick = {
                                         onEdit()
                                         editTask = task
+                                        showEditWizard = true
                                     },
                                     shape = RoundedCornerShape(20.dp),
                                     modifier = Modifier.padding(top = 12.dp)
@@ -793,95 +795,25 @@ private fun TasksListTab(
         }
     }
 
-    editTask?.let { task ->
-        var title by remember(task.task_id) { mutableStateOf(task.title) }
-        var description by remember(task.task_id) { mutableStateOf(cleanTaskDescriptionForEdit(task.description)) }
-        var assigneeUserId by remember(task.task_id) { mutableStateOf(task.assignee_user_id) }
-        var selectedReminder by remember(task.task_id) {
-            mutableStateOf<ReminderOption?>(
-                when {
-                    task.reminder_type == "interval" && task.reminder_interval_minutes == 10 -> ReminderOptions.firstOrNull { it.key == "10m" }
-                    task.reminder_type == "interval" && task.reminder_interval_minutes == 20 -> ReminderOptions.firstOrNull { it.key == "20m" }
-                    task.reminder_type == "interval" && task.reminder_interval_minutes == 30 -> ReminderOptions.firstOrNull { it.key == "30m" }
-                    task.reminder_type == "interval" && task.reminder_interval_minutes == 60 -> ReminderOptions.firstOrNull { it.key == "1h" }
-                    task.reminder_type == "interval" && task.reminder_interval_minutes == 120 -> ReminderOptions.firstOrNull { it.key == "2h" }
-                    task.reminder_type == "daily_time" && task.reminder_time_of_day == "10:00" -> ReminderOptions.firstOrNull { it.key == "morning" }
-                    task.reminder_type == "daily_time" && task.reminder_time_of_day == "18:00" -> ReminderOptions.firstOrNull { it.key == "evening" }
-                    else -> null
-                }
-            )
-        }
+      if (showEditWizard && editTask != null) {
+          EditTaskWizard(
+              task = editTask!!,
+              users = users,
+              error = error,
+              info = info,
+              onCancel = {
+                  showEditWizard = false
+                  editTask = null
+              },
+              onSave = { taskId, title, description, assigneeUserId, reminderType, reminderIntervalMinutes, reminderTimeOfDay ->
+                  onSaveEdit(taskId, title, description, assigneeUserId, reminderType, reminderIntervalMinutes, reminderTimeOfDay)
+                  showEditWizard = false
+                  editTask = null
+              }
+          )
+      }
 
-        AlertDialog(
-            onDismissRequest = { editTask = null },
-            title = { Text("Редактировать задачу") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedTextField(
-                        value = title,
-                        onValueChange = { title = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Название") }
-                    )
-
-                    OutlinedTextField(
-                        value = description,
-                        onValueChange = { description = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Описание") }
-                    )
-
-                    LazyColumn(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(users) { user ->
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { assigneeUserId = user.user_id },
-                                shape = RoundedCornerShape(16.dp),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = if (assigneeUserId == user.user_id) Color(0xFFE8DDF7) else Color.White
-                                )
-                            ) {
-                                Text(
-                                    text = "${user.display_name} (${user.email})",
-                                    modifier = Modifier.padding(12.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val payload = reminderPayload(selectedReminder)
-                        onSaveEdit(
-                            task.task_id,
-                            title,
-                            description,
-                            assigneeUserId,
-                            payload.first,
-                            payload.second,
-                            payload.third
-                        )
-                        editTask = null
-                    }
-                ) {
-                    Text("Сохранить")
-                }
-            },
-            dismissButton = {
-                OutlinedButton(onClick = { editTask = null }) {
-                    Text("Отмена")
-                }
-            }
-        )
-    }
-
-    deleteTask?.let { task ->
+      deleteTask?.let { task ->
         AlertDialog(
             onDismissRequest = { deleteTask = null },
             title = { Text("Удалить задачу?") },
