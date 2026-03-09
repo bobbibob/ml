@@ -831,6 +831,7 @@ private fun ArticleBottomBar(
 
 
 
+
 @Composable
 private fun AdminScreen(
   adminTab: String,
@@ -852,12 +853,29 @@ private fun AdminScreen(
       modifier = Modifier.fillMaxWidth(),
       horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-      Button(onClick = { onTabChange("users") }, modifier = Modifier.weight(1f)) { Text("Пользователи") }
-      Button(onClick = { onTabChange("tasks") }, modifier = Modifier.weight(1f)) { Text("Задачи") }
-      Button(onClick = { onTabChange("history") }, modifier = Modifier.weight(1f)) { Text("История") }
+      Button(
+        onClick = { onTabChange("users") },
+        modifier = Modifier.weight(1f)
+      ) { Text("Пользователи") }
+
+      Button(
+        onClick = { onTabChange("tasks") },
+        modifier = Modifier.weight(1f)
+      ) { Text("Задачи") }
+
+      Button(
+        onClick = { onTabChange("history") },
+        modifier = Modifier.weight(1f)
+      ) { Text("История") }
     }
 
-    error?.let { Text(it, color = Color.Red) }
+    error?.takeIf { it.isNotBlank() }?.let {
+      val waiting = it.contains("Загрузка в ожидании данных", ignoreCase = true)
+      Text(
+        text = if (waiting) "Загрузка в ожидании данных" else it,
+        color = if (waiting) Color.Gray else Color.Red
+      )
+    }
 
     when (adminTab) {
       "tasks" -> AdminTasksTab(tasks)
@@ -882,11 +900,18 @@ private fun AdminUsersTab(
     return
   }
 
-  LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+  LazyColumn(
+    verticalArrangement = Arrangement.spacedBy(12.dp)
+  ) {
     items(users) { user ->
-      Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
+      Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp)
+      ) {
         Column(
-          modifier = Modifier.fillMaxWidth().padding(16.dp),
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
           verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
           Row(
@@ -948,20 +973,32 @@ private fun AdminUsersTab(
 }
 
 @Composable
-private fun AdminTasksTab(tasks: List<com.ml.app.data.remote.dto.TaskDto>) {
+private fun AdminTasksTab(
+  tasks: List<com.ml.app.data.remote.dto.TaskDto>
+) {
   if (tasks.isEmpty()) {
     Text("Задач пока нет")
     return
   }
-  LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+
+  LazyColumn(
+    verticalArrangement = Arrangement.spacedBy(12.dp)
+  ) {
     items(tasks) { task ->
-      Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
+      Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp)
+      ) {
         Column(
-          modifier = Modifier.fillMaxWidth().padding(16.dp),
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
           verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
           Text(task.title, fontWeight = FontWeight.Bold)
-          if (!task.description.isNullOrBlank()) Text(task.description)
+          if (!task.description.isNullOrBlank()) {
+            Text(task.description)
+          }
           Text("Статус: ${task.status}")
           Text("Создал: ${task.created_by_name}")
           Text("Исполнитель: ${task.assignee_name}")
@@ -972,16 +1009,26 @@ private fun AdminTasksTab(tasks: List<com.ml.app.data.remote.dto.TaskDto>) {
 }
 
 @Composable
-private fun AdminHistoryTab(history: List<com.ml.app.data.remote.dto.HistoryItemDto>) {
+private fun AdminHistoryTab(
+  history: List<com.ml.app.data.remote.dto.HistoryItemDto>
+) {
   if (history.isEmpty()) {
     Text("История пока пуста")
     return
   }
-  LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+
+  LazyColumn(
+    verticalArrangement = Arrangement.spacedBy(12.dp)
+  ) {
     items(history) { item ->
-      Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
+      Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp)
+      ) {
         Column(
-          modifier = Modifier.fillMaxWidth().padding(16.dp),
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
           verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
           Text(item.action_type, fontWeight = FontWeight.Bold)
