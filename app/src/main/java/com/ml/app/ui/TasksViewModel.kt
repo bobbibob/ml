@@ -330,6 +330,37 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+
+    fun adminChangeUserRole(userId: String, role: String) {
+        viewModelScope.launch {
+            state = state.copy(loading = true, error = null, info = null)
+            when (val res = tasksRepo.changeUserRole(userId, role)) {
+                is AppResult.Success -> {
+                    state = state.copy(loading = false, info = "Роль обновлена")
+                    loadUsers()
+                }
+                is AppResult.Error -> {
+                    state = state.copy(loading = false, error = res.message)
+                }
+            }
+        }
+    }
+
+    fun adminDeleteUser(userId: String) {
+        viewModelScope.launch {
+            state = state.copy(loading = true, error = null, info = null)
+            when (val res = tasksRepo.deleteUser(userId)) {
+                is AppResult.Success -> {
+                    state = state.copy(loading = false, info = "Пользователь удалён")
+                    loadUsers()
+                }
+                is AppResult.Error -> {
+                    state = state.copy(loading = false, error = res.message)
+                }
+            }
+        }
+    }
+
     fun setError(message: String) {
         state = state.copy(error = message)
     }

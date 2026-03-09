@@ -328,7 +328,9 @@ Row(verticalAlignment = Alignment.CenterVertically) {
             users = tasksVm.state.users,
             tasks = tasksVm.state.allTasks,
             history = tasksVm.state.history,
-            error = tasksVm.state.error ?: tasksVm.state.info
+            error = tasksVm.state.error ?: tasksVm.state.info,
+            onChangeRole = { userId, role -> tasksVm.adminChangeUserRole(userId, role) },
+            onDeleteUser = { userId -> tasksVm.adminDeleteUser(userId) }
           )
         } else if (showTasks.value) {
           TasksScreen(onBack = { showTasks.value = false }, vm = tasksVm)
@@ -828,6 +830,7 @@ private fun ArticleBottomBar(
 }
 
 
+
 @Composable
 private fun AdminScreen(
   adminTab: String,
@@ -835,7 +838,9 @@ private fun AdminScreen(
   users: List<com.ml.app.data.remote.dto.UserDto>,
   tasks: List<com.ml.app.data.remote.dto.TaskDto>,
   history: List<com.ml.app.data.remote.dto.HistoryItemDto>,
-  error: String?
+  error: String?,
+  onChangeRole: (String, String) -> Unit,
+  onDeleteUser: (String) -> Unit
 ) {
   Column(
     modifier = Modifier
@@ -847,64 +852,95 @@ private fun AdminScreen(
       modifier = Modifier.fillMaxWidth(),
       horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-      Button(
-        onClick = { onTabChange("users") },
-        modifier = Modifier.weight(1f)
-      ) {
-        Text("Пользователи")
-      }
-      Button(
-        onClick = { onTabChange("tasks") },
-        modifier = Modifier.weight(1f)
-      ) {
-        Text("Задачи")
-      }
-      Button(
-        onClick = { onTabChange("history") },
-        modifier = Modifier.weight(1f)
-      ) {
-        Text("История")
-      }
+      Button(onClick = { onTabChange("users") }, modifier = Modifier.weight(1f)) { Text("Пользователи") }
+      Button(onClick = { onTabChange("tasks") }, modifier = Modifier.weight(1f)) { Text("Задачи") }
+      Button(onClick = { onTabChange("history") }, modifier = Modifier.weight(1f)) { Text("История") }
     }
 
-    error?.let {
-      Text("Ошибка: $it", color = Color.Red)
-    }
+    error?.let { Text(it, color = Color.Red) }
 
     when (adminTab) {
-      "tasks" -> AdminTasksTab(tasks = tasks)
-      "history" -> AdminHistoryTab(history = history)
-      else -> AdminUsersTab(users = users)
+      "tasks" -> AdminTasksTab(tasks)
+      "history" -> AdminHistoryTab(history)
+      else -> AdminUsersTab(
+        users = users,
+        onChangeRole = onChangeRole,
+        onDeleteUser = onDeleteUser
+      )
     }
   }
 }
 
 @Composable
 private fun AdminUsersTab(
-  users: List<com.ml.app.data.remote.dto.UserDto>
+  users: List<com.ml.app.data.remote.dto.UserDto>,
+  onChangeRole: (String, String) -> Unit,
+  onDeleteUser: (String) -> Unit
 ) {
   if (users.isEmpty()) {
     Text("Пользователей пока нет")
     return
   }
 
-  LazyColumn(
-    verticalArrangement = Arrangement.spacedBy(12.dp)
-  ) {
+  LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
     items(users) { user ->
-      Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp)
-      ) {
+      Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
         Column(
-          modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp),
-          verticalArrangement = Arrangement.spacedBy(6.dp)
+          modifier = Modifier.fillMaxWidth().padding(16.dp),
+          verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-          Text(user.display_name, fontWeight = FontWeight.Bold)
-          Text(user.email)
-          Text("Роль: ${user.role}")
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            if (!user.photo_url.isNullOrBlank()) {
+              AsyncImage(
+                model = user.photo_url,
+                contentDescription = user.display_name,
+                modifier = Modifier
+                  .size(52.dp)
+                  .clip(CircleShape)
+              )
+            } else {
+              Button(
+                onClick = {},
+                modifier = Modifier.size(52.dp),
+                shape = CircleShape,
+                contentPadding = PaddingValues(0.dp)
+              ) {
+                Text(user.display_name.take(1).ifBlank { "?" }.uppercase())
+              }
+            }
+
+            Column(modifier = Modifier.weight(1f)) {
+              Text(user.display_name, fontWeight = FontWeight.Bold)
+              Text(user.email)
+              Text("Роль: ${user.role}")
+            }
+          }
+
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+          ) {
+            Button(
+              onClick = {
+                val newRole = if (user.role == "admin") "basic" else "admin"
+                onChangeRole(user.user_id, newRole)
+              },
+              modifier = Modifier.weight(1f)
+            ) {
+              Text(if (user.role == "admin") "Сделать basic" else "Сделать admin")
+            }
+
+            OutlinedButton(
+              onClick = { onDeleteUser(user.user_id) },
+              modifier = Modifier.weight(1f)
+            ) {
+              Text("Удалить")
+            }
+          }
         }
       }
     }
@@ -912,32 +948,20 @@ private fun AdminUsersTab(
 }
 
 @Composable
-private fun AdminTasksTab(
-  tasks: List<com.ml.app.data.remote.dto.TaskDto>
-) {
+private fun AdminTasksTab(tasks: List<com.ml.app.data.remote.dto.TaskDto>) {
   if (tasks.isEmpty()) {
     Text("Задач пока нет")
     return
   }
-
-  LazyColumn(
-    verticalArrangement = Arrangement.spacedBy(12.dp)
-  ) {
+  LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
     items(tasks) { task ->
-      Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp)
-      ) {
+      Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
         Column(
-          modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp),
+          modifier = Modifier.fillMaxWidth().padding(16.dp),
           verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
           Text(task.title, fontWeight = FontWeight.Bold)
-          if (!task.description.isNullOrBlank()) {
-            Text(task.description)
-          }
+          if (!task.description.isNullOrBlank()) Text(task.description)
           Text("Статус: ${task.status}")
           Text("Создал: ${task.created_by_name}")
           Text("Исполнитель: ${task.assignee_name}")
@@ -948,26 +972,16 @@ private fun AdminTasksTab(
 }
 
 @Composable
-private fun AdminHistoryTab(
-  history: List<com.ml.app.data.remote.dto.HistoryItemDto>
-) {
+private fun AdminHistoryTab(history: List<com.ml.app.data.remote.dto.HistoryItemDto>) {
   if (history.isEmpty()) {
     Text("История пока пуста")
     return
   }
-
-  LazyColumn(
-    verticalArrangement = Arrangement.spacedBy(12.dp)
-  ) {
+  LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
     items(history) { item ->
-      Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp)
-      ) {
+      Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
         Column(
-          modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp),
+          modifier = Modifier.fillMaxWidth().padding(16.dp),
           verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
           Text(item.action_type, fontWeight = FontWeight.Bold)

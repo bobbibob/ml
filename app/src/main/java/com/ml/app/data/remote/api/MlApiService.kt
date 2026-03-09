@@ -83,4 +83,15 @@ interface MlApiService {
     suspend fun updateProfileRaw(
         @Body body: Map<String, String>
     ): ResponseBody
+
+
+    @POST("change_role")
+    suspend fun changeRoleRaw(
+        @Body body: Map<String, String>
+    ): ResponseBody
+
+    @POST("delete_user")
+    suspend fun deleteUserRaw(
+        @Body body: Map<String, String>
+    ): ResponseBody
 }

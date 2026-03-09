@@ -236,4 +236,42 @@ class TasksRepository(
             AppResult.Error(t.message ?: "Ошибка удаления задачи")
         }
     }
+
+
+    suspend fun changeUserRole(userId: String, role: String): AppResult<Unit> {
+        return try {
+            val raw = api.changeRoleRaw(
+                mapOf(
+                    "user_id" to userId,
+                    "role" to role
+                )
+            )
+            val json = JSONObject(raw.string())
+            if (json.optBoolean("ok")) {
+                AppResult.Success(Unit)
+            } else {
+                AppResult.Error(json.optString("error", "Ошибка смены роли"))
+            }
+        } catch (t: Throwable) {
+            AppResult.Error(t.message ?: "Ошибка смены роли")
+        }
+    }
+
+    suspend fun deleteUser(userId: String): AppResult<Unit> {
+        return try {
+            val raw = api.deleteUserRaw(
+                mapOf(
+                    "user_id" to userId
+                )
+            )
+            val json = JSONObject(raw.string())
+            if (json.optBoolean("ok")) {
+                AppResult.Success(Unit)
+            } else {
+                AppResult.Error(json.optString("error", "Ошибка удаления пользователя"))
+            }
+        } catch (t: Throwable) {
+            AppResult.Error(t.message ?: "Ошибка удаления пользователя")
+        }
+    }
 }
