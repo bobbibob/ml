@@ -69,12 +69,16 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
   }
 
   BackHandler {
-    when (state.mode) {
-      is ScreenMode.Details -> vm.backToTimeline()
-      is ScreenMode.ArticleEditor -> vm.backFromArticleEditor()
-      is ScreenMode.Stocks -> vm.backFromStocks()
-      is ScreenMode.AddDailySummary -> vm.backFromAddDailySummary()
-      else -> showExitAppDialog = true
+    if (showTasks.value) {
+      showTasks.value = false
+    } else {
+      when (state.mode) {
+        is ScreenMode.Details -> vm.backToTimeline()
+        is ScreenMode.ArticleEditor -> vm.backFromArticleEditor()
+        is ScreenMode.Stocks -> vm.backFromStocks()
+        is ScreenMode.AddDailySummary -> vm.backFromAddDailySummary()
+        else -> showExitAppDialog = true
+      }
     }
   }
 
