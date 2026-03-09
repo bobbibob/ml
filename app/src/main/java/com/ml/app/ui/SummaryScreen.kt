@@ -141,7 +141,9 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
   }
 
   BackHandler {
-    if (showTasks.value) {
+    if (showAdminScreen) {
+      showAdminScreen = false
+    } else if (showTasks.value) {
       showTasks.value = false
     } else {
       when (state.mode) {

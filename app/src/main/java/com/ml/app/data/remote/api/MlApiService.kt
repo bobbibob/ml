@@ -70,12 +70,12 @@ interface MlApiService {
 
     @POST("update_task")
     suspend fun updateTaskRaw(
-        @Body body: Map<String, Any?>
+        @Body body: Map<String, String>
     ): ResponseBody
 
     @POST("delete_task")
     suspend fun deleteTaskRaw(
-        @Body body: Map<String, Any?>
+        @Body body: Map<String, String>
     ): ResponseBody
 
 
