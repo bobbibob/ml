@@ -306,7 +306,7 @@ export default {
         }
 
         const task = await env.DB.prepare(`
-          SELECT task_id, created_by_user_id
+          SELECT task_id, created_by_user_id, status
           FROM tasks
           WHERE task_id = ?
           LIMIT 1
@@ -316,6 +316,7 @@ export default {
 
         const canEdit = user.role === "admin" || task.created_by_user_id === user.user_id
         if (!canEdit) return json({ ok: false, error: "permission denied" }, 403)
+        if (task.status !== "open") return json({ ok: false, error: "only open tasks can be edited" }, 400)
 
         await env.DB.prepare(`
           UPDATE tasks
@@ -418,3 +419,5 @@ export default {
 // force redeploy avatar photo_url
 
 // force redeploy update delete task
+
+// force redeploy edit only open tasks

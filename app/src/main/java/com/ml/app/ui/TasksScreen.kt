@@ -1,5 +1,6 @@
 package com.ml.app.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -107,6 +108,16 @@ fun TasksScreen(
             "create" -> Unit
             "all" -> if (state.currentUser.role == "plus" || state.currentUser.role == "admin") vm.loadAllTasks() else vm.loadMyTasks()
             else -> vm.loadMyTasks()
+        }
+    }
+
+    if (state.selectedTab == "create") {
+        BackHandler {
+            if (state.currentUser.role == "plus" || state.currentUser.role == "admin") {
+                vm.selectTab("all")
+            } else {
+                vm.selectTab("my")
+            }
         }
     }
 
@@ -263,7 +274,8 @@ private fun TasksListTab(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(tasks) { task ->
-                    val canEditOrDelete = currentUserRole == "admin" || task.created_by_user_id == currentUserId
+                    val canDelete = currentUserRole == "admin" || task.created_by_user_id == currentUserId
+                    val canEdit = canDelete && task.status == "open"
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(28.dp),
@@ -346,7 +358,7 @@ private fun TasksListTab(
                                 )
                             }
 
-                            if (canEditOrDelete) {
+                            if (canEdit) {
                                 Button(
                                     onClick = {
                                         onEdit()
@@ -357,11 +369,13 @@ private fun TasksListTab(
                                 ) {
                                     Text("Редактировать")
                                 }
+                            }
 
+                            if (canDelete) {
                                 OutlinedButton(
                                     onClick = { deleteTask = task },
                                     shape = RoundedCornerShape(20.dp),
-                                    modifier = Modifier.padding(top = 8.dp)
+                                    modifier = Modifier.padding(top = if (canEdit) 8.dp else 12.dp)
                                 ) {
                                     Text("Удалить")
                                 }
