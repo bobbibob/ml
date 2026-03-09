@@ -321,9 +321,18 @@ Row(verticalAlignment = Alignment.CenterVertically) {
         }
       }
 
-      if (showTasks.value) {
-        TasksScreen(onBack = { showTasks.value = false }, vm = tasksVm)
-      } else if (!state.hasPack) {
+      if (showAdminScreen) {
+          AdminScreen(
+            adminTab = adminTab,
+            onTabChange = { adminTab = it },
+            users = tasksVm.state.users,
+            tasks = tasksVm.state.allTasks,
+            history = tasksVm.state.history,
+            error = tasksVm.state.error ?: tasksVm.state.info
+          )
+        } else if (showTasks.value) {
+          TasksScreen(onBack = { showTasks.value = false }, vm = tasksVm)
+        } else if (!state.hasPack) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
           Column(horizontalAlignment = Alignment.CenterHorizontally) {
             if (state.loading) {
@@ -393,8 +402,9 @@ Row(verticalAlignment = Alignment.CenterVertically) {
       }
     }
 
-    if (showTasks.value) {
-      TasksBottomBar(
+    if (showAdminScreen) {
+      } else if (showTasks.value) {
+        TasksBottomBar(
         onMyTasksClick = { tasksVm.selectTab("my") },
         onAddTaskClick = { tasksVm.selectTab("create") },
         onAllTasksClick = { tasksVm.selectTab("all") },

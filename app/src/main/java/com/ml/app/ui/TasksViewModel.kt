@@ -107,35 +107,114 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
 
     fun loadMyTasks() {
         viewModelScope.launch {
-            state = state.copy(loading = true, error = null)
-            when (val res = tasksRepo.getMyTasks()) {
-                is AppResult.Success -> state = state.copy(loading = false, myTasks = res.data, error = null)
-                is AppResult.Error -> state = state.copy(loading = false, error = res.message)
+            state = state.copy(loading = true, error = null, info = null)
+            try {
+                val res = withTimeout(30000) { tasksRepo.getMyTasks() }
+                when (res) {
+                    is AppResult.Success -> state = state.copy(
+                        loading = false,
+                        myTasks = res.data,
+                        error = null,
+                        info = null
+                    )
+                    is AppResult.Error -> {
+                        val msg = res.message.lowercase()
+                        if ("timeout" in msg) {
+                            state = state.copy(
+                                loading = false,
+                                error = null,
+                                info = "Загрузка в ожидании данных"
+                            )
+                        } else {
+                            state = state.copy(
+                                loading = false,
+                                error = res.message
+                            )
+                        }
+                    }
+                }
+            } catch (_: Exception) {
+                state = state.copy(
+                    loading = false,
+                    error = null,
+                    info = "Загрузка в ожидании данных"
+                )
             }
         }
     }
 
     fun loadAllTasks() {
         viewModelScope.launch {
-            state = state.copy(loading = true, error = null)
+            state = state.copy(loading = true, error = null, info = null)
             try {
                 val res = withTimeout(30000) { tasksRepo.getAllTasks() }
                 when (res) {
-                    is AppResult.Success -> state = state.copy(loading = false, allTasks = res.data, error = null)
-                    is AppResult.Error -> state = state.copy(loading = false, error = res.message)
+                    is AppResult.Success -> state = state.copy(
+                        loading = false,
+                        allTasks = res.data,
+                        error = null,
+                        info = null
+                    )
+                    is AppResult.Error -> {
+                        val msg = res.message.lowercase()
+                        if ("timeout" in msg) {
+                            state = state.copy(
+                                loading = false,
+                                error = null,
+                                info = "Загрузка в ожидании данных"
+                            )
+                        } else {
+                            state = state.copy(
+                                loading = false,
+                                error = res.message
+                            )
+                        }
+                    }
                 }
             } catch (_: Exception) {
-                state = state.copy(loading = false, error = "Все задачи загружаются слишком долго")
+                state = state.copy(
+                    loading = false,
+                    error = null,
+                    info = "Загрузка в ожидании данных"
+                )
             }
         }
     }
 
     fun loadUsers() {
         viewModelScope.launch {
-            state = state.copy(loading = true, error = null)
-            when (val res = tasksRepo.getUsers()) {
-                is AppResult.Success -> state = state.copy(loading = false, users = res.data, error = null)
-                is AppResult.Error -> state = state.copy(loading = false, error = res.message)
+            state = state.copy(loading = true, error = null, info = null)
+            try {
+                val res = withTimeout(30000) { tasksRepo.getUsers() }
+                when (res) {
+                    is AppResult.Success -> state = state.copy(
+                        loading = false,
+                        users = res.data,
+                        error = null,
+                        info = null
+                    )
+                    is AppResult.Error -> {
+                        val msg = res.message.lowercase()
+                        if ("timeout" in msg) {
+                            state = state.copy(
+                                loading = false,
+                                error = null,
+                                info = "Загрузка в ожидании данных"
+                            )
+                        } else {
+                            state = state.copy(
+                                loading = false,
+                                error = res.message
+                            )
+                        }
+                    }
+                }
+            } catch (_: Exception) {
+                state = state.copy(
+                    loading = false,
+                    error = null,
+                    info = "Загрузка в ожидании данных"
+                )
             }
         }
     }
