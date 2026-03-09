@@ -8,12 +8,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -102,7 +104,7 @@ fun TasksScreen(
 
     LaunchedEffect(state.currentUser.user_id, state.selectedTab) {
         when (state.selectedTab) {
-            "create" -> vm.loadUsers()
+            "create" -> Unit
             "all" -> if (state.currentUser.role == "plus" || state.currentUser.role == "admin") vm.loadAllTasks() else vm.loadMyTasks()
             else -> vm.loadMyTasks()
         }
@@ -114,14 +116,30 @@ fun TasksScreen(
             titleWhenEmpty = "Задач пока нет",
             tasks = state.allTasks,
             error = state.error,
+            currentUserId = state.currentUser.user_id,
+            currentUserRole = state.currentUser.role,
             onComplete = { vm.completeTask(it) },
+            onEdit = { vm.loadUsers() },
+            onSaveEdit = { taskId, title, description, assigneeUserId ->
+                vm.updateTask(taskId, title, description, assigneeUserId)
+            },
+            onDelete = { vm.deleteTask(it) },
+            users = state.users,
             state = state
         )
         else -> TasksListTab(
             titleWhenEmpty = "Задач пока нет",
             tasks = state.myTasks,
             error = state.error,
+            currentUserId = state.currentUser.user_id,
+            currentUserRole = state.currentUser.role,
             onComplete = { vm.completeTask(it) },
+            onEdit = { vm.loadUsers() },
+            onSaveEdit = { taskId, title, description, assigneeUserId ->
+                vm.updateTask(taskId, title, description, assigneeUserId)
+            },
+            onDelete = { vm.deleteTask(it) },
+            users = state.users,
             state = state
         )
     }
@@ -164,20 +182,13 @@ private fun CreateTaskTab(vm: TasksViewModel) {
 
         Button(
             onClick = {
-                if (state.users.isEmpty()) {
-                    vm.loadUsers()
-                }
+                if (state.users.isEmpty()) vm.loadUsers()
                 assigneeExpanded = true
             },
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(20.dp)
         ) {
-            Text(
-                text = buildString {
-                    append("Исполнитель: ")
-                    append(assigneeUser?.display_name ?: "Выбрать")
-                }
-            )
+            Text("Исполнитель: ${assigneeUser?.display_name ?: "Выбрать"}")
         }
 
         DropdownMenu(
@@ -186,9 +197,7 @@ private fun CreateTaskTab(vm: TasksViewModel) {
         ) {
             state.users.forEach { user ->
                 DropdownMenuItem(
-                    text = {
-                        Text("${user.display_name} (${user.email})")
-                    },
+                    text = { Text("${user.display_name} (${user.email})") },
                     onClick = {
                         assigneeUserId = user.user_id
                         assigneeExpanded = false
@@ -220,9 +229,18 @@ private fun TasksListTab(
     titleWhenEmpty: String,
     tasks: List<TaskDto>,
     error: String?,
+    currentUserId: String,
+    currentUserRole: String,
     onComplete: (String) -> Unit,
+    onEdit: () -> Unit,
+    onSaveEdit: (String, String, String, String) -> Unit,
+    onDelete: (String) -> Unit,
+    users: List<com.ml.app.data.remote.dto.UserDto>,
     state: TasksUiState
 ) {
+    var editTask by remember { mutableStateOf<TaskDto?>(null) }
+    var deleteTask by remember { mutableStateOf<TaskDto?>(null) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -245,6 +263,7 @@ private fun TasksListTab(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(tasks) { task ->
+                    val canEditOrDelete = currentUserRole == "admin" || task.created_by_user_id == currentUserId
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(28.dp),
@@ -287,6 +306,11 @@ private fun TasksListTab(
                                 color = TextBlack
                             )
 
+                            Text(
+                                text = "Создал: ${task.created_by_name}",
+                                color = TextBlack
+                            )
+
                             if (!task.completed_by_name.isNullOrBlank() &&
                                 task.completed_by_user_id != task.assignee_user_id
                             ) {
@@ -321,10 +345,122 @@ private fun TasksListTab(
                                     modifier = Modifier.padding(top = 12.dp)
                                 )
                             }
+
+                            if (canEditOrDelete) {
+                                Button(
+                                    onClick = {
+                                        onEdit()
+                                        editTask = task
+                                    },
+                                    shape = RoundedCornerShape(20.dp),
+                                    modifier = Modifier.padding(top = 12.dp)
+                                ) {
+                                    Text("Редактировать")
+                                }
+
+                                OutlinedButton(
+                                    onClick = { deleteTask = task },
+                                    shape = RoundedCornerShape(20.dp),
+                                    modifier = Modifier.padding(top = 8.dp)
+                                ) {
+                                    Text("Удалить")
+                                }
+                            }
                         }
                     }
                 }
             }
         }
+    }
+
+    editTask?.let { task ->
+        var title by remember(task.task_id) { mutableStateOf(task.title) }
+        var description by remember(task.task_id) { mutableStateOf(task.description ?: "") }
+        var assigneeUserId by remember(task.task_id) { mutableStateOf(task.assignee_user_id) }
+        var expanded by remember(task.task_id) { mutableStateOf(false) }
+        val assigneeUser = users.firstOrNull { it.user_id == assigneeUserId }
+
+        AlertDialog(
+            onDismissRequest = { editTask = null },
+            title = { Text("Редактировать задачу") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(
+                        value = title,
+                        onValueChange = { title = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Название") }
+                    )
+
+                    OutlinedTextField(
+                        value = description,
+                        onValueChange = { description = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Описание") }
+                    )
+
+                    Button(
+                        onClick = { expanded = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(20.dp)
+                    ) {
+                        Text("Исполнитель: ${assigneeUser?.display_name ?: task.assignee_name}")
+                    }
+
+                    DropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false }
+                    ) {
+                        users.forEach { user ->
+                            DropdownMenuItem(
+                                text = { Text("${user.display_name} (${user.email})") },
+                                onClick = {
+                                    assigneeUserId = user.user_id
+                                    expanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onSaveEdit(task.task_id, title, description, assigneeUserId)
+                        editTask = null
+                    }
+                ) {
+                    Text("Сохранить")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { editTask = null }) {
+                    Text("Отмена")
+                }
+            }
+        )
+    }
+
+    deleteTask?.let { task ->
+        AlertDialog(
+            onDismissRequest = { deleteTask = null },
+            title = { Text("Удалить задачу?") },
+            text = { Text(task.title) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onDelete(task.task_id)
+                        deleteTask = null
+                    }
+                ) {
+                    Text("Удалить")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { deleteTask = null }) {
+                    Text("Отмена")
+                }
+            }
+        )
     }
 }

@@ -181,6 +181,42 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+
+    fun updateTask(taskId: String, title: String, description: String, assigneeUserId: String) {
+        if (title.isBlank() || assigneeUserId.isBlank()) {
+            state = state.copy(error = "Заполни название и исполнителя")
+            return
+        }
+
+        viewModelScope.launch {
+            state = state.copy(loading = true, error = null, info = null)
+            when (val res = tasksRepo.updateTask(taskId, title, description, assigneeUserId)) {
+                is AppResult.Success -> {
+                    state = state.copy(loading = false, info = "Задача обновлена")
+                    refreshAll()
+                }
+                is AppResult.Error -> {
+                    state = state.copy(loading = false, error = res.message)
+                }
+            }
+        }
+    }
+
+    fun deleteTask(taskId: String) {
+        viewModelScope.launch {
+            state = state.copy(loading = true, error = null, info = null)
+            when (val res = tasksRepo.deleteTask(taskId)) {
+                is AppResult.Success -> {
+                    state = state.copy(loading = false, info = "Задача удалена")
+                    refreshAll()
+                }
+                is AppResult.Error -> {
+                    state = state.copy(loading = false, error = res.message)
+                }
+            }
+        }
+    }
+
     fun setError(message: String) {
         state = state.copy(error = message)
     }

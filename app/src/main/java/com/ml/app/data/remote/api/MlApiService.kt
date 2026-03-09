@@ -1,5 +1,7 @@
 package com.ml.app.data.remote.api
 
+import okhttp3.ResponseBody
+
 import com.ml.app.data.remote.request.CancelTaskRequest
 import com.ml.app.data.remote.request.ChangeRoleRequest
 import com.ml.app.data.remote.request.CompleteTaskRequest
@@ -64,4 +66,15 @@ interface MlApiService {
 
     @POST("change_role.php")
     suspend fun changeRole(@Body request: ChangeRoleRequest): ChangeRoleResponse
+
+
+    @POST("update_task")
+    suspend fun updateTaskRaw(
+        @Body body: Map<String, Any?>
+    ): ResponseBody
+
+    @POST("delete_task")
+    suspend fun deleteTaskRaw(
+        @Body body: Map<String, Any?>
+    ): ResponseBody
 }

@@ -290,6 +290,79 @@ export default {
         return json({ ok: true, tasks: rows.results || [] })
       }
 
+
+      if (path === "/update_task" && request.method === "POST") {
+        const user = await getCurrentUser(request, env)
+        if (!user) return json({ ok: false, error: "unauthorized" }, 401)
+
+        const body = await request.json<{ task_id?: string; title?: string; description?: string; assignee_user_id?: string }>().catch(() => null)
+        const taskId = String(body?.task_id || "").trim()
+        const title = String(body?.title || "").trim()
+        const description = String(body?.description || "").trim()
+        const assigneeUserId = String(body?.assignee_user_id || "").trim()
+
+        if (!taskId || !title || !assigneeUserId) {
+          return json({ ok: false, error: "task_id, title and assignee_user_id required" }, 400)
+        }
+
+        const task = await env.DB.prepare(`
+          SELECT task_id, created_by_user_id
+          FROM tasks
+          WHERE task_id = ?
+          LIMIT 1
+        `).bind(taskId).first<any>()
+
+        if (!task) return json({ ok: false, error: "task not found" }, 404)
+
+        const canEdit = user.role === "admin" || task.created_by_user_id === user.user_id
+        if (!canEdit) return json({ ok: false, error: "permission denied" }, 403)
+
+        await env.DB.prepare(`
+          UPDATE tasks
+          SET title = ?, description = ?, assignee_user_id = ?, updated_at = ?
+          WHERE task_id = ?
+        `).bind(title, description, assigneeUserId, nowIso(), taskId).run()
+
+        await logAction(env, "task", taskId, "task_updated", user.user_id, {
+          title,
+          assignee_user_id: assigneeUserId
+        })
+
+        return json({ ok: true, task_id: taskId })
+      }
+
+      if (path === "/delete_task" && request.method === "POST") {
+        const user = await getCurrentUser(request, env)
+        if (!user) return json({ ok: false, error: "unauthorized" }, 401)
+
+        const body = await request.json<{ task_id?: string }>().catch(() => null)
+        const taskId = String(body?.task_id || "").trim()
+        if (!taskId) return json({ ok: false, error: "task_id required" }, 400)
+
+        const task = await env.DB.prepare(`
+          SELECT task_id, created_by_user_id, title
+          FROM tasks
+          WHERE task_id = ?
+          LIMIT 1
+        `).bind(taskId).first<any>()
+
+        if (!task) return json({ ok: false, error: "task not found" }, 404)
+
+        const canDelete = user.role === "admin" || task.created_by_user_id === user.user_id
+        if (!canDelete) return json({ ok: false, error: "permission denied" }, 403)
+
+        await env.DB.prepare(`
+          DELETE FROM tasks
+          WHERE task_id = ?
+        `).bind(taskId).run()
+
+        await logAction(env, "task", taskId, "task_deleted", user.user_id, {
+          title: task.title || ""
+        })
+
+        return json({ ok: true, task_id: taskId })
+      }
+
       if (path === "/complete_task" && request.method === "POST") {
         const user = await getCurrentUser(request, env)
         if (!user) return json({ ok: false, error: "unauthorized" }, 401)
@@ -343,3 +416,5 @@ export default {
 // force redeploy tasks ui sync
 
 // force redeploy avatar photo_url
+
+// force redeploy update delete task
