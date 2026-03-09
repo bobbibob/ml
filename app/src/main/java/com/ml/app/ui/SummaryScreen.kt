@@ -57,12 +57,15 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
   val tasksVm: TasksViewModel = viewModel()
   val showTasks = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
   var accountMenuExpanded by remember { mutableStateOf(false) }
+    var showEditNameDialog by remember { mutableStateOf(false) }
+    var draftDisplayName by remember { mutableStateOf("") }
+    var showAdminDialog by remember { mutableStateOf(false) }
 
   val state by vm.state.collectAsState()
   val activity = (LocalContext.current as? Activity)
   val scope = rememberCoroutineScope()
   var showExitAppDialog by remember { mutableStateOf(false) }
-  var showAdminStub by remember { mutableStateOf(false) }
+  var showAdminDialog by remember { mutableStateOf(false) }
   val ctx = LocalContext.current
 
   LaunchedEffect(Unit) {
