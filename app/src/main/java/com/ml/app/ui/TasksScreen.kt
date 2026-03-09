@@ -92,6 +92,17 @@ private fun reminderPayload(option: ReminderOption?): Triple<String?, Int?, Stri
 
 private fun fmtTaskDateTime(v: String?): String {
 
+
+
+    if (v.isNullOrBlank()) return ""
+    return try {
+        val dt = OffsetDateTime.parse(v)
+        dt.format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"))
+    } catch (_: Exception) {
+        v
+    }
+}
+
 @Composable
 private fun SelectedAssigneeHeader(
     user: UserDto?,
@@ -139,15 +150,6 @@ private fun SelectedAssigneeHeader(
                 )
             }
         }
-    }
-}
-
-    if (v.isNullOrBlank()) return ""
-    return try {
-        val dt = OffsetDateTime.parse(v)
-        dt.format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"))
-    } catch (_: Exception) {
-        v
     }
 }
 
