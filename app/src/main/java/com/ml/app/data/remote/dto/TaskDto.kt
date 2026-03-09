@@ -21,4 +21,3 @@ data class TaskDto(
     val reminder_interval_minutes: Int? = null,
     val reminder_time_of_day: String? = null
 )
-)
