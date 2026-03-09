@@ -35,7 +35,10 @@ class TasksRepository(
     suspend fun createTask(
         title: String,
         description: String,
-        assigneeUserId: String
+        assigneeUserId: String,
+        reminderType: String? = null,
+        reminderIntervalMinutes: Int? = null,
+        reminderTimeOfDay: String? = null
     ): AppResult<String> {
         return when (
             val result = safeApiCall {

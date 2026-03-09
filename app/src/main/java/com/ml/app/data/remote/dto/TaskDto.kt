@@ -16,5 +16,9 @@ data class TaskDto(
     val created_by_name: String,
     val assignee_name: String,
     val completed_by_name: String?,
-    val cancelled_by_name: String?
+    val cancelled_by_name: String?,
+    val reminder_type: String? = null,
+    val reminder_interval_minutes: Int? = null,
+    val reminder_time_of_day: String? = null
+)
 )

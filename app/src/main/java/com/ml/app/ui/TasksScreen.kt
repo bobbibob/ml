@@ -69,6 +69,20 @@ private val ReminderOptions = listOf(
     ReminderOption("evening", "Только вечером")
 )
 
+
+private fun reminderPayload(option: ReminderOption?): Triple<String?, Int?, String?> {
+    return when (option?.key) {
+        "10m" -> Triple("interval", 10, null)
+        "20m" -> Triple("interval", 20, null)
+        "30m" -> Triple("interval", 30, null)
+        "1h" -> Triple("interval", 60, null)
+        "2h" -> Triple("interval", 120, null)
+        "morning" -> Triple("daily_time", null, "10:00")
+        "evening" -> Triple("daily_time", null, "18:00")
+        else -> Triple(null, null, null)
+    }
+}
+
 private fun fmtTaskDateTime(v: String?): String {
     if (v.isNullOrBlank()) return ""
     return try {
@@ -237,16 +251,22 @@ private fun CreateTaskWizard(
                 val finalDescription = buildString {
                     append(taskDescription.trim())
                     if (reminderText.isNotBlank()) {
-                        if (isNotBlank()) append("\n\n")
+                        if (isNotBlank()) append("
+
+")
                         append("Напоминание: ")
                         append(reminderText)
                     }
                 }
+                val payload = reminderPayload(selectedReminder)
 
                 vm.createTask(
                     title = taskTitle.trim(),
                     description = finalDescription,
-                    assigneeUserId = selectedAssigneeId
+                    assigneeUserId = selectedAssigneeId,
+                    reminderType = payload.first,
+                    reminderIntervalMinutes = payload.second,
+                    reminderTimeOfDay = payload.third
                 )
             }
         )

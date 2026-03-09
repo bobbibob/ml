@@ -23,6 +23,20 @@ function json(data: unknown, status = 200): Response {
   })
 }
 
+
+async function ensureReminderColumns(env: Env) {
+  const commands = [
+    "ALTER TABLE tasks ADD COLUMN reminder_type TEXT",
+    "ALTER TABLE tasks ADD COLUMN reminder_interval_minutes INTEGER",
+    "ALTER TABLE tasks ADD COLUMN reminder_time_of_day TEXT"
+  ]
+  for (const sql of commands) {
+    try {
+      await env.DB.prepare(sql).run()
+    } catch {}
+  }
+}
+
 function nowIso(): string {
   const parts = new Intl.DateTimeFormat("sv-SE", {
     timeZone: "Europe/Moscow",
@@ -111,7 +125,9 @@ export default {
     const url = new URL(request.url)
     const path = url.pathname
 
-    try {
+    
+      await ensureReminderColumns(env)
+try {
       if (path === "/google_login" && request.method === "POST") {
         const body = await request.json<{ id_token?: string }>().catch(() => null)
         if (!body?.id_token) return json({ ok: false, error: "id_token required" }, 400)
@@ -206,6 +222,12 @@ export default {
           WHERE user_id = ?
         `).bind(displayName, nowIso(), user.user_id).run()
 
+        await env.DB.prepare(`
+          UPDATE tasks
+          SET reminder_type = ?, reminder_interval_minutes = ?, reminder_time_of_day = ?
+          WHERE task_id = ?
+        `).bind(reminderType, Number.isFinite(reminderIntervalMinutes) ? reminderIntervalMinutes : null, reminderTimeOfDay, taskId).run()
+
         await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
           display_name: displayName
         })
@@ -241,6 +263,9 @@ export default {
         const title = String(body?.title || "").trim()
         const description = String(body?.description || "").trim()
         const assigneeUserId = String(body?.assignee_user_id || "").trim()
+        const reminderType = body?.reminder_type == null ? null : String(body.reminder_type).trim() || null
+        const reminderIntervalMinutes = body?.reminder_interval_minutes == null ? null : Number(body.reminder_interval_minutes)
+        const reminderTimeOfDay = body?.reminder_time_of_day == null ? null : String(body.reminder_time_of_day).trim() || null
 
         if (!title || !assigneeUserId) return json({ ok: false, error: "title and assignee_user_id required" }, 400)
 
@@ -332,6 +357,9 @@ export default {
         const title = String(body?.title || "").trim()
         const description = String(body?.description || "").trim()
         const assigneeUserId = String(body?.assignee_user_id || "").trim()
+        const reminderType = body?.reminder_type == null ? null : String(body.reminder_type).trim() || null
+        const reminderIntervalMinutes = body?.reminder_interval_minutes == null ? null : Number(body.reminder_interval_minutes)
+        const reminderTimeOfDay = body?.reminder_time_of_day == null ? null : String(body.reminder_time_of_day).trim() || null
 
         if (!taskId || !title || !assigneeUserId) {
           return json({ ok: false, error: "task_id, title and assignee_user_id required" }, 400)

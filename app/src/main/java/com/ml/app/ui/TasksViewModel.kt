@@ -228,7 +228,14 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun createTask(title: String, description: String, assigneeUserId: String) {
+    fun createTask(
+        title: String,
+        description: String,
+        assigneeUserId: String,
+        reminderType: String? = null,
+        reminderIntervalMinutes: Int? = null,
+        reminderTimeOfDay: String? = null
+    ) {
         if (title.isBlank() || assigneeUserId.isBlank()) {
             state = state.copy(error = "Заполни название и исполнителя")
             return
@@ -236,7 +243,7 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
 
         viewModelScope.launch {
             state = state.copy(loading = true, error = null, info = null)
-            when (val res = tasksRepo.createTask(title, description, assigneeUserId)) {
+            when (val res = tasksRepo.createTask(title, description, assigneeUserId, reminderType, reminderIntervalMinutes, reminderTimeOfDay)) {
                 is AppResult.Success -> {
                     state = state.copy(
                         loading = false,
