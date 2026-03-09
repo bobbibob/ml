@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.ml.app.domain.*
+import com.ml.app.auth.GoogleAuthManager
 import java.io.File
 import java.time.LocalDate
 import kotlinx.coroutines.launch
@@ -65,8 +66,64 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
   val ctx = LocalContext.current
 
   LaunchedEffect(Unit) {
-    vm.init()
     tasksVm.init()
+  }
+
+  LaunchedEffect(tasksVm.state.currentUser?.user_id) {
+    if (tasksVm.state.currentUser != null) {
+      vm.init()
+    }
+  }
+
+  if (tasksVm.state.currentUser == null) {
+    Box(
+      modifier = Modifier
+        .fillMaxSize()
+        .background(Color.White),
+      contentAlignment = Alignment.Center
+    ) {
+      Column(
+        modifier = Modifier
+          .fillMaxWidth()
+          .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+      ) {
+        Text(
+          text = "Войти",
+          style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+          color = TextBlack
+        )
+
+        tasksVm.state.error?.let {
+          Text("Ошибка: $it", color = Color.Red)
+        }
+
+        tasksVm.state.info?.let {
+          Text(it, color = TextBlack)
+        }
+
+        Button(
+          onClick = {
+            scope.launch {
+              try {
+                val idToken = GoogleAuthManager(ctx).signIn()
+                if (!idToken.isNullOrBlank()) {
+                  tasksVm.loginWithGoogleToken(idToken)
+                }
+              } catch (e: Exception) {
+                tasksVm.setError("Ошибка входа: ${e.message ?: "unknown"}")
+              }
+            }
+          },
+          modifier = Modifier.fillMaxWidth(),
+          shape = RoundedCornerShape(24.dp)
+        ) {
+          Text("Войти через Google")
+        }
+      }
+    }
+    return
   }
 
   BackHandler {
