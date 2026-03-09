@@ -454,16 +454,6 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
           }
         )
       }
-
-      if (showAdminDialog) {
-        AlertDialog(
-          onDismissRequest = { showAdminDialog = false },
-          title = { Text("adm") },
-          text = { Text("Админ-панель подключим следующим пакетом.") },
-          confirmButton = {
-            Button(onClick = { showAdminDialog = false }) {
-              Text("OK")
-            }
           }
         )
       }
