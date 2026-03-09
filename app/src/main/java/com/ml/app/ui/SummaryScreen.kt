@@ -354,6 +354,7 @@ Row(verticalAlignment = Alignment.CenterVertically) {
               tasks = tasksVm.state.allTasks,
               history = tasksVm.state.history,
               error = tasksVm.state.error ?: tasksVm.state.info,
+              pendingUserIds = tasksVm.state.adminPendingUserIds,
               onChangeRole = { userId, role -> tasksVm.adminChangeUserRole(userId, role) },
               onDeleteUser = { userId -> tasksVm.adminDeleteUser(userId) }
             )

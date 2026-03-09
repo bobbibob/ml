@@ -27,6 +27,7 @@ data class TasksUiState(
     val allTasks: List<TaskDto> = emptyList(),
     val users: List<UserDto> = emptyList(),
     val history: List<HistoryItemDto> = emptyList(),
+    val adminPendingUserIds: Set<String> = emptySet(),
     val selectedTab: String = "my"
 )
 
@@ -353,13 +354,56 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
 
 
     fun adminChangeUserRole(userId: String, role: String) {
+        val oldUsers = state.users
+        val updatedUsers = state.users.map { user ->
+            if (user.user_id == userId) user.copy(role = role) else user
+        }
+
+        state = state.copy(
+            users = updatedUsers,
+            adminPendingUserIds = state.adminPendingUserIds + userId,
+            error = null,
+            info = "Сохраняем изменения..."
+        )
+
         viewModelScope.launch {
-            state = state.copy(loading = true, error = null, info = null)
-            when (val res = tasksRepo.changeUserRole(userId, role)) {
-                is AppResult.Success -> {
-                    state = state.copy(loading = false, info = "Роль обновлена")
-                    loadUsers()
+            try {
+                val res = withTimeout(8000) { tasksRepo.changeUserRole(userId, role) }
+                when (res) {
+                    is AppResult.Success -> {
+                        state = state.copy(
+                            adminPendingUserIds = state.adminPendingUserIds - userId,
+                            error = null,
+                            info = "Роль обновлена"
+                        )
+                    }
+                    is AppResult.Error -> {
+                        val msg = res.message.lowercase()
+                        if ("timeout" in msg) {
+                            state = state.copy(
+                                adminPendingUserIds = state.adminPendingUserIds - userId,
+                                error = null,
+                                info = "Изменение отправлено. Обновление может появиться позже"
+                            )
+                        } else {
+                            state = state.copy(
+                                users = oldUsers,
+                                adminPendingUserIds = state.adminPendingUserIds - userId,
+                                error = null,
+                                info = "Не удалось быстро подтвердить изменение"
+                            )
+                        }
+                    }
                 }
+            } catch (_: Exception) {
+                state = state.copy(
+                    adminPendingUserIds = state.adminPendingUserIds - userId,
+                    error = null,
+                    info = "Изменение отправлено. Обновление может появиться позже"
+                )
+            }
+        }
+    }
                 is AppResult.Error -> {
                     state = state.copy(loading = false, error = res.message)
                 }
@@ -368,13 +412,52 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun adminDeleteUser(userId: String) {
+        val oldUsers = state.users
+        state = state.copy(
+            users = state.users.filterNot { it.user_id == userId },
+            adminPendingUserIds = state.adminPendingUserIds + userId,
+            error = null,
+            info = "Удаляем пользователя..."
+        )
+
         viewModelScope.launch {
-            state = state.copy(loading = true, error = null, info = null)
-            when (val res = tasksRepo.deleteUser(userId)) {
-                is AppResult.Success -> {
-                    state = state.copy(loading = false, info = "Пользователь удалён")
-                    loadUsers()
+            try {
+                val res = withTimeout(8000) { tasksRepo.deleteUser(userId) }
+                when (res) {
+                    is AppResult.Success -> {
+                        state = state.copy(
+                            adminPendingUserIds = state.adminPendingUserIds - userId,
+                            error = null,
+                            info = "Пользователь удалён"
+                        )
+                    }
+                    is AppResult.Error -> {
+                        val msg = res.message.lowercase()
+                        if ("timeout" in msg) {
+                            state = state.copy(
+                                adminPendingUserIds = state.adminPendingUserIds - userId,
+                                error = null,
+                                info = "Удаление отправлено. Обновление может появиться позже"
+                            )
+                        } else {
+                            state = state.copy(
+                                users = oldUsers,
+                                adminPendingUserIds = state.adminPendingUserIds - userId,
+                                error = null,
+                                info = "Не удалось быстро подтвердить удаление"
+                            )
+                        }
+                    }
                 }
+            } catch (_: Exception) {
+                state = state.copy(
+                    adminPendingUserIds = state.adminPendingUserIds - userId,
+                    error = null,
+                    info = "Удаление отправлено. Обновление может появиться позже"
+                )
+            }
+        }
+    }
                 is AppResult.Error -> {
                     state = state.copy(loading = false, error = res.message)
                 }
