@@ -234,8 +234,8 @@ fun TasksScreen(
             currentUserRole = state.currentUser.role,
             onComplete = { vm.completeTask(it) },
             onEdit = { vm.loadUsers() },
-            onSaveEdit = { taskId, title, description, assigneeUserId ->
-                vm.updateTask(taskId, title, description, assigneeUserId)
+            onSaveEdit = { taskId, title, description, assigneeUserId, reminderType, reminderIntervalMinutes, reminderTimeOfDay ->
+                vm.updateTask(taskId, title, description, assigneeUserId, reminderType, reminderIntervalMinutes, reminderTimeOfDay)
             },
             onDelete = { vm.deleteTask(it) },
             users = state.users,
@@ -251,8 +251,8 @@ fun TasksScreen(
             currentUserRole = state.currentUser.role,
             onComplete = { vm.completeTask(it) },
             onEdit = { vm.loadUsers() },
-            onSaveEdit = { taskId, title, description, assigneeUserId ->
-                vm.updateTask(taskId, title, description, assigneeUserId)
+            onSaveEdit = { taskId, title, description, assigneeUserId, reminderType, reminderIntervalMinutes, reminderTimeOfDay ->
+                vm.updateTask(taskId, title, description, assigneeUserId, reminderType, reminderIntervalMinutes, reminderTimeOfDay)
             },
             onDelete = { vm.deleteTask(it) },
             users = state.users,
@@ -831,7 +831,16 @@ private fun TasksListTab(
             confirmButton = {
                 Button(
                     onClick = {
-                        onSaveEdit(task.task_id, title, description, assigneeUserId)
+                        val payload = reminderPayload(selectedReminder)
+                        onSaveEdit(
+                            task.task_id,
+                            title,
+                            description,
+                            assigneeUserId,
+                            payload.first,
+                            payload.second,
+                            payload.third
+                        )
                         editTask = null
                     }
                 ) {
