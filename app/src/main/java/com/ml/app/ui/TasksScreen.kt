@@ -251,9 +251,7 @@ private fun CreateTaskWizard(
                 val finalDescription = buildString {
                     append(taskDescription.trim())
                     if (reminderText.isNotBlank()) {
-                        if (isNotBlank()) append("
-
-")
+                        if (isNotBlank()) append("\n\n")
                         append("Напоминание: ")
                         append(reminderText)
                     }
