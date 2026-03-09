@@ -86,6 +86,9 @@ interface MlApiService {
 
 
     @POST("change_role")
+    suspend fun changeRole(@Body request: ChangeRoleRequest): ChangeRoleResponse
+
+    @POST("change_role")
     suspend fun changeRoleRaw(
         @Body body: Map<String, String>
     ): ResponseBody
