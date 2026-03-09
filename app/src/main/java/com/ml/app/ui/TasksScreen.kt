@@ -11,6 +11,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -28,13 +30,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ml.app.auth.GoogleAuthManager
+import com.ml.app.data.remote.dto.TaskDto
 import kotlinx.coroutines.launch
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
 
 private val TextBlack = Color(0xFF111111)
+private val DoneGreen = Color(0xFF2E7D32)
 
-private fun fmtTaskCreatedAt(v: String?): String {
+private fun fmtTaskDateTime(v: String?): String {
     if (v.isNullOrBlank()) return ""
     return try {
         val dt = OffsetDateTime.parse(v)
@@ -65,7 +69,6 @@ fun TasksScreen(
             verticalArrangement = Arrangement.Top
         ) {
             state.error?.let { Text("Ошибка: $it") }
-
             state.info?.let {
                 Text(
                     text = it,
@@ -98,6 +101,7 @@ fun TasksScreen(
     }
 
     LaunchedEffect(state.currentUser.user_id) {
+        vm.loadUsers()
         vm.loadMyTasks()
         if (state.currentUser.role == "plus" || state.currentUser.role == "admin") {
             vm.loadAllTasks()
@@ -126,6 +130,12 @@ private fun CreateTaskTab(vm: TasksViewModel) {
     val state = vm.state
     var taskTitle by remember { mutableStateOf("") }
     var taskDescription by remember { mutableStateOf("") }
+    var assigneeExpanded by remember { mutableStateOf(false) }
+    var assigneeUserId by remember(state.currentUser?.user_id) {
+        mutableStateOf(state.currentUser?.user_id.orEmpty())
+    }
+
+    val assigneeUser = state.users.firstOrNull { it.user_id == assigneeUserId } ?: state.currentUser
 
     Column(
         modifier = Modifier
@@ -151,12 +161,41 @@ private fun CreateTaskTab(vm: TasksViewModel) {
         )
 
         Button(
+            onClick = { assigneeExpanded = true },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp)
+        ) {
+            Text(
+                text = buildString {
+                    append("Исполнитель: ")
+                    append(assigneeUser?.display_name ?: "Выбрать")
+                }
+            )
+        }
+
+        DropdownMenu(
+            expanded = assigneeExpanded,
+            onDismissRequest = { assigneeExpanded = false }
+        ) {
+            state.users.forEach { user ->
+                DropdownMenuItem(
+                    text = {
+                        Text("${user.display_name} (${user.email})")
+                    },
+                    onClick = {
+                        assigneeUserId = user.user_id
+                        assigneeExpanded = false
+                    }
+                )
+            }
+        }
+
+        Button(
             onClick = {
-                val userId = state.currentUser?.user_id.orEmpty()
                 vm.createTask(
                     title = taskTitle,
                     description = taskDescription,
-                    assigneeUserId = userId
+                    assigneeUserId = assigneeUserId.ifBlank { state.currentUser?.user_id.orEmpty() }
                 )
                 taskTitle = ""
                 taskDescription = ""
@@ -172,7 +211,7 @@ private fun CreateTaskTab(vm: TasksViewModel) {
 @Composable
 private fun TasksListTab(
     titleWhenEmpty: String,
-    tasks: List<com.ml.app.data.remote.dto.TaskDto>,
+    tasks: List<TaskDto>,
     error: String?,
     onComplete: (String) -> Unit
 ) {
@@ -223,7 +262,7 @@ private fun TasksListTab(
                             }
 
                             Text(
-                                text = "Создано: ${fmtTaskCreatedAt(task.created_at)}",
+                                text = "Создано: ${fmtTaskDateTime(task.created_at)}",
                                 color = TextBlack,
                                 modifier = Modifier.padding(top = 8.dp)
                             )
@@ -248,6 +287,14 @@ private fun TasksListTab(
                                 )
                             }
 
+                            if (!task.completed_at.isNullOrBlank()) {
+                                Text(
+                                    text = "Выполнено: ${fmtTaskDateTime(task.completed_at)}",
+                                    color = DoneGreen,
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
+                            }
+
                             if (task.status == "open") {
                                 Button(
                                     onClick = { onComplete(task.task_id) },
@@ -256,6 +303,13 @@ private fun TasksListTab(
                                 ) {
                                     Text("Выполнено")
                                 }
+                            } else {
+                                Text(
+                                    text = "ВЫПОЛНЕНО",
+                                    color = DoneGreen,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(top = 12.dp)
+                                )
                             }
                         }
                     }

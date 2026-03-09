@@ -91,16 +91,16 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
         when (tab) {
             "my" -> loadMyTasks()
             "all" -> loadAllTasks()
+            "create" -> loadUsers()
         }
     }
 
     fun refreshAll() {
         val user = state.currentUser ?: return
-        loadMyTasks()
         loadUsers()
+        loadMyTasks()
         if (user.role == "plus" || user.role == "admin") {
             loadAllTasks()
-            loadHistory()
         }
     }
 
@@ -150,11 +150,18 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
             state = state.copy(loading = true, error = null, info = null)
             when (val res = tasksRepo.createTask(title, description, assigneeUserId)) {
                 is AppResult.Success -> {
-                    state = state.copy(loading = false, info = "Задача создана")
+                    state = state.copy(
+                        loading = false,
+                        info = "Задача создана",
+                        selectedTab = "my"
+                    )
                     refreshAll()
                 }
                 is AppResult.Error -> {
-                    state = state.copy(loading = false, error = res.message)
+                    state = state.copy(
+                        loading = false,
+                        error = res.message
+                    )
                 }
             }
         }
