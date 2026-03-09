@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1096903651505",
+    "project_id": "ml-tasks-26f47",
+    "storage_bucket": "ml-tasks-26f47.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1096903651505:android:558b56da0ac9f9ce2db290",
+        "android_client_info": {
+          "package_name": "com.ml.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAM-sxG6q6DsgJ5KCE22fkLm4Uxida8gWs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
