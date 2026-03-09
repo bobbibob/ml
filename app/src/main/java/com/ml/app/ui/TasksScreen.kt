@@ -2,6 +2,8 @@ package com.ml.app.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -394,11 +396,18 @@ private fun CreateTaskAssigneeStep(
                         isSelected -> 1f
                         else -> 0.18f
                     },
+                    animationSpec = tween(durationMillis = 220),
                     label = "assigneeAlpha"
                 )
                 val scale by animateFloatAsState(
-                    targetValue = if (isSelected) 1.08f else 1f,
+                    targetValue = if (isSelected) 1.12f else 1f,
+                    animationSpec = tween(durationMillis = 220),
                     label = "assigneeScale"
+                )
+                val avatarSize by animateDpAsState(
+                    targetValue = if (isSelected) 88.dp else 72.dp,
+                    animationSpec = tween(durationMillis = 220),
+                    label = "assigneeAvatarSize"
                 )
 
                 Card(
@@ -412,7 +421,7 @@ private fun CreateTaskAssigneeStep(
                         .clickable(enabled = animatingUserId == null) {
                             animatingUserId = user.user_id
                             scope.launch {
-                                delay(260)
+                                delay(520)
                                 onChoose(user.user_id)
                             }
                         },
@@ -433,13 +442,24 @@ private fun CreateTaskAssigneeStep(
                                 model = user.photo_url,
                                 contentDescription = user.display_name,
                                 modifier = Modifier
-                                    .size(if (isSelected) 84.dp else 72.dp)
+                                    .size(avatarSize)
                                     .clip(CircleShape)
+                                    .border(
+                                        width = if (isSelected) 3.dp else 0.dp,
+                                        color = if (isSelected) Color(0xFF7E57C2) else Color.Transparent,
+                                        shape = CircleShape
+                                    )
                             )
                         } else {
                             Button(
                                 onClick = {},
-                                modifier = Modifier.size(if (isSelected) 84.dp else 72.dp),
+                                modifier = Modifier
+                                    .size(avatarSize)
+                                    .border(
+                                        width = if (isSelected) 3.dp else 0.dp,
+                                        color = if (isSelected) Color(0xFF7E57C2) else Color.Transparent,
+                                        shape = CircleShape
+                                    ),
                                 shape = CircleShape,
                                 contentPadding = PaddingValues(0.dp)
                             ) {
