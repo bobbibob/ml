@@ -69,6 +69,14 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
     tasksVm.init()
   }
 
+  LaunchedEffect(tasksVm.state.currentUser?.display_name) {
+    val user = tasksVm.state.currentUser
+    if (user != null && user.display_name.isBlank()) {
+      draftDisplayName = user.email.substringBefore("@").ifBlank { "Пользователь" }
+      showEditNameDialog = true
+    }
+  }
+
   LaunchedEffect(tasksVm.state.currentUser?.user_id) {
     if (tasksVm.state.currentUser != null) {
       vm.init()
@@ -204,41 +212,68 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
           Spacer(Modifier.weight(1f))
 
           tasksVm.state.currentUser?.let { accountUser ->
-            Box {
-              Button(
-                onClick = { accountMenuExpanded = true },
-                modifier = Modifier.size(44.dp),
-                shape = CircleShape,
-                contentPadding = PaddingValues(0.dp)
-              ) {
-                Text(
-                  text = accountUser.display_name.take(1).uppercase(),
-                  style = MaterialTheme.typography.titleMedium
-                )
-              }
-
-              DropdownMenu(
-                expanded = accountMenuExpanded,
-                onDismissRequest = { accountMenuExpanded = false }
-              ) {
-                Text(
-                  text = accountUser.email,
-                  modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                  color = TextBlack
-                )
-                HorizontalDivider()
-                DropdownMenuItem(
-                  text = { Text("Выйти") },
-                  onClick = {
-                    accountMenuExpanded = false
-                    tasksVm.logout()
+              Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Button(
+                  onClick = { accountMenuExpanded = true },
+                  modifier = Modifier.size(44.dp),
+                  shape = CircleShape,
+                  contentPadding = PaddingValues(0.dp)
+                ) {
+                  if (!accountUser.photo_url.isNullOrBlank()) {
+                    AsyncImage(
+                      model = accountUser.photo_url,
+                      contentDescription = "avatar",
+                      modifier = Modifier
+                        .fillMaxSize()
+                        .clip(CircleShape)
+                    )
+                  } else {
+                    Text(
+                      text = accountUser.display_name.take(1).ifBlank { "?" }.uppercase(),
+                      style = MaterialTheme.typography.titleMedium
+                    )
                   }
-                )
-              }
-            }
+                }
 
-            Spacer(Modifier.width(8.dp))
-          }
+                Text(
+                  text = accountUser.display_name.ifBlank { "Без имени" },
+                  color = TextBlack,
+                  style = MaterialTheme.typography.labelSmall,
+                  modifier = Modifier.padding(top = 4.dp)
+                )
+
+                DropdownMenu(
+                  expanded = accountMenuExpanded,
+                  onDismissRequest = { accountMenuExpanded = false }
+                ) {
+                  Text(
+                    text = accountUser.email,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    color = TextBlack
+                  )
+                  HorizontalDivider()
+                  DropdownMenuItem(
+                    text = { Text("Изменить имя") },
+                    onClick = {
+                      accountMenuExpanded = false
+                      draftDisplayName = accountUser.display_name.ifBlank {
+                        accountUser.email.substringBefore("@").ifBlank { "Пользователь" }
+                      }
+                      showEditNameDialog = true
+                    }
+                  )
+                  DropdownMenuItem(
+                    text = { Text("Выйти") },
+                    onClick = {
+                      accountMenuExpanded = false
+                      tasksVm.logout()
+                    }
+                  )
+                }
+              }
+
+              Spacer(Modifier.width(8.dp))
+            }
 
           if (state.mode is ScreenMode.Details) {
             TextButton(onClick = { vm.backToTimeline() }) { Text("Назад", color = TextBlack) }
