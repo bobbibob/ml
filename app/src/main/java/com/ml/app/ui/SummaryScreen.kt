@@ -61,6 +61,7 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
   val activity = (LocalContext.current as? Activity)
   val scope = rememberCoroutineScope()
   var showExitAppDialog by remember { mutableStateOf(false) }
+  var showAdminStub by remember { mutableStateOf(false) }
   val ctx = LocalContext.current
 
   LaunchedEffect(Unit) {

@@ -74,17 +74,26 @@ fun AddDailySummaryScreen(
     val igClicks = remember { mutableStateMapOf<String, String>() }
 
     suspend fun loadForDate() {
-        val meta = repo.listSummaryBagColorMeta()
+        val metaByBag = repo.listSummaryBagColorMeta().associateBy { it.bagId }
+        val resolvedByBag = repo.getResolvedStocksForDate(selectedDate.toString())
+            .filter { it.stock > 0.0 }
+            .groupBy { it.bagId }
+
         items.clear()
         items.addAll(
-            meta.map {
+            resolvedByBag.mapNotNull { (bagId, rows) ->
+                val meta = metaByBag[bagId] ?: return@mapNotNull null
                 DailySummaryBagUi(
-                    bagId = it.bagId,
-                    bagName = it.bagName,
-                    photoPath = it.photoPath,
-                    colors = it.colors.sortedBy { c -> c.lowercase() }
+                    bagId = meta.bagId,
+                    bagName = meta.bagName,
+                    photoPath = meta.photoPath,
+                    colors = rows
+                        .filter { it.stock > 0.0 }
+                        .map { it.color }
+                        .distinct()
+                        .sortedBy { c -> c.lowercase() }
                 )
-            }
+            }.sortedBy { it.bagName.lowercase() }
         )
 
         orders.clear()
