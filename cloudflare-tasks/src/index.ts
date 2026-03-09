@@ -284,7 +284,34 @@ try {
         return json({ ok: true, users: rows.results || [] })
       }
 
-      if (path === "/create_task" && request.method === "POST") {
+      
+      if (path === "/change_role" && request.method === "POST") {
+        const user = await getCurrentUser(request, env)
+        if (!user) return json({ ok: false, error: "unauthorized" }, 401)
+        if (user.role !== "admin") return json({ ok: false, error: "forbidden" }, 403)
+
+        const body = await request.json<{ user_id?: string; role?: string }>().catch(() => null)
+        const userId = String(body?.user_id || "").trim()
+        const role = String(body?.role || "").trim()
+
+        if (!userId || !role) {
+          return json({ ok: false, error: "user_id and role required" }, 400)
+        }
+
+        if (!["basic", "plus", "admin"].includes(role)) {
+          return json({ ok: false, error: "invalid role" }, 400)
+        }
+
+        await env.DB.prepare(`
+          UPDATE users
+          SET role = ?
+          WHERE user_id = ?
+        `).bind(role, userId).run()
+
+        return json({ ok: true, user_id: userId, role })
+      }
+
+if (path === "/create_task" && request.method === "POST") {
         const user = await getCurrentUser(request, env)
         if (!user) return json({ ok: false, error: "unauthorized" }, 401)
 
