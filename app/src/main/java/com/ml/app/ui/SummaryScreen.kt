@@ -236,8 +236,6 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
                       adminLoading = true
                       showAdminScreen = true
                       tasksVm.loadUsers()
-                      tasksVm.loadAllTasks()
-                      tasksVm.loadHistory()
                     },
                   shape = RoundedCornerShape(20.dp)
                 ) {
@@ -334,7 +332,15 @@ Row(verticalAlignment = Alignment.CenterVertically) {
       if (false) {
           AdminScreen(
             adminTab = adminTab,
-            onTabChange = { adminTab = it },
+            onTabChange = {
+                adminTab = it
+                adminLoading = true
+                when (it) {
+                  "users" -> tasksVm.loadUsers()
+                  "tasks" -> tasksVm.loadAllTasks()
+                  "history" -> tasksVm.loadHistory()
+                }
+              },
             users = tasksVm.state.users,
             tasks = tasksVm.state.allTasks,
             history = tasksVm.state.history,
