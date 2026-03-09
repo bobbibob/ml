@@ -359,7 +359,6 @@ Row(verticalAlignment = Alignment.CenterVertically) {
               adminTab = adminTab,
               onTabChange = { adminTab = it },
                 onBack = { showAdminScreen = false },
-              onBack = { showAdminScreen = false },
               users = tasksVm.state.users,
               tasks = tasksVm.state.allTasks,
               history = tasksVm.state.history,
