@@ -141,7 +141,7 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
   }
 
   BackHandler {
-    if (showAdminScreen) {
+    if (false) {
       showAdminScreen = false
     } else if (showTasks.value) {
       showTasks.value = false
@@ -321,7 +321,7 @@ Row(verticalAlignment = Alignment.CenterVertically) {
         }
       }
 
-      if (showAdminScreen) {
+      if (false) {
           AdminScreen(
             adminTab = adminTab,
             onTabChange = { adminTab = it },
@@ -404,7 +404,7 @@ Row(verticalAlignment = Alignment.CenterVertically) {
       }
     }
 
-    if (showAdminScreen) {
+    if (false) {
       } else if (showTasks.value) {
         TasksBottomBar(
         onMyTasksClick = { tasksVm.selectTab("my") },
