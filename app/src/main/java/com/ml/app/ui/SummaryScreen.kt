@@ -157,7 +157,7 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
   }
 
   BackHandler {
-    if (false) {
+    if (showAdminScreen) {
       showAdminScreen = false
     } else if (showTasks.value) {
       showTasks.value = false
@@ -205,7 +205,10 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
         ) {
           if (showTasks.value) {
             Button(
-              onClick = { showTasks.value = false }
+                onClick = {
+                  showAdminScreen = false
+                  showTasks.value = false
+                }
             ) {
               Text("ml")
             }
@@ -224,7 +227,10 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
               color = TextBlack
             )
 
-            Spacer(Modifier.width(24.dp))
+                onClick = {
+                  showAdminScreen = false
+                  showTasks.value = true
+                }
 
             Button(
               onClick = { showTasks.value = true }
