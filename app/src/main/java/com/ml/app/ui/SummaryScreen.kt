@@ -203,37 +203,41 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
           modifier = Modifier.fillMaxWidth(),
           verticalAlignment = Alignment.CenterVertically
         ) {
-          if (showTasks.value) {
-            Button(
+            if (showTasks.value) {
+              Button(
                 onClick = {
                   showAdminScreen = false
                   showTasks.value = false
                 }
-            ) {
-              Text("ml")
-            }
+              ) {
+                Text("ml")
+              }
 
-            Spacer(Modifier.width(24.dp))
+              Spacer(Modifier.width(24.dp))
 
-            Text(
-              text = "Задачи",
-              style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Black),
-              color = TextBlack
-            )
-          } else {
-            Text(
-              text = "ml",
-              style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Black),
-              color = TextBlack
-            )
+              Text(
+                text = "Задачи",
+                style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Black),
+                color = TextBlack
+              )
+            } else {
+              Text(
+                text = "ml",
+                style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Black),
+                color = TextBlack
+              )
 
+              Spacer(Modifier.width(24.dp))
+
+              Button(
                 onClick = {
                   showAdminScreen = false
                   showTasks.value = true
                 }
-
-            Button(
-              onClick = { showTasks.value = true }
+              ) {
+                Text("Задачи")
+              }
+            }
             ) {
               Text("Задачи")
             }
