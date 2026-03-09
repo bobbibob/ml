@@ -218,7 +218,13 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
           tasksVm.state.currentUser?.let { accountUser ->
               if (accountUser.role == "admin") {
                 Button(
-                  onClick = { showAdminDialog = true },
+                  onClick = {
+                      adminTab = "users"
+                      showAdminScreen = true
+                      tasksVm.loadUsers()
+                      tasksVm.loadAllTasks()
+                      tasksVm.loadHistory()
+                    },
                   shape = RoundedCornerShape(20.dp)
                 ) {
                   Text("adm")
