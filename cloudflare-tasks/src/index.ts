@@ -1,5 +1,8 @@
 export interface Env {
   DB: D1Database
+  FIREBASE_PROJECT_ID: string
+  FIREBASE_CLIENT_EMAIL: string
+  FIREBASE_PRIVATE_KEY: string
 }
 
 type UserRow = {
@@ -125,6 +128,132 @@ async function verifyGoogleIdToken(idToken: string) {
   return await res.json<any>()
 }
 
+
+
+function base64UrlEncode(input: ArrayBuffer | string) {
+  let bytes: Uint8Array
+  if (typeof input === "string") {
+    bytes = new TextEncoder().encode(input)
+  } else {
+    bytes = new Uint8Array(input)
+  }
+
+  let binary = ""
+  for (const b of bytes) binary += String.fromCharCode(b)
+
+  return btoa(binary)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "")
+}
+
+async function getGoogleAccessToken(env: Env): Promise<string> {
+  const now = Math.floor(Date.now() / 1000)
+
+  const header = {
+    alg: "RS256",
+    typ: "JWT",
+  }
+
+  const claimSet = {
+    iss: env.FIREBASE_CLIENT_EMAIL,
+    scope: "https://www.googleapis.com/auth/firebase.messaging",
+    aud: "https://oauth2.googleapis.com/token",
+    iat: now,
+    exp: now + 3600,
+  }
+
+  const unsignedJwt =
+    `${base64UrlEncode(JSON.stringify(header))}.${base64UrlEncode(JSON.stringify(claimSet))}`
+
+  const pem = String(env.FIREBASE_PRIVATE_KEY || "").replace(/\\n/g, "\n")
+  const pemBody = pem
+    .replace("-----BEGIN PRIVATE KEY-----", "")
+    .replace("-----END PRIVATE KEY-----", "")
+    .replace(/\s+/g, "")
+
+  const binaryDer = Uint8Array.from(atob(pemBody), c => c.charCodeAt(0))
+
+  const key = await crypto.subtle.importKey(
+    "pkcs8",
+    binaryDer.buffer,
+    {
+      name: "RSASSA-PKCS1-v1_5",
+      hash: "SHA-256",
+    },
+    false,
+    ["sign"]
+  )
+
+  const signature = await crypto.subtle.sign(
+    "RSASSA-PKCS1-v1_5",
+    key,
+    new TextEncoder().encode(unsignedJwt)
+  )
+
+  const jwt = `${unsignedJwt}.${base64UrlEncode(signature)}`
+
+  const body = new URLSearchParams()
+  body.set("grant_type", "urn:ietf:params:oauth:grant-type:jwt-bearer")
+  body.set("assertion", jwt)
+
+  const resp = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: {
+      "content-type": "application/x-www-form-urlencoded",
+    },
+    body: body.toString(),
+  })
+
+  if (!resp.ok) {
+    const text = await resp.text()
+    throw new Error(`oauth_failed: ${text}`)
+  }
+
+  const json = await resp.json<any>()
+  return json.access_token
+}
+
+async function sendPushToToken(
+  env: Env,
+  token: string,
+  title: string,
+  body: string
+) {
+  if (!token) return
+
+  const accessToken = await getGoogleAccessToken(env)
+
+  const resp = await fetch(
+    `https://fcm.googleapis.com/v1/projects/${env.FIREBASE_PROJECT_ID}/messages:send`,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        message: {
+          token,
+          notification: {
+            title,
+            body,
+          },
+          data: {
+            title,
+            body,
+          },
+        },
+      }),
+    }
+  )
+
+  if (!resp.ok) {
+    const text = await resp.text()
+    throw new Error(`fcm_send_failed: ${text}`)
+  }
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     if (request.method === "OPTIONS") return json({ ok: true })
@@ -230,13 +359,8 @@ try {
           WHERE user_id = ?
         `).bind(displayName, nowIso(), user.user_id).run()
 
-        await env.DB.prepare(`
-          UPDATE tasks
-          SET reminder_type = ?, reminder_interval_minutes = ?, reminder_time_of_day = ?
-          WHERE task_id = ?
-        `).bind(reminderType, Number.isFinite(reminderIntervalMinutes) ? reminderIntervalMinutes : null, reminderTimeOfDay, taskId).run()
-
-        await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
+        
+await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
           display_name: displayName
         })
 
@@ -337,6 +461,26 @@ if (path === "/create_task" && request.method === "POST") {
           title,
           assignee_user_id: assigneeUserId
         })
+
+        const assignee = await env.DB.prepare(`
+          SELECT display_name, fcm_token
+          FROM users
+          WHERE user_id = ?
+          LIMIT 1
+        `).bind(assigneeUserId).first<any>()
+
+        if (assignee?.fcm_token) {
+          try {
+            await sendPushToToken(
+              env,
+              assignee.fcm_token,
+              "Новая задача",
+              title
+            )
+          } catch (e) {
+            console.log("push_send_error", String(e))
+          }
+        }
 
         return json({ ok: true, task_id: taskId })
       }
