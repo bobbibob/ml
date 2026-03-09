@@ -329,7 +329,15 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun updateTask(taskId: String, title: String, description: String, assigneeUserId: String) {
+    fun updateTask(
+        taskId: String,
+        title: String,
+        description: String,
+        assigneeUserId: String,
+        reminderType: String? = null,
+        reminderIntervalMinutes: Int? = null,
+        reminderTimeOfDay: String? = null
+    ) {
         if (title.isBlank() || assigneeUserId.isBlank()) {
             state = state.copy(error = "Заполни название и исполнителя")
             return
@@ -337,7 +345,7 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
 
         viewModelScope.launch {
             state = state.copy(loading = true, error = null, info = null)
-            when (val res = tasksRepo.updateTask(taskId, title, description, assigneeUserId)) {
+            when (val res = tasksRepo.updateTask(taskId, title, description, assigneeUserId, reminderType, reminderIntervalMinutes, reminderTimeOfDay)) {
                 is AppResult.Success -> {
                     state = state.copy(loading = false, info = "Задача обновлена")
                     refreshAll()

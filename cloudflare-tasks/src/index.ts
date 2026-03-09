@@ -436,13 +436,16 @@ if (path === "/create_task" && request.method === "POST") {
 
         await env.DB.prepare(`
           UPDATE tasks
-          SET title = ?, description = ?, assignee_user_id = ?, updated_at = ?
+          SET title = ?, description = ?, assignee_user_id = ?, reminder_type = ?, reminder_interval_minutes = ?, reminder_time_of_day = ?, updated_at = ?
           WHERE task_id = ?
-        `).bind(title, description, assigneeUserId, nowIso(), taskId).run()
+        `).bind(title, description, assigneeUserId, reminderType, Number.isFinite(reminderIntervalMinutes) ? reminderIntervalMinutes : null, reminderTimeOfDay, nowIso(), taskId).run()
 
         await logAction(env, "task", taskId, "task_updated", user.user_id, {
           title,
-          assignee_user_id: assigneeUserId
+          assignee_user_id: assigneeUserId,
+          reminder_type: reminderType,
+          reminder_interval_minutes: Number.isFinite(reminderIntervalMinutes) ? reminderIntervalMinutes : null,
+          reminder_time_of_day: reminderTimeOfDay
         })
 
         return json({ ok: true, task_id: taskId })

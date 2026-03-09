@@ -200,7 +200,10 @@ class TasksRepository(
         taskId: String,
         title: String,
         description: String,
-        assigneeUserId: String
+        assigneeUserId: String,
+        reminderType: String? = null,
+        reminderIntervalMinutes: Int? = null,
+        reminderTimeOfDay: String? = null
     ): AppResult<Unit> {
         return try {
             val raw = api.updateTaskRaw(
