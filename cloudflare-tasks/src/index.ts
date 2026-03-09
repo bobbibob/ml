@@ -439,7 +439,14 @@ if (path === "/create_task" && request.method === "POST") {
         const user = await getCurrentUser(request, env)
         if (!user) return json({ ok: false, error: "unauthorized" }, 401)
 
-        const body = await request.json<{ title?: string; description?: string; assignee_user_id?: string }>().catch(() => null)
+        const body = await request.json<{
+          title?: string
+          description?: string
+          assignee_user_id?: string
+          reminder_type?: string | null
+          reminder_interval_minutes?: number | null
+          reminder_time_of_day?: string | null
+        }>().catch(() => null)
         const title = String(body?.title || "").trim()
         const description = String(body?.description || "").trim()
         const assigneeUserId = String(body?.assignee_user_id || "").trim()
@@ -453,14 +460,47 @@ if (path === "/create_task" && request.method === "POST") {
 
         await env.DB.prepare(`
           INSERT INTO tasks (
-            task_id, title, description, status, created_by_user_id, assignee_user_id, created_at, updated_at
-          ) VALUES (?, ?, ?, 'open', ?, ?, ?, ?)
-        `).bind(taskId, title, description, user.user_id, assigneeUserId, nowIso(), nowIso()).run()
+            task_id, title, description, status, created_by_user_id, assignee_user_id,
+            reminder_type, reminder_interval_minutes, reminder_time_of_day,
+            created_at, updated_at
+          ) VALUES (?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?)
+        `).bind(
+          taskId,
+          title,
+          description,
+          user.user_id,
+          assigneeUserId,
+          reminderType,
+          Number.isFinite(reminderIntervalMinutes) ? reminderIntervalMinutes : null,
+          reminderTimeOfDay,
+          nowIso(),
+          nowIso()
+        ).run()
 
         await logAction(env, "task", taskId, "task_created", user.user_id, {
           title,
           assignee_user_id: assigneeUserId
         })
+
+        const assignee = await env.DB.prepare(`
+          SELECT display_name, fcm_token
+          FROM users
+          WHERE user_id = ?
+          LIMIT 1
+        `).bind(assigneeUserId).first<any>()
+
+        if (assignee?.fcm_token) {
+          try {
+            await sendPushToToken(
+              env,
+              assignee.fcm_token,
+              "Новая задача",
+              title
+            )
+          } catch (e) {
+            console.log("push_send_error", String(e))
+          }
+        }
 
         const assignee = await env.DB.prepare(`
           SELECT display_name, fcm_token
