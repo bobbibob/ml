@@ -79,7 +79,7 @@ android {
 
 dependencies {
     implementation(platform("com.google.firebase:firebase-bom:34.1.0"))
-    implementation("com.google.firebase:firebase-messaging-ktx")
+    implementation("com.google.firebase:firebase-messaging")
 
 implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
     implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
