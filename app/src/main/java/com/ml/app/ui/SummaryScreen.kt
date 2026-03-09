@@ -27,6 +27,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -64,6 +71,7 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
     var showAdminDialog by remember { mutableStateOf(false) }
     var showAdminScreen by remember { mutableStateOf(false) }
     var adminTab by remember { mutableStateOf("users") }
+    var adminLoading by remember { mutableStateOf(false) }
 
   val state by vm.state.collectAsState()
   val activity = (LocalContext.current as? Activity)
@@ -224,6 +232,7 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
                 Button(
                   onClick = {
                       adminTab = "users"
+                      adminLoading = true
                       showAdminScreen = true
                       tasksVm.loadUsers()
                       tasksVm.loadAllTasks()
@@ -831,6 +840,46 @@ private fun ArticleBottomBar(
 
 
 
+
+
+@Composable
+private fun AdminLoadingScreen() {
+  val transition = rememberInfiniteTransition(label = "adminLoading")
+  val rotation = transition.animateFloat(
+    initialValue = 0f,
+    targetValue = 360f,
+    animationSpec = infiniteRepeatable(
+      animation = tween(durationMillis = 1200, easing = LinearEasing),
+      repeatMode = RepeatMode.Restart
+    ),
+    label = "adminGearRotation"
+  )
+
+  Box(
+    modifier = Modifier.fillMaxSize(),
+    contentAlignment = Alignment.Center
+  ) {
+    Column(
+      horizontalAlignment = Alignment.CenterHorizontally,
+      verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+      Icon(
+        imageVector = Icons.Filled.Settings,
+        contentDescription = "Загрузка",
+        tint = Color.Gray,
+        modifier = Modifier
+          .size(56.dp)
+          .rotate(rotation.value)
+      )
+
+      Text(
+        text = "Загрузка...",
+        color = Color.Gray,
+        style = MaterialTheme.typography.titleMedium
+      )
+    }
+  }
+}
 
 @Composable
 private fun AdminScreen(
