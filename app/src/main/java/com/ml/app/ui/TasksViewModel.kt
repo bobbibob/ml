@@ -105,27 +105,30 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
 
     fun loadMyTasks() {
         viewModelScope.launch {
+            state = state.copy(loading = true, error = null)
             when (val res = tasksRepo.getMyTasks()) {
-                is AppResult.Success -> state = state.copy(myTasks = res.data, error = null)
-                is AppResult.Error -> state = state.copy(error = res.message)
+                is AppResult.Success -> state = state.copy(loading = false, myTasks = res.data, error = null)
+                is AppResult.Error -> state = state.copy(loading = false, error = res.message)
             }
         }
     }
 
     fun loadAllTasks() {
         viewModelScope.launch {
+            state = state.copy(loading = true, error = null)
             when (val res = tasksRepo.getAllTasks()) {
-                is AppResult.Success -> state = state.copy(allTasks = res.data, error = null)
-                is AppResult.Error -> state = state.copy(error = res.message)
+                is AppResult.Success -> state = state.copy(loading = false, allTasks = res.data, error = null)
+                is AppResult.Error -> state = state.copy(loading = false, error = res.message)
             }
         }
     }
 
     fun loadUsers() {
         viewModelScope.launch {
+            state = state.copy(loading = true, error = null)
             when (val res = tasksRepo.getUsers()) {
-                is AppResult.Success -> state = state.copy(users = res.data, error = null)
-                is AppResult.Error -> state = state.copy(error = res.message)
+                is AppResult.Success -> state = state.copy(loading = false, users = res.data, error = null)
+                is AppResult.Error -> state = state.copy(loading = false, error = res.message)
             }
         }
     }

@@ -114,13 +114,15 @@ fun TasksScreen(
             titleWhenEmpty = "Задач пока нет",
             tasks = state.allTasks,
             error = state.error,
-            onComplete = { vm.completeTask(it) }
+            onComplete = { vm.completeTask(it) },
+            state = state
         )
         else -> TasksListTab(
             titleWhenEmpty = "Задач пока нет",
             tasks = state.myTasks,
             error = state.error,
-            onComplete = { vm.completeTask(it) }
+            onComplete = { vm.completeTask(it) },
+            state = state
         )
     }
 }
@@ -218,7 +220,8 @@ private fun TasksListTab(
     titleWhenEmpty: String,
     tasks: List<TaskDto>,
     error: String?,
-    onComplete: (String) -> Unit
+    onComplete: (String) -> Unit,
+    state: TasksUiState
 ) {
     Column(
         modifier = Modifier
@@ -232,7 +235,9 @@ private fun TasksListTab(
             )
         }
 
-        if (tasks.isEmpty()) {
+        if (state.loading && tasks.isEmpty()) {
+            Text("Загружаем задачи...")
+        } else if (tasks.isEmpty()) {
             Text(titleWhenEmpty)
         } else {
             LazyColumn(
