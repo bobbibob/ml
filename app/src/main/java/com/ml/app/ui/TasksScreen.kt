@@ -100,11 +100,11 @@ fun TasksScreen(
         return
     }
 
-    LaunchedEffect(state.currentUser.user_id) {
-        vm.loadUsers()
-        vm.loadMyTasks()
-        if (state.currentUser.role == "plus" || state.currentUser.role == "admin") {
-            vm.loadAllTasks()
+    LaunchedEffect(state.currentUser.user_id, state.selectedTab) {
+        when (state.selectedTab) {
+            "create" -> vm.loadUsers()
+            "all" -> if (state.currentUser.role == "plus" || state.currentUser.role == "admin") vm.loadAllTasks() else vm.loadMyTasks()
+            else -> vm.loadMyTasks()
         }
     }
 

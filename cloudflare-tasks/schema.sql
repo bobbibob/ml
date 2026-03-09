@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS users (
   google_sub TEXT UNIQUE,
   email TEXT NOT NULL UNIQUE,
   display_name TEXT NOT NULL,
+  photo_url TEXT,
   role TEXT NOT NULL DEFAULT 'basic',
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,

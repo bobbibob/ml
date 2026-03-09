@@ -8,6 +8,7 @@ type UserRow = {
   email: string
   display_name: string
   role: string
+  photo_url: string | null
 }
 
 function json(data: unknown, status = 200): Response {
@@ -55,7 +56,7 @@ async function getCurrentUser(request: Request, env: Env): Promise<UserRow | nul
   if (!token) return null
 
   const result = await env.DB.prepare(`
-    SELECT u.user_id, u.google_sub, u.email, u.display_name, u.role
+    SELECT u.user_id, u.google_sub, u.email, u.display_name, u.role, u.photo_url
     FROM user_sessions s
     JOIN users u ON u.user_id = s.user_id
     WHERE s.auth_token = ?
@@ -123,6 +124,7 @@ export default {
         const sub = String(google.sub || "").trim()
         const email = String(google.email || "").trim()
         const displayName = String(google.name || email).trim()
+        const photoUrl = String(google.picture || "").trim() || null
 
         if (!sub || !email) return json({ ok: false, error: "invalid google token payload" }, 401)
 
@@ -142,9 +144,9 @@ export default {
 
           await env.DB.prepare(`
             UPDATE users
-            SET google_sub = ?, email = ?, display_name = ?, updated_at = ?, last_login_at = ?
+            SET google_sub = ?, email = ?, display_name = ?, photo_url = ?, updated_at = ?, last_login_at = ?
             WHERE user_id = ?
-          `).bind(sub, email, displayName, nowIso(), nowIso(), userId).run()
+          `).bind(sub, email, displayName, photoUrl, nowIso(), nowIso(), userId).run()
         } else {
           const countRow = await env.DB.prepare(`SELECT COUNT(*) as cnt FROM users`).first<{ cnt: number }>()
           role = (Number(countRow?.cnt || 0) === 0) ? "admin" : "basic"
@@ -152,9 +154,9 @@ export default {
 
           await env.DB.prepare(`
             INSERT INTO users (
-              user_id, google_sub, email, display_name, role, created_at, updated_at, last_login_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-          `).bind(userId, sub, email, displayName, role, nowIso(), nowIso(), nowIso()).run()
+              user_id, google_sub, email, display_name, photo_url, role, created_at, updated_at, last_login_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `).bind(userId, sub, email, displayName, photoUrl, role, nowIso(), nowIso(), nowIso()).run()
         }
 
         const authToken = randomId("tok")
@@ -174,7 +176,8 @@ export default {
             user_id: userId,
             email,
             display_name: displayName,
-            role
+            role,
+            photo_url: photoUrl
           }
         })
       }
@@ -190,7 +193,7 @@ export default {
         if (!user) return json({ ok: false, error: "unauthorized" }, 401)
 
         const rows = await env.DB.prepare(`
-          SELECT user_id, email, display_name, role, created_at, last_login_at
+          SELECT user_id, email, display_name, role, photo_url, created_at, last_login_at
           FROM users
           ORDER BY display_name ASC
         `).all()
@@ -338,3 +341,5 @@ export default {
 // redeploy routes
 
 // force redeploy tasks ui sync
+
+// force redeploy avatar photo_url
