@@ -47,6 +47,7 @@ import com.ml.app.auth.GoogleAuthManager
 import java.io.File
 import java.time.LocalDate
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 import com.ml.app.ui.TasksScreen
 import androidx.compose.foundation.shape.CircleShape
