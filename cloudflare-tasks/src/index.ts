@@ -482,6 +482,26 @@ if (path === "/create_task" && request.method === "POST") {
           }
         }
 
+        const assignee = await env.DB.prepare(`
+          SELECT display_name, fcm_token
+          FROM users
+          WHERE user_id = ?
+          LIMIT 1
+        `).bind(assigneeUserId).first<any>()
+
+        if (assignee?.fcm_token) {
+          try {
+            await sendPushToToken(
+              env,
+              assignee.fcm_token,
+              "Новая задача",
+              title
+            )
+          } catch (e) {
+            console.log("push_send_error", String(e))
+          }
+        }
+
         return json({ ok: true, task_id: taskId })
       }
 
