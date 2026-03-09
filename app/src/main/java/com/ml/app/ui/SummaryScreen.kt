@@ -59,7 +59,8 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
   var accountMenuExpanded by remember { mutableStateOf(false) }
     var showEditNameDialog by remember { mutableStateOf(false) }
     var draftDisplayName by remember { mutableStateOf("") }
-    var showAdminDialog by remember { mutableStateOf(false) }
+    var showAdminScreen by remember { mutableStateOf(false) }
+    var adminTab by remember { mutableStateOf("users") }
 
   val state by vm.state.collectAsState()
   val activity = (LocalContext.current as? Activity)
@@ -803,6 +804,159 @@ private fun ArticleBottomBar(
         modifier = Modifier.weight(1f)
       ) {
         Text("Остатки")
+      }
+    }
+  }
+}
+
+
+@Composable
+private fun AdminScreen(
+  adminTab: String,
+  onTabChange: (String) -> Unit,
+  users: List<com.ml.app.data.remote.dto.UserDto>,
+  tasks: List<com.ml.app.data.remote.dto.TaskDto>,
+  history: List<com.ml.app.data.remote.dto.HistoryItemDto>,
+  error: String?
+) {
+  Column(
+    modifier = Modifier
+      .fillMaxSize()
+      .padding(12.dp),
+    verticalArrangement = Arrangement.spacedBy(12.dp)
+  ) {
+    Row(
+      modifier = Modifier.fillMaxWidth(),
+      horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+      Button(
+        onClick = { onTabChange("users") },
+        modifier = Modifier.weight(1f)
+      ) {
+        Text("Пользователи")
+      }
+      Button(
+        onClick = { onTabChange("tasks") },
+        modifier = Modifier.weight(1f)
+      ) {
+        Text("Задачи")
+      }
+      Button(
+        onClick = { onTabChange("history") },
+        modifier = Modifier.weight(1f)
+      ) {
+        Text("История")
+      }
+    }
+
+    error?.let {
+      Text("Ошибка: $it", color = Color.Red)
+    }
+
+    when (adminTab) {
+      "tasks" -> AdminTasksTab(tasks = tasks)
+      "history" -> AdminHistoryTab(history = history)
+      else -> AdminUsersTab(users = users)
+    }
+  }
+}
+
+@Composable
+private fun AdminUsersTab(
+  users: List<com.ml.app.data.remote.dto.UserDto>
+) {
+  if (users.isEmpty()) {
+    Text("Пользователей пока нет")
+    return
+  }
+
+  LazyColumn(
+    verticalArrangement = Arrangement.spacedBy(12.dp)
+  ) {
+    items(users) { user ->
+      Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp)
+      ) {
+        Column(
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+          verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+          Text(user.display_name, fontWeight = FontWeight.Bold)
+          Text(user.email)
+          Text("Роль: ${user.role}")
+        }
+      }
+    }
+  }
+}
+
+@Composable
+private fun AdminTasksTab(
+  tasks: List<com.ml.app.data.remote.dto.TaskDto>
+) {
+  if (tasks.isEmpty()) {
+    Text("Задач пока нет")
+    return
+  }
+
+  LazyColumn(
+    verticalArrangement = Arrangement.spacedBy(12.dp)
+  ) {
+    items(tasks) { task ->
+      Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp)
+      ) {
+        Column(
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+          verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+          Text(task.title, fontWeight = FontWeight.Bold)
+          if (!task.description.isNullOrBlank()) {
+            Text(task.description)
+          }
+          Text("Статус: ${task.status}")
+          Text("Создал: ${task.created_by_name}")
+          Text("Исполнитель: ${task.assignee_name}")
+        }
+      }
+    }
+  }
+}
+
+@Composable
+private fun AdminHistoryTab(
+  history: List<com.ml.app.data.remote.dto.HistoryItemDto>
+) {
+  if (history.isEmpty()) {
+    Text("История пока пуста")
+    return
+  }
+
+  LazyColumn(
+    verticalArrangement = Arrangement.spacedBy(12.dp)
+  ) {
+    items(history) { item ->
+      Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp)
+      ) {
+        Column(
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+          verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+          Text(item.action_type, fontWeight = FontWeight.Bold)
+          Text("Сущность: ${item.entity_type}")
+          Text("ID: ${item.entity_id}")
+          Text("Когда: ${item.created_at}")
+        }
       }
     }
   }
