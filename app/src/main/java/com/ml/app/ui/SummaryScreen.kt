@@ -227,7 +227,17 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
                     },
                   shape = RoundedCornerShape(20.dp)
                 ) {
-                  Text("adm")
+                  
+Row(verticalAlignment = Alignment.CenterVertically) {
+    Icon(
+        imageVector = Icons.Default.Settings,
+        contentDescription = "admin",
+        modifier = Modifier.size(18.dp)
+    )
+    Spacer(Modifier.width(6.dp))
+    Text("admin")
+}
+
                 }
                 Spacer(Modifier.width(8.dp))
               }
