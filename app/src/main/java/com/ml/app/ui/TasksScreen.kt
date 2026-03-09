@@ -805,7 +805,7 @@ private fun TasksListTab(
                   showEditWizard = false
                   editTask = null
               },
-              onSave = { taskId, title, description, assigneeUserId, reminderType, reminderIntervalMinutes, reminderTimeOfDay ->
+              onSave = { taskId: String, title: String, description: String, assigneeUserId: String, reminderType: String?, reminderIntervalMinutes: Int?, reminderTimeOfDay: String? ->
                   onSaveEdit(taskId, title, description, assigneeUserId, reminderType, reminderIntervalMinutes, reminderTimeOfDay)
                   showEditWizard = false
                   editTask = null
@@ -836,3 +836,227 @@ private fun TasksListTab(
         )
     }
 }
+
+
+@Composable
+private fun EditTaskWizard(
+    task: TaskDto,
+    users: List<UserDto>,
+    error: String?,
+    info: String?,
+    onCancel: () -> Unit,
+    onSave: (String, String, String, String, String?, Int?, String?) -> Unit
+) {
+    var step by remember(task.task_id) { mutableStateOf(1) }
+    var assigneeUserId by remember(task.task_id) { mutableStateOf(task.assignee_user_id) }
+    var selectedReminder by remember(task.task_id) {
+        mutableStateOf<ReminderOption?>(
+            when {
+                task.reminder_type == "interval" && task.reminder_interval_minutes == 10 -> ReminderOptions.firstOrNull { it.key == "10m" }
+                task.reminder_type == "interval" && task.reminder_interval_minutes == 20 -> ReminderOptions.firstOrNull { it.key == "20m" }
+                task.reminder_type == "interval" && task.reminder_interval_minutes == 30 -> ReminderOptions.firstOrNull { it.key == "30m" }
+                task.reminder_type == "interval" && task.reminder_interval_minutes == 60 -> ReminderOptions.firstOrNull { it.key == "1h" }
+                task.reminder_type == "interval" && task.reminder_interval_minutes == 120 -> ReminderOptions.firstOrNull { it.key == "2h" }
+                task.reminder_type == "daily_time" && task.reminder_time_of_day == "10:00" -> ReminderOptions.firstOrNull { it.key == "morning" }
+                task.reminder_type == "daily_time" && task.reminder_time_of_day == "18:00" -> ReminderOptions.firstOrNull { it.key == "evening" }
+                else -> null
+            }
+        )
+    }
+    var title by remember(task.task_id) { mutableStateOf(task.title) }
+    var description by remember(task.task_id) { mutableStateOf(cleanTaskDescriptionForEdit(task.description)) }
+
+    val selectedUser = users.firstOrNull { it.user_id == assigneeUserId }
+
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = Color(0xFFF7F4FB)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(onClick = onCancel) {
+                    Text("Отмена")
+                }
+
+                Spacer(Modifier.weight(1f))
+
+                selectedUser?.let {
+                    SelectedAssigneeHeader(user = it)
+                }
+            }
+
+            Text(
+                text = "Редактировать задачу",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold
+            )
+
+            info?.let { Text(it, color = Color.Gray) }
+            error?.let {
+                if (!it.contains("timeout", ignoreCase = true)) {
+                    Text("Ошибка: $it", color = Color.Red)
+                }
+            }
+
+            when (step) {
+                1 -> {
+                    Text(
+                        text = "Исполнитель",
+                        fontWeight = FontWeight.Bold,
+                        color = TextBlack
+                    )
+
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(users) { user ->
+                            val selected = assigneeUserId == user.user_id
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { assigneeUserId = user.user_id },
+                                shape = RoundedCornerShape(18.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (selected) Color(0xFFE8DDF7) else Color.White
+                                )
+                            ) {
+                                Text(
+                                    text = "${user.display_name}\n(${user.email})",
+                                    modifier = Modifier.padding(14.dp),
+                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                                )
+                            }
+                        }
+                    }
+
+                    Button(
+                        onClick = { step = 2 },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = assigneeUserId.isNotBlank(),
+                        shape = RoundedCornerShape(24.dp)
+                    ) {
+                        Text("Далее")
+                    }
+                }
+
+                2 -> {
+                    Text(
+                        text = "Частота напоминания",
+                        fontWeight = FontWeight.Bold,
+                        color = TextBlack
+                    )
+
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(ReminderOptions) { option ->
+                            val selected = selectedReminder?.key == option.key
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { selectedReminder = option },
+                                shape = RoundedCornerShape(18.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (selected) Color(0xFFE8DDF7) else Color.White
+                                )
+                            ) {
+                                Text(
+                                    text = option.title,
+                                    modifier = Modifier.padding(14.dp),
+                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                                )
+                            }
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = { step = 1 },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(24.dp)
+                        ) {
+                            Text("Назад")
+                        }
+
+                        Button(
+                            onClick = { step = 3 },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(24.dp)
+                        ) {
+                            Text("Далее")
+                        }
+                    }
+                }
+
+                else -> {
+                    Text(
+                        text = "Данные задачи",
+                        fontWeight = FontWeight.Bold,
+                        color = TextBlack
+                    )
+
+                    OutlinedTextField(
+                        value = title,
+                        onValueChange = { title = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Название") },
+                        singleLine = true
+                    )
+
+                    OutlinedTextField(
+                        value = description,
+                        onValueChange = { description = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Описание") },
+                        minLines = 5
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = { step = 2 },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(24.dp)
+                        ) {
+                            Text("Назад")
+                        }
+
+                        Button(
+                            onClick = {
+                                val payload = reminderPayload(selectedReminder)
+                                onSave(
+                                    task.task_id,
+                                    title.trim(),
+                                    description.trim(),
+                                    assigneeUserId,
+                                    payload.first,
+                                    payload.second,
+                                    payload.third
+                                )
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(24.dp),
+                            enabled = title.isNotBlank() && assigneeUserId.isNotBlank()
+                        ) {
+                            Text("Сохранить")
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
