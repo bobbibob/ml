@@ -188,6 +188,38 @@ export default {
         return json({ ok: true, user })
       }
 
+
+      if (path === "/update_profile" && request.method === "POST") {
+        const user = await getCurrentUser(request, env)
+        if (!user) return json({ ok: false, error: "unauthorized" }, 401)
+
+        const body = await request.json<{ display_name?: string }>().catch(() => null)
+        const displayName = String(body?.display_name || "").trim()
+
+        if (!displayName) {
+          return json({ ok: false, error: "display_name required" }, 400)
+        }
+
+        await env.DB.prepare(`
+          UPDATE users
+          SET display_name = ?, updated_at = ?
+          WHERE user_id = ?
+        `).bind(displayName, nowIso(), user.user_id).run()
+
+        await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
+          display_name: displayName
+        })
+
+        const updatedUser = await env.DB.prepare(`
+          SELECT user_id, google_sub, email, display_name, role, photo_url
+          FROM users
+          WHERE user_id = ?
+          LIMIT 1
+        `).bind(user.user_id).first<UserRow>()
+
+        return json({ ok: true, user: updatedUser })
+      }
+
       if (path === "/users_list" && request.method === "GET") {
         const user = await getCurrentUser(request, env)
         if (!user) return json({ ok: false, error: "unauthorized" }, 401)
@@ -421,3 +453,5 @@ export default {
 // force redeploy update delete task
 
 // force redeploy edit only open tasks
+
+// force redeploy update profile name

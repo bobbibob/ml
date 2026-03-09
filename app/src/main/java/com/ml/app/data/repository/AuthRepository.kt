@@ -8,6 +8,7 @@ import com.ml.app.data.remote.request.GoogleLoginRequest
 import com.ml.app.data.remote.request.LoginRequest
 import com.ml.app.data.remote.request.RegisterRequest
 import com.ml.app.data.session.SessionStorage
+import org.json.JSONObject
 
 class AuthRepository(
     private val api: MlApiService,
@@ -108,6 +109,34 @@ class AuthRepository(
                     AppResult.Error("User not found")
                 }
             }
+        }
+    }
+
+
+    suspend fun updateProfile(displayName: String): AppResult<UserDto> {
+        return try {
+            val raw = api.updateProfileRaw(
+                mapOf("display_name" to displayName)
+            )
+            val json = JSONObject(raw.string())
+            if (!json.optBoolean("ok")) {
+                AppResult.Error(json.optString("error", "Profile update failed"))
+            } else {
+                val userJson = json.optJSONObject("user")
+                    ?: return AppResult.Error("Profile update failed")
+
+                val user = UserDto(
+                    user_id = userJson.optString("user_id"),
+                    email = userJson.optString("email"),
+                    display_name = userJson.optString("display_name"),
+                    role = userJson.optString("role"),
+                    photo_url = userJson.optString("photo_url").ifBlank { null }
+                )
+                sessionStorage.saveUserId(user.user_id)
+                AppResult.Success(user)
+            }
+        } catch (t: Throwable) {
+            AppResult.Error(t.message ?: "Profile update failed")
         }
     }
 

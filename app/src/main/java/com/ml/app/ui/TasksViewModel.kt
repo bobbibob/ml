@@ -15,6 +15,7 @@ import com.ml.app.data.repository.AuthRepository
 import com.ml.app.data.repository.TasksRepository
 import com.ml.app.data.session.PrefsSessionStorage
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 
 data class TasksUiState(
     val loading: Boolean = false,
@@ -116,9 +117,14 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
     fun loadAllTasks() {
         viewModelScope.launch {
             state = state.copy(loading = true, error = null)
-            when (val res = tasksRepo.getAllTasks()) {
-                is AppResult.Success -> state = state.copy(loading = false, allTasks = res.data, error = null)
-                is AppResult.Error -> state = state.copy(loading = false, error = res.message)
+            try {
+                val res = withTimeout(12000) { tasksRepo.getAllTasks() }
+                when (res) {
+                    is AppResult.Success -> state = state.copy(loading = false, allTasks = res.data, error = null)
+                    is AppResult.Error -> state = state.copy(loading = false, error = res.message)
+                }
+            } catch (_: Exception) {
+                state = state.copy(loading = false, error = "Не удалось загрузить все задачи")
             }
         }
     }
@@ -212,6 +218,33 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 is AppResult.Error -> {
                     state = state.copy(loading = false, error = res.message)
+                }
+            }
+        }
+    }
+
+
+    fun updateOwnDisplayName(displayName: String) {
+        if (displayName.isBlank()) {
+            state = state.copy(error = "Имя не может быть пустым")
+            return
+        }
+
+        viewModelScope.launch {
+            state = state.copy(loading = true, error = null, info = null)
+            when (val res = authRepo.updateProfile(displayName.trim())) {
+                is AppResult.Success -> {
+                    state = state.copy(
+                        loading = false,
+                        currentUser = res.data,
+                        info = "Имя обновлено"
+                    )
+                }
+                is AppResult.Error -> {
+                    state = state.copy(
+                        loading = false,
+                        error = res.message
+                    )
                 }
             }
         }

@@ -37,7 +37,7 @@ interface MlApiService {
     @POST("login.php")
     suspend fun login(@Body request: LoginRequest): LoginResponse
 
-    @GET("me.php")
+    @GET("me")
     suspend fun me(): MeResponse
 
     @GET("users_list")
@@ -75,6 +75,12 @@ interface MlApiService {
 
     @POST("delete_task")
     suspend fun deleteTaskRaw(
+        @Body body: Map<String, Any?>
+    ): ResponseBody
+
+
+    @POST("update_profile")
+    suspend fun updateProfileRaw(
         @Body body: Map<String, Any?>
     ): ResponseBody
 }
