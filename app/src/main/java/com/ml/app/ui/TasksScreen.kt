@@ -1,35 +1,29 @@
 package com.ml.app.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import coil.compose.AsyncImage
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.Alignment
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -37,31 +31,24 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
 import com.ml.app.auth.GoogleAuthManager
 import com.ml.app.data.remote.dto.TaskDto
+import com.ml.app.data.remote.dto.UserDto
 import kotlinx.coroutines.launch
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
 
 private val TextBlack = Color(0xFF111111)
 private val DoneGreen = Color(0xFF2E7D32)
-
-private fun fmtTaskDateTime(v: String?): String {
-    if (v.isNullOrBlank()) return ""
-    return try {
-        val dt = OffsetDateTime.parse(v)
-        dt.format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"))
-    } catch (_: Exception) {
-        v
-    }
-}
-
 
 private enum class CreateTaskStep {
     Assignee, Reminder, Details
@@ -82,6 +69,16 @@ private val ReminderOptions = listOf(
     ReminderOption("evening", "Только вечером")
 )
 
+private fun fmtTaskDateTime(v: String?): String {
+    if (v.isNullOrBlank()) return ""
+    return try {
+        val dt = OffsetDateTime.parse(v)
+        dt.format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"))
+    } catch (_: Exception) {
+        v
+    }
+}
+
 @Composable
 fun TasksScreen(
     onBack: () -> Unit,
@@ -100,20 +97,13 @@ fun TasksScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(16.dp),
-            verticalArrangement = Arrangement.Center
+            verticalArrangement = Arrangement.Top
         ) {
-            Text(
-                text = "Войти",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(bottom = 24.dp)
-            )
-
-            state.error?.let {
+            state.error?.let { Text("Ошибка: $it") }
+            state.info?.let {
                 Text(
-                    text = if (it.contains("timeout", ignoreCase = true)) "Подключение..." else "Ошибка: $it",
-                    color = if (it.contains("timeout", ignoreCase = true)) Color.Gray else Color.Red,
-                    modifier = Modifier.padding(bottom = 16.dp)
+                    text = it,
+                    modifier = Modifier.padding(top = 8.dp)
                 )
             }
 
@@ -130,7 +120,9 @@ fun TasksScreen(
                         }
                     }
                 },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp),
                 shape = RoundedCornerShape(24.dp)
             ) {
                 Text("Войти через Google")
@@ -142,17 +134,26 @@ fun TasksScreen(
     LaunchedEffect(state.currentUser.user_id, state.selectedTab) {
         when (state.selectedTab) {
             "create" -> vm.loadUsers()
-            "all" -> if (state.currentUser.role == "plus" || state.currentUser.role == "admin") vm.loadAllTasks() else vm.loadMyTasks()
+            "all" -> if (state.currentUser.role == "plus" || state.currentUser.role == "admin") {
+                vm.loadAllTasks()
+            } else {
+                vm.loadMyTasks()
+            }
             else -> vm.loadMyTasks()
         }
     }
 
     when (state.selectedTab) {
-        "create" -> CreateTaskWizard(vm = vm)
+        "create" -> CreateTaskWizard(
+            vm = vm,
+            onCancel = { vm.selectTab("my") }
+        )
+
         "all" -> TasksListTab(
             titleWhenEmpty = "Задач пока нет",
             tasks = state.allTasks,
             error = state.error,
+            info = state.info,
             currentUserId = state.currentUser.user_id,
             currentUserRole = state.currentUser.role,
             onComplete = { vm.completeTask(it) },
@@ -164,10 +165,12 @@ fun TasksScreen(
             users = state.users,
             state = state
         )
+
         else -> TasksListTab(
             titleWhenEmpty = "Задач пока нет",
             tasks = state.myTasks,
             error = state.error,
+            info = state.info,
             currentUserId = state.currentUser.user_id,
             currentUserRole = state.currentUser.role,
             onComplete = { vm.completeTask(it) },
@@ -183,9 +186,11 @@ fun TasksScreen(
 }
 
 @Composable
-private fun CreateTaskWizard(vm: TasksViewModel) {
+private fun CreateTaskWizard(
+    vm: TasksViewModel,
+    onCancel: () -> Unit
+) {
     val state = vm.state
-
     var step by remember { mutableStateOf(CreateTaskStep.Assignee) }
     var selectedAssigneeId by remember { mutableStateOf("") }
     var selectedReminder by remember { mutableStateOf<ReminderOption?>(null) }
@@ -193,14 +198,15 @@ private fun CreateTaskWizard(vm: TasksViewModel) {
     var taskDescription by remember { mutableStateOf("") }
 
     BackHandler {
-        vm.selectTab("my")
+        onCancel()
     }
 
     when (step) {
         CreateTaskStep.Assignee -> CreateTaskAssigneeStep(
             users = state.users,
             error = state.error,
-            onCancel = { vm.selectTab("my") },
+            info = state.info,
+            onCancel = onCancel,
             onChoose = {
                 selectedAssigneeId = it
                 step = CreateTaskStep.Reminder
@@ -209,7 +215,7 @@ private fun CreateTaskWizard(vm: TasksViewModel) {
 
         CreateTaskStep.Reminder -> CreateTaskReminderStep(
             selected = selectedReminder,
-            onCancel = { vm.selectTab("my") },
+            onCancel = onCancel,
             onChoose = { selectedReminder = it },
             onNext = {
                 if (selectedReminder != null) {
@@ -222,22 +228,24 @@ private fun CreateTaskWizard(vm: TasksViewModel) {
             title = taskTitle,
             description = taskDescription,
             error = state.error,
+            info = state.info,
             onTitleChange = { taskTitle = it },
             onDescriptionChange = { taskDescription = it },
-            onCancel = { vm.selectTab("my") },
+            onCancel = onCancel,
             onDone = {
-                vm.createTask(
-                    title = taskTitle,
-                    description = buildString {
-                        append(taskDescription)
-                        if (selectedReminder != null) {
-                            if (isNotBlank()) append("
+                val reminderText = selectedReminder?.title ?: ""
+                val finalDescription = buildString {
+                    append(taskDescription.trim())
+                    if (reminderText.isNotBlank()) {
+                        if (isNotBlank()) append("\n\n")
+                        append("Напоминание: ")
+                        append(reminderText)
+                    }
+                }
 
-")
-                            append("Напоминание: ")
-                            append(selectedReminder!!.title)
-                        }
-                    },
+                vm.createTask(
+                    title = taskTitle.trim(),
+                    description = finalDescription,
                     assigneeUserId = selectedAssigneeId
                 )
             }
@@ -247,8 +255,9 @@ private fun CreateTaskWizard(vm: TasksViewModel) {
 
 @Composable
 private fun CreateTaskAssigneeStep(
-    users: List<com.ml.app.data.remote.dto.UserDto>,
+    users: List<UserDto>,
     error: String?,
+    info: String?,
     onCancel: () -> Unit,
     onChoose: (String) -> Unit
 ) {
@@ -265,7 +274,6 @@ private fun CreateTaskAssigneeStep(
             TextButton(onClick = onCancel) {
                 Text("Отмена")
             }
-            Spacer(Modifier.weight(1f))
         }
 
         Text(
@@ -273,6 +281,10 @@ private fun CreateTaskAssigneeStep(
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold
         )
+
+        info?.let {
+            Text(it, color = Color.Gray)
+        }
 
         error?.let {
             if (!it.contains("timeout", ignoreCase = true)) {
@@ -289,7 +301,7 @@ private fun CreateTaskAssigneeStep(
                         .fillMaxWidth()
                         .clickable { onChoose(user.user_id) },
                     shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF3EEF7))
+                    colors = CardDefaults.cardColors(containerColor = Color.White)
                 ) {
                     Column(
                         modifier = Modifier
@@ -319,7 +331,8 @@ private fun CreateTaskAssigneeStep(
 
                         Text(
                             text = user.display_name,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            color = TextBlack
                         )
                     }
                 }
@@ -349,7 +362,10 @@ private fun CreateTaskReminderStep(
                 Text("Отмена")
             }
             Spacer(Modifier.weight(1f))
-            Button(onClick = onNext, enabled = selected != null) {
+            Button(
+                onClick = onNext,
+                enabled = selected != null
+            ) {
                 Text("Далее")
             }
         }
@@ -370,7 +386,7 @@ private fun CreateTaskReminderStep(
                         .clickable { onChoose(option) },
                     shape = RoundedCornerShape(20.dp),
                     colors = CardDefaults.cardColors(
-                        containerColor = if (selected?.key == option.key) Color(0xFFE8DDF7) else Color(0xFFF3EEF7)
+                        containerColor = if (selected?.key == option.key) Color(0xFFE8DDF7) else Color.White
                     )
                 ) {
                     Text(
@@ -389,6 +405,7 @@ private fun CreateTaskDetailsStep(
     title: String,
     description: String,
     error: String?,
+    info: String?,
     onTitleChange: (String) -> Unit,
     onDescriptionChange: (String) -> Unit,
     onCancel: () -> Unit,
@@ -407,7 +424,6 @@ private fun CreateTaskDetailsStep(
             TextButton(onClick = onCancel) {
                 Text("Отмена")
             }
-            Spacer(Modifier.weight(1f))
         }
 
         Text(
@@ -415,6 +431,10 @@ private fun CreateTaskDetailsStep(
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold
         )
+
+        info?.let {
+            Text(it, color = Color.Gray)
+        }
 
         error?.let {
             if (!it.contains("timeout", ignoreCase = true)) {
@@ -446,5 +466,256 @@ private fun CreateTaskDetailsStep(
         ) {
             Text("Готово")
         }
+    }
+}
+
+@Composable
+private fun TasksListTab(
+    titleWhenEmpty: String,
+    tasks: List<TaskDto>,
+    error: String?,
+    info: String?,
+    currentUserId: String,
+    currentUserRole: String,
+    onComplete: (String) -> Unit,
+    onEdit: () -> Unit,
+    onSaveEdit: (String, String, String, String) -> Unit,
+    onDelete: (String) -> Unit,
+    users: List<UserDto>,
+    state: TasksUiState
+) {
+    var editTask by remember { mutableStateOf<TaskDto?>(null) }
+    var deleteTask by remember { mutableStateOf<TaskDto?>(null) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        error?.let {
+            Text(
+                text = "Ошибка: $it",
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
+        }
+
+        info?.let {
+            Text(
+                text = it,
+                modifier = Modifier.padding(bottom = 12.dp),
+                color = Color.Gray
+            )
+        }
+
+        if (state.loading && tasks.isEmpty()) {
+            Text("Загружаем задачи...")
+        } else if (tasks.isEmpty()) {
+            Text(titleWhenEmpty)
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(tasks) { task ->
+                    val canDelete = currentUserRole == "admin" || task.created_by_user_id == currentUserId
+                    val canEdit = canDelete && task.status == "open"
+
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(28.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(18.dp)
+                        ) {
+                            Text(
+                                text = task.title,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = TextBlack
+                            )
+
+                            if (!task.description.isNullOrBlank()) {
+                                Text(
+                                    text = task.description,
+                                    color = TextBlack,
+                                    modifier = Modifier.padding(top = 6.dp)
+                                )
+                            }
+
+                            Text(
+                                text = "Создано: ${fmtTaskDateTime(task.created_at)}",
+                                color = TextBlack,
+                                modifier = Modifier.padding(top = 8.dp)
+                            )
+
+                            Text(
+                                text = "Статус: ${task.status}",
+                                color = TextBlack
+                            )
+
+                            Text(
+                                text = "Исполнитель: ${task.assignee_name}",
+                                color = TextBlack
+                            )
+
+                            Text(
+                                text = "Создал: ${task.created_by_name}",
+                                color = TextBlack
+                            )
+
+                            if (!task.completed_by_name.isNullOrBlank() &&
+                                task.completed_by_user_id != task.assignee_user_id
+                            ) {
+                                Text(
+                                    text = "Отметил выполненной: ${task.completed_by_name}",
+                                    color = TextBlack,
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
+                            }
+
+                            if (!task.completed_at.isNullOrBlank()) {
+                                Text(
+                                    text = "Выполнено: ${fmtTaskDateTime(task.completed_at)}",
+                                    color = DoneGreen,
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
+                            }
+
+                            if (task.status == "open") {
+                                Button(
+                                    onClick = { onComplete(task.task_id) },
+                                    shape = RoundedCornerShape(20.dp),
+                                    modifier = Modifier.padding(top = 12.dp)
+                                ) {
+                                    Text("Выполнено")
+                                }
+                            } else {
+                                Text(
+                                    text = "ВЫПОЛНЕНО",
+                                    color = DoneGreen,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(top = 12.dp)
+                                )
+                            }
+
+                            if (canEdit) {
+                                Button(
+                                    onClick = {
+                                        onEdit()
+                                        editTask = task
+                                    },
+                                    shape = RoundedCornerShape(20.dp),
+                                    modifier = Modifier.padding(top = 12.dp)
+                                ) {
+                                    Text("Редактировать")
+                                }
+                            }
+
+                            if (canDelete) {
+                                OutlinedButton(
+                                    onClick = { deleteTask = task },
+                                    shape = RoundedCornerShape(20.dp),
+                                    modifier = Modifier.padding(top = if (canEdit) 8.dp else 12.dp)
+                                ) {
+                                    Text("Удалить")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    editTask?.let { task ->
+        var title by remember(task.task_id) { mutableStateOf(task.title) }
+        var description by remember(task.task_id) { mutableStateOf(task.description ?: "") }
+        var assigneeUserId by remember(task.task_id) { mutableStateOf(task.assignee_user_id) }
+
+        AlertDialog(
+            onDismissRequest = { editTask = null },
+            title = { Text("Редактировать задачу") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(
+                        value = title,
+                        onValueChange = { title = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Название") }
+                    )
+
+                    OutlinedTextField(
+                        value = description,
+                        onValueChange = { description = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Описание") }
+                    )
+
+                    LazyColumn(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(users) { user ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { assigneeUserId = user.user_id },
+                                shape = RoundedCornerShape(16.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (assigneeUserId == user.user_id) Color(0xFFE8DDF7) else Color.White
+                                )
+                            ) {
+                                Text(
+                                    text = "${user.display_name} (${user.email})",
+                                    modifier = Modifier.padding(12.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onSaveEdit(task.task_id, title, description, assigneeUserId)
+                        editTask = null
+                    }
+                ) {
+                    Text("Сохранить")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { editTask = null }) {
+                    Text("Отмена")
+                }
+            }
+        )
+    }
+
+    deleteTask?.let { task ->
+        AlertDialog(
+            onDismissRequest = { deleteTask = null },
+            title = { Text("Удалить задачу?") },
+            text = { Text(task.title) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onDelete(task.task_id)
+                        deleteTask = null
+                    }
+                ) {
+                    Text("Удалить")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { deleteTask = null }) {
+                    Text("Отмена")
+                }
+            }
+        )
     }
 }
