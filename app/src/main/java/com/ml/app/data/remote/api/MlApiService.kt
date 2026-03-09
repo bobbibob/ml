@@ -10,6 +10,7 @@ import com.ml.app.data.remote.request.GoogleLoginRequest
 import com.ml.app.data.remote.request.LoginRequest
 import com.ml.app.data.remote.request.ReassignTaskRequest
 import com.ml.app.data.remote.request.RegisterRequest
+import com.ml.app.data.remote.request.SaveFcmTokenRequest
 import com.ml.app.data.remote.response.CancelTaskResponse
 import com.ml.app.data.remote.response.ChangeRoleResponse
 import com.ml.app.data.remote.response.CompleteTaskResponse
@@ -22,6 +23,7 @@ import com.ml.app.data.remote.response.ReassignTaskResponse
 import com.ml.app.data.remote.response.RegisterResponse
 import com.ml.app.data.remote.response.TasksResponse
 import com.ml.app.data.remote.response.UsersResponse
+import com.ml.app.data.remote.response.BasicOkResponse
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
@@ -42,6 +44,9 @@ interface MlApiService {
 
     @GET("users_list")
     suspend fun getUsers(): UsersResponse
+
+    @POST("save_fcm_token")
+    suspend fun saveFcmToken(@Body request: SaveFcmTokenRequest): BasicOkResponse
 
     @POST("create_task")
     suspend fun createTask(@Body request: CreateTaskRequest): CreateTaskResponse

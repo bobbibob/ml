@@ -53,6 +53,13 @@ function nowIso(): string {
   return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}:${get("second")}+03:00`
 }
 
+
+async function ensureFcmTokenColumn(env: Env) {
+  try {
+    await env.DB.prepare("ALTER TABLE users ADD COLUMN fcm_token TEXT").run()
+  } catch {}
+}
+
 function randomId(prefix: string): string {
   const bytes = crypto.getRandomValues(new Uint8Array(8))
   const hex = Array.from(bytes).map(b => b.toString(16).padStart(2, "0")).join("")
@@ -124,6 +131,7 @@ export default {
 
     const url = new URL(request.url)
     const path = url.pathname
+      await ensureFcmTokenColumn(env)
 
     
       await ensureReminderColumns(env)
@@ -240,6 +248,27 @@ try {
         `).bind(user.user_id).first<UserRow>()
 
         return json({ ok: true, user: updatedUser })
+      }
+
+
+      if (path === "/save_fcm_token" && request.method === "POST") {
+        const user = await getCurrentUser(request, env)
+        if (!user) return json({ ok: false, error: "unauthorized" }, 401)
+
+        const body = await request.json<{ fcm_token?: string }>().catch(() => null)
+        const fcmToken = String(body?.fcm_token || "").trim()
+
+        if (!fcmToken) {
+          return json({ ok: false, error: "fcm_token required" }, 400)
+        }
+
+        await env.DB.prepare(`
+          UPDATE users
+          SET fcm_token = ?, updated_at = ?
+          WHERE user_id = ?
+        `).bind(fcmToken, nowIso(), user.user_id).run()
+
+        return json({ ok: true })
       }
 
       if (path === "/users_list" && request.method === "GET") {

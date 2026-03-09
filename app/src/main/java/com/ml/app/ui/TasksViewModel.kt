@@ -14,6 +14,7 @@ import com.ml.app.data.remote.dto.UserDto
 import com.ml.app.data.repository.AuthRepository
 import com.ml.app.data.repository.TasksRepository
 import com.ml.app.data.session.PrefsSessionStorage
+import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 
@@ -42,6 +43,17 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
     var state by mutableStateOf(TasksUiState())
         private set
 
+
+    private fun syncFcmToken() {
+        FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+            if (!task.isSuccessful) return@addOnCompleteListener
+            val token = task.result ?: return@addOnCompleteListener
+            viewModelScope.launch {
+                authRepo.saveFcmToken(token)
+            }
+        }
+    }
+
     fun init() {
         if (state.currentUser != null) return
         if (!authRepo.isLoggedIn()) return
@@ -50,6 +62,7 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
             when (val res = authRepo.me()) {
                 is AppResult.Success -> {
                     state = state.copy(currentUser = res.data, error = null)
+                    syncFcmToken()
                     refreshAll()
                 }
                 is AppResult.Error -> {
@@ -70,6 +83,7 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
                         currentUser = res.data,
                         info = "Вход выполнен"
                     )
+                    syncFcmToken()
                     refreshAll()
                 }
                 is AppResult.Error -> {

@@ -7,6 +7,7 @@ import com.ml.app.data.remote.dto.UserDto
 import com.ml.app.data.remote.request.GoogleLoginRequest
 import com.ml.app.data.remote.request.LoginRequest
 import com.ml.app.data.remote.request.RegisterRequest
+import com.ml.app.data.remote.request.SaveFcmTokenRequest
 import com.ml.app.data.session.SessionStorage
 import org.json.JSONObject
 
@@ -137,6 +138,25 @@ class AuthRepository(
             }
         } catch (t: Throwable) {
             AppResult.Error(t.message ?: "Profile update failed")
+        }
+    }
+
+
+    suspend fun saveFcmToken(token: String): AppResult<Unit> {
+        if (token.isBlank()) return AppResult.Error("FCM token is blank")
+        return when (
+            val result = safeApiCall {
+                api.saveFcmToken(SaveFcmTokenRequest(fcm_token = token))
+            }
+        ) {
+            is AppResult.Error -> result
+            is AppResult.Success -> {
+                if (result.data.ok) {
+                    AppResult.Success(Unit)
+                } else {
+                    AppResult.Error(result.data.error ?: "Failed to save FCM token")
+                }
+            }
         }
     }
 
