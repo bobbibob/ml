@@ -87,7 +87,11 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun selectTab(tab: String) {
-        state = state.copy(selectedTab = tab)
+        state = state.copy(selectedTab = tab, error = null, info = null)
+        when (tab) {
+            "my" -> loadMyTasks()
+            "all" -> loadAllTasks()
+        }
     }
 
     fun refreshAll() {
