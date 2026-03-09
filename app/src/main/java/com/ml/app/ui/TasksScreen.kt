@@ -31,6 +31,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.height
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -84,6 +91,57 @@ private fun reminderPayload(option: ReminderOption?): Triple<String?, Int?, Stri
 }
 
 private fun fmtTaskDateTime(v: String?): String {
+
+@Composable
+private fun SelectedAssigneeHeader(
+    user: UserDto?,
+    modifier: Modifier = Modifier
+) {
+    AnimatedVisibility(
+        visible = user != null,
+        modifier = modifier
+    ) {
+        if (user == null) return@AnimatedVisibility
+        val avatarSize by animateDpAsState(targetValue = 46.dp, label = "selectedAvatarSize")
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            if (!user.photo_url.isNullOrBlank()) {
+                AsyncImage(
+                    model = user.photo_url,
+                    contentDescription = user.display_name,
+                    modifier = Modifier
+                        .size(avatarSize)
+                        .clip(CircleShape)
+                )
+            } else {
+                Button(
+                    onClick = {},
+                    modifier = Modifier.size(avatarSize),
+                    shape = CircleShape,
+                    contentPadding = PaddingValues(0.dp)
+                ) {
+                    Text(user.display_name.take(1).ifBlank { "?" }.uppercase())
+                }
+            }
+
+            Column {
+                Text(
+                    text = user.display_name,
+                    fontWeight = FontWeight.Bold,
+                    color = TextBlack
+                )
+                Text(
+                    text = "Исполнитель",
+                    color = Color.Gray,
+                    style = MaterialTheme.typography.labelSmall
+                )
+            }
+        }
+    }
+}
+
     if (v.isNullOrBlank()) return ""
     return try {
         val dt = OffsetDateTime.parse(v)
@@ -211,6 +269,8 @@ private fun CreateTaskWizard(
     var taskTitle by remember { mutableStateOf("") }
     var taskDescription by remember { mutableStateOf("") }
 
+    val selectedAssigneeUser = state.users.firstOrNull { it.user_id == selectedAssigneeId }
+
     BackHandler {
         onCancel()
     }
@@ -218,6 +278,7 @@ private fun CreateTaskWizard(
     when (step) {
         CreateTaskStep.Assignee -> CreateTaskAssigneeStep(
             users = state.users,
+            selectedUser = selectedAssigneeUser,
             error = state.error,
             info = state.info,
             onCancel = onCancel,
@@ -228,6 +289,7 @@ private fun CreateTaskWizard(
         )
 
         CreateTaskStep.Reminder -> CreateTaskReminderStep(
+            selectedUser = selectedAssigneeUser,
             selected = selectedReminder,
             onCancel = onCancel,
             onChoose = { selectedReminder = it },
@@ -239,6 +301,7 @@ private fun CreateTaskWizard(
         )
 
         CreateTaskStep.Details -> CreateTaskDetailsStep(
+            selectedUser = selectedAssigneeUser,
             title = taskTitle,
             description = taskDescription,
             error = state.error,
@@ -274,11 +337,15 @@ private fun CreateTaskWizard(
 @Composable
 private fun CreateTaskAssigneeStep(
     users: List<UserDto>,
+    selectedUser: UserDto?,
     error: String?,
     info: String?,
     onCancel: () -> Unit,
     onChoose: (String) -> Unit
 ) {
+    val scope = rememberCoroutineScope()
+    var animatingUserId by remember { mutableStateOf<String?>(null) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -292,6 +359,10 @@ private fun CreateTaskAssigneeStep(
             TextButton(onClick = onCancel) {
                 Text("Отмена")
             }
+
+            Spacer(Modifier.weight(1f))
+
+            SelectedAssigneeHeader(user = selectedUser)
         }
 
         Text(
@@ -314,12 +385,40 @@ private fun CreateTaskAssigneeStep(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             items(users) { user ->
+                val isSelected = animatingUserId == user.user_id
+                val hasAnimating = animatingUserId != null
+                val alpha by animateFloatAsState(
+                    targetValue = when {
+                        isSelected -> 1f
+                        hasAnimating -> 0.18f
+                        else -> 1f
+                    },
+                    label = "assigneeAlpha"
+                )
+                val scale by animateFloatAsState(
+                    targetValue = if (isSelected) 1.08f else 1f,
+                    label = "assigneeScale"
+                )
+
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { onChoose(user.user_id) },
+                        .graphicsLayer {
+                            this.alpha = alpha
+                            scaleX = scale
+                            scaleY = scale
+                        }
+                        .clickable(enabled = animatingUserId == null) {
+                            animatingUserId = user.user_id
+                            scope.launch {
+                                delay(260)
+                                onChoose(user.user_id)
+                            }
+                        },
                     shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White)
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (isSelected) Color(0xFFE8DDF7) else Color.White
+                    )
                 ) {
                     Column(
                         modifier = Modifier
@@ -333,13 +432,13 @@ private fun CreateTaskAssigneeStep(
                                 model = user.photo_url,
                                 contentDescription = user.display_name,
                                 modifier = Modifier
-                                    .size(72.dp)
+                                    .size(if (isSelected) 84.dp else 72.dp)
                                     .clip(CircleShape)
                             )
                         } else {
                             Button(
-                                onClick = { onChoose(user.user_id) },
-                                modifier = Modifier.size(72.dp),
+                                onClick = {},
+                                modifier = Modifier.size(if (isSelected) 84.dp else 72.dp),
                                 shape = CircleShape,
                                 contentPadding = PaddingValues(0.dp)
                             ) {
@@ -361,6 +460,7 @@ private fun CreateTaskAssigneeStep(
 
 @Composable
 private fun CreateTaskReminderStep(
+    selectedUser: UserDto?,
     selected: ReminderOption?,
     onCancel: () -> Unit,
     onChoose: (ReminderOption) -> Unit,
@@ -379,7 +479,13 @@ private fun CreateTaskReminderStep(
             TextButton(onClick = onCancel) {
                 Text("Отмена")
             }
+
             Spacer(Modifier.weight(1f))
+
+            SelectedAssigneeHeader(user = selectedUser)
+
+            Spacer(Modifier.weight(1f))
+
             Button(
                 onClick = onNext,
                 enabled = selected != null
@@ -420,6 +526,7 @@ private fun CreateTaskReminderStep(
 
 @Composable
 private fun CreateTaskDetailsStep(
+    selectedUser: UserDto?,
     title: String,
     description: String,
     error: String?,
@@ -442,6 +549,10 @@ private fun CreateTaskDetailsStep(
             TextButton(onClick = onCancel) {
                 Text("Отмена")
             }
+
+            Spacer(Modifier.weight(1f))
+
+            SelectedAssigneeHeader(user = selectedUser)
         }
 
         Text(
