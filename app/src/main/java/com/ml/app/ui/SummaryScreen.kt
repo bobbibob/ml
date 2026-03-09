@@ -901,6 +901,7 @@ private fun AdminLoadingScreen() {
 private fun AdminScreen(
   adminTab: String,
   onTabChange: (String) -> Unit,
+  onBack: () -> Unit,
   users: List<com.ml.app.data.remote.dto.UserDto>,
   tasks: List<com.ml.app.data.remote.dto.TaskDto>,
   history: List<com.ml.app.data.remote.dto.HistoryItemDto>,
