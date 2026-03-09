@@ -73,7 +73,6 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
     var showAdminDialog by remember { mutableStateOf(false) }
     var showAdminScreen by remember { mutableStateOf(false) }
     var adminTab by remember { mutableStateOf("users") }
-    var adminLoading by remember { mutableStateOf(false) }
 
   val state by vm.state.collectAsState()
   val activity = (LocalContext.current as? Activity)
@@ -234,7 +233,6 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
                 Button(
                   onClick = {
                       adminTab = "users"
-                      adminLoading = true
                       showAdminScreen = true
                       tasksVm.loadUsers()
                     },
@@ -335,7 +333,6 @@ Row(verticalAlignment = Alignment.CenterVertically) {
             adminTab = adminTab,
             onTabChange = {
                 adminTab = it
-                adminLoading = true
                 when (it) {
                   "users" -> tasksVm.loadUsers()
                   "tasks" -> tasksVm.loadAllTasks()
@@ -350,10 +347,7 @@ Row(verticalAlignment = Alignment.CenterVertically) {
             onDeleteUser = { userId -> tasksVm.adminDeleteUser(userId) }
           )
         } else if (showAdminScreen) {
-          if (adminLoading) {
-            AdminLoadingScreen()
-          } else {
-            AdminScreen(
+          AdminScreen(
               adminTab = adminTab,
               onTabChange = { adminTab = it },
               users = tasksVm.state.users,
@@ -363,7 +357,6 @@ Row(verticalAlignment = Alignment.CenterVertically) {
               onChangeRole = { userId, role -> tasksVm.adminChangeUserRole(userId, role) },
               onDeleteUser = { userId -> tasksVm.adminDeleteUser(userId) }
             )
-          }
         } else if (showTasks.value) {
           TasksScreen(onBack = { showTasks.value = false }, vm = tasksVm)
         } else if (!state.hasPack) {
