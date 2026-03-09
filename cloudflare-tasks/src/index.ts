@@ -489,6 +489,12 @@ if (path === "/create_task" && request.method === "POST") {
           LIMIT 1
         `).bind(assigneeUserId).first<any>()
 
+        console.log("push_debug", JSON.stringify({
+          assignee_user_id: assigneeUserId,
+          has_token: !!assignee?.fcm_token,
+          title
+        }))
+
         if (assignee?.fcm_token) {
           try {
             await sendPushToToken(
@@ -497,9 +503,12 @@ if (path === "/create_task" && request.method === "POST") {
               "Новая задача",
               title
             )
+            console.log("push_send_ok", assigneeUserId)
           } catch (e) {
             console.log("push_send_error", String(e))
           }
+        } else {
+          console.log("push_send_skipped_no_token", assigneeUserId)
         }
 
         const assignee = await env.DB.prepare(`
@@ -509,6 +518,12 @@ if (path === "/create_task" && request.method === "POST") {
           LIMIT 1
         `).bind(assigneeUserId).first<any>()
 
+        console.log("push_debug", JSON.stringify({
+          assignee_user_id: assigneeUserId,
+          has_token: !!assignee?.fcm_token,
+          title
+        }))
+
         if (assignee?.fcm_token) {
           try {
             await sendPushToToken(
@@ -517,9 +532,12 @@ if (path === "/create_task" && request.method === "POST") {
               "Новая задача",
               title
             )
+            console.log("push_send_ok", assigneeUserId)
           } catch (e) {
             console.log("push_send_error", String(e))
           }
+        } else {
+          console.log("push_send_skipped_no_token", assigneeUserId)
         }
 
         const assignee = await env.DB.prepare(`
@@ -529,6 +547,12 @@ if (path === "/create_task" && request.method === "POST") {
           LIMIT 1
         `).bind(assigneeUserId).first<any>()
 
+        console.log("push_debug", JSON.stringify({
+          assignee_user_id: assigneeUserId,
+          has_token: !!assignee?.fcm_token,
+          title
+        }))
+
         if (assignee?.fcm_token) {
           try {
             await sendPushToToken(
@@ -537,9 +561,12 @@ if (path === "/create_task" && request.method === "POST") {
               "Новая задача",
               title
             )
+            console.log("push_send_ok", assigneeUserId)
           } catch (e) {
             console.log("push_send_error", String(e))
           }
+        } else {
+          console.log("push_send_skipped_no_token", assigneeUserId)
         }
 
         return json({ ok: true, task_id: taskId })
