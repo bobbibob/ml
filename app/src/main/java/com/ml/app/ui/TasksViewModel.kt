@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.firebase.messaging.FirebaseMessaging
 import com.ml.app.core.network.ApiModule
 import com.ml.app.core.result.AppResult
 import com.ml.app.data.remote.dto.HistoryItemDto
@@ -14,7 +15,6 @@ import com.ml.app.data.remote.dto.UserDto
 import com.ml.app.data.repository.AuthRepository
 import com.ml.app.data.repository.TasksRepository
 import com.ml.app.data.session.PrefsSessionStorage
-import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 
@@ -27,7 +27,6 @@ data class TasksUiState(
     val allTasks: List<TaskDto> = emptyList(),
     val users: List<UserDto> = emptyList(),
     val history: List<HistoryItemDto> = emptyList(),
-    val adminPendingUserIds: Set<String> = emptySet(),
     val selectedTab: String = "my"
 )
 
@@ -44,7 +43,6 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
     var state by mutableStateOf(TasksUiState())
         private set
 
-
     private fun syncFcmToken() {
         FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
             if (!task.isSuccessful) return@addOnCompleteListener
@@ -53,6 +51,10 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
                 authRepo.saveFcmToken(token)
             }
         }
+    }
+
+    fun setError(message: String) {
+        state = state.copy(error = message)
     }
 
     fun init() {
@@ -236,9 +238,38 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
 
     fun loadHistory() {
         viewModelScope.launch {
-            when (val res = tasksRepo.getHistory()) {
-                is AppResult.Success -> state = state.copy(history = res.data, error = null)
-                is AppResult.Error -> state = state.copy(error = res.message)
+            state = state.copy(loading = true, error = null, info = null)
+            try {
+                val res = withTimeout(30000) { tasksRepo.getHistory() }
+                when (res) {
+                    is AppResult.Success -> state = state.copy(
+                        loading = false,
+                        history = res.data,
+                        error = null,
+                        info = null
+                    )
+                    is AppResult.Error -> {
+                        val msg = res.message.lowercase()
+                        if ("timeout" in msg) {
+                            state = state.copy(
+                                loading = false,
+                                error = null,
+                                info = "Загрузка в ожидании данных"
+                            )
+                        } else {
+                            state = state.copy(
+                                loading = false,
+                                error = res.message
+                            )
+                        }
+                    }
+                }
+            } catch (_: Exception) {
+                state = state.copy(
+                    loading = false,
+                    error = null,
+                    info = "Загрузка в ожидании данных"
+                )
             }
         }
     }
@@ -258,7 +289,16 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
 
         viewModelScope.launch {
             state = state.copy(loading = true, error = null, info = null)
-            when (val res = tasksRepo.createTask(title, description, assigneeUserId, reminderType, reminderIntervalMinutes, reminderTimeOfDay)) {
+            when (
+                val res = tasksRepo.createTask(
+                    title,
+                    description,
+                    assigneeUserId,
+                    reminderType,
+                    reminderIntervalMinutes,
+                    reminderTimeOfDay
+                )
+            ) {
                 is AppResult.Success -> {
                     state = state.copy(
                         loading = false,
@@ -288,7 +328,6 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
     }
-
 
     fun updateTask(taskId: String, title: String, description: String, assigneeUserId: String) {
         if (title.isBlank() || assigneeUserId.isBlank()) {
@@ -325,7 +364,6 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-
     fun updateOwnDisplayName(displayName: String) {
         if (displayName.isBlank()) {
             state = state.copy(error = "Имя не может быть пустым")
@@ -339,6 +377,7 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
                     state = state.copy(
                         loading = false,
                         currentUser = res.data,
+                        error = null,
                         info = "Имя обновлено"
                     )
                 }
@@ -352,120 +391,67 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-
     fun adminChangeUserRole(userId: String, role: String) {
-        val oldUsers = state.users
-        val updatedUsers = state.users.map { user ->
-            if (user.user_id == userId) user.copy(role = role) else user
-        }
-
-        state = state.copy(
-            users = updatedUsers,
-            adminPendingUserIds = state.adminPendingUserIds + userId,
-            error = null,
-            info = "Сохраняем изменения..."
-        )
-
         viewModelScope.launch {
-            try {
-                val res = withTimeout(8000) { tasksRepo.changeUserRole(userId, role) }
-                when (res) {
-                    is AppResult.Success -> {
+            state = state.copy(loading = true, error = null, info = null)
+            when (val res = tasksRepo.changeUserRole(userId, role)) {
+                is AppResult.Success -> {
+                    state = state.copy(
+                        loading = false,
+                        users = state.users.map {
+                            if (it.user_id == userId) it.copy(role = role) else it
+                        },
+                        error = null,
+                        info = "Роль обновлена"
+                    )
+                }
+                is AppResult.Error -> {
+                    val msg = res.message.lowercase()
+                    if ("timeout" in msg) {
                         state = state.copy(
-                            adminPendingUserIds = state.adminPendingUserIds - userId,
+                            loading = false,
                             error = null,
-                            info = "Роль обновлена"
+                            info = "Загрузка в ожидании данных"
+                        )
+                    } else {
+                        state = state.copy(
+                            loading = false,
+                            error = res.message
                         )
                     }
-                    is AppResult.Error -> {
-                        val msg = res.message.lowercase()
-                        if ("timeout" in msg) {
-                            state = state.copy(
-                                adminPendingUserIds = state.adminPendingUserIds - userId,
-                                error = null,
-                                info = "Изменение отправлено. Обновление может появиться позже"
-                            )
-                        } else {
-                            state = state.copy(
-                                users = oldUsers,
-                                adminPendingUserIds = state.adminPendingUserIds - userId,
-                                error = null,
-                                info = "Не удалось быстро подтвердить изменение"
-                            )
-                        }
-                    }
-                }
-            } catch (_: Exception) {
-                state = state.copy(
-                    adminPendingUserIds = state.adminPendingUserIds - userId,
-                    error = null,
-                    info = "Изменение отправлено. Обновление может появиться позже"
-                )
-            }
-        }
-    }
-                is AppResult.Error -> {
-                    state = state.copy(loading = false, error = res.message)
                 }
             }
         }
     }
 
     fun adminDeleteUser(userId: String) {
-        val oldUsers = state.users
-        state = state.copy(
-            users = state.users.filterNot { it.user_id == userId },
-            adminPendingUserIds = state.adminPendingUserIds + userId,
-            error = null,
-            info = "Удаляем пользователя..."
-        )
-
         viewModelScope.launch {
-            try {
-                val res = withTimeout(8000) { tasksRepo.deleteUser(userId) }
-                when (res) {
-                    is AppResult.Success -> {
+            state = state.copy(loading = true, error = null, info = null)
+            when (val res = tasksRepo.deleteUser(userId)) {
+                is AppResult.Success -> {
+                    state = state.copy(
+                        loading = false,
+                        users = state.users.filterNot { it.user_id == userId },
+                        error = null,
+                        info = "Пользователь удалён"
+                    )
+                }
+                is AppResult.Error -> {
+                    val msg = res.message.lowercase()
+                    if ("timeout" in msg) {
                         state = state.copy(
-                            adminPendingUserIds = state.adminPendingUserIds - userId,
+                            loading = false,
                             error = null,
-                            info = "Пользователь удалён"
+                            info = "Загрузка в ожидании данных"
+                        )
+                    } else {
+                        state = state.copy(
+                            loading = false,
+                            error = res.message
                         )
                     }
-                    is AppResult.Error -> {
-                        val msg = res.message.lowercase()
-                        if ("timeout" in msg) {
-                            state = state.copy(
-                                adminPendingUserIds = state.adminPendingUserIds - userId,
-                                error = null,
-                                info = "Удаление отправлено. Обновление может появиться позже"
-                            )
-                        } else {
-                            state = state.copy(
-                                users = oldUsers,
-                                adminPendingUserIds = state.adminPendingUserIds - userId,
-                                error = null,
-                                info = "Не удалось быстро подтвердить удаление"
-                            )
-                        }
-                    }
-                }
-            } catch (_: Exception) {
-                state = state.copy(
-                    adminPendingUserIds = state.adminPendingUserIds - userId,
-                    error = null,
-                    info = "Удаление отправлено. Обновление может появиться позже"
-                )
-            }
-        }
-    }
-                is AppResult.Error -> {
-                    state = state.copy(loading = false, error = res.message)
                 }
             }
         }
-    }
-
-    fun setError(message: String) {
-        state = state.copy(error = message)
     }
 }
