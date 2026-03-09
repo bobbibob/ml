@@ -68,11 +68,6 @@ interface MlApiService {
 
     @GET("history.php")
     suspend fun getHistory(): HistoryResponse
-
-    @POST("change_role.php")
-    suspend fun changeRole(@Body request: ChangeRoleRequest): ChangeRoleResponse
-
-
     @POST("update_task")
     suspend fun updateTaskRaw(
         @Body body: Map<String, String>
