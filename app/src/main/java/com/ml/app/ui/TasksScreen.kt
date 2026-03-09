@@ -388,12 +388,11 @@ private fun CreateTaskAssigneeStep(
         ) {
             items(users) { user ->
                 val isSelected = animatingUserId == user.user_id
-                val hasAnimating = animatingUserId != null
                 val alpha by animateFloatAsState(
                     targetValue = when {
+                        animatingUserId == null -> 1f
                         isSelected -> 1f
-                        hasAnimating -> 0.18f
-                        else -> 1f
+                        else -> 0.18f
                     },
                     label = "assigneeAlpha"
                 )
