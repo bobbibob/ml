@@ -340,6 +340,7 @@ Row(verticalAlignment = Alignment.CenterVertically) {
                 }
               },
             users = tasksVm.state.users,
+              onBack = { showAdminScreen = false },
             tasks = tasksVm.state.allTasks,
             history = tasksVm.state.history,
             error = tasksVm.state.error ?: tasksVm.state.info,
