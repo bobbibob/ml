@@ -629,7 +629,7 @@ private fun TasksListTab(
     currentUserRole: String,
     onComplete: (String) -> Unit,
     onEdit: () -> Unit,
-    onSaveEdit: (String, String, String, String?, Int?, String?) -> Unit,
+    onSaveEdit: (String, String, String, String, String?, Int?, String?) -> Unit,
     onDelete: (String) -> Unit,
     users: List<UserDto>,
     state: TasksUiState
