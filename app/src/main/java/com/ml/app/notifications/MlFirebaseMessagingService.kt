@@ -5,6 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.pm.PackageManager
 import android.os.Build
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -13,8 +14,15 @@ import com.google.firebase.messaging.RemoteMessage
 
 class MlFirebaseMessagingService : FirebaseMessagingService() {
 
+    override fun onNewToken(token: String) {
+        super.onNewToken(token)
+        Log.d("ML_PUSH", "newToken=$token")
+    }
+
     override fun onMessageReceived(message: RemoteMessage) {
         super.onMessageReceived(message)
+
+        Log.d("ML_PUSH", "onMessageReceived data=${message.data} notification=${message.notification}")
 
         val title = message.notification?.title
             ?: message.data["title"]
