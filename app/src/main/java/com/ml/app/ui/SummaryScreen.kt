@@ -27,6 +27,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.material3.Icon
 import androidx.compose.ui.draw.rotate
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.rememberInfiniteTransition
@@ -341,6 +342,21 @@ Row(verticalAlignment = Alignment.CenterVertically) {
             onChangeRole = { userId, role -> tasksVm.adminChangeUserRole(userId, role) },
             onDeleteUser = { userId -> tasksVm.adminDeleteUser(userId) }
           )
+        } else if (showAdminScreen) {
+          if (adminLoading) {
+            AdminLoadingScreen()
+          } else {
+            AdminScreen(
+              adminTab = adminTab,
+              onTabChange = { adminTab = it },
+              users = tasksVm.state.users,
+              tasks = tasksVm.state.allTasks,
+              history = tasksVm.state.history,
+              error = tasksVm.state.error ?: tasksVm.state.info,
+              onChangeRole = { userId, role -> tasksVm.adminChangeUserRole(userId, role) },
+              onDeleteUser = { userId -> tasksVm.adminDeleteUser(userId) }
+            )
+          }
         } else if (showTasks.value) {
           TasksScreen(onBack = { showTasks.value = false }, vm = tasksVm)
         } else if (!state.hasPack) {
