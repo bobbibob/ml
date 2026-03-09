@@ -5,6 +5,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -78,6 +80,16 @@ private val ReminderOptions = listOf(
     ReminderOption("evening", "Только вечером")
 )
 
+
+
+private fun cleanTaskDescriptionForEdit(value: String?): String {
+    if (value.isNullOrBlank()) return ""
+    return value
+        .lines()
+        .filterNot { it.trim().startsWith("Напоминание:", ignoreCase = true) }
+        .joinToString("\n")
+        .trim()
+}
 
 private fun reminderPayload(option: ReminderOption?): Triple<String?, Int?, String?> {
     return when (option?.key) {
@@ -783,7 +795,7 @@ private fun TasksListTab(
 
     editTask?.let { task ->
         var title by remember(task.task_id) { mutableStateOf(task.title) }
-        var description by remember(task.task_id) { mutableStateOf(task.description ?: "") }
+        var description by remember(task.task_id) { mutableStateOf(cleanTaskDescriptionForEdit(task.description)) }
         var assigneeUserId by remember(task.task_id) { mutableStateOf(task.assignee_user_id) }
         var selectedReminder by remember(task.task_id) {
             mutableStateOf<ReminderOption?>(
