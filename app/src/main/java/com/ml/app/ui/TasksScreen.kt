@@ -785,6 +785,7 @@ private fun TasksListTab(
         var title by remember(task.task_id) { mutableStateOf(task.title) }
         var description by remember(task.task_id) { mutableStateOf(task.description ?: "") }
         var assigneeUserId by remember(task.task_id) { mutableStateOf(task.assignee_user_id) }
+        var selectedReminder by remember(task.task_id) { mutableStateOf(reminderOptionFromTask(task)) }
 
         AlertDialog(
             onDismissRequest = { editTask = null },
