@@ -932,8 +932,7 @@ private fun EditTaskWizard(
                                     )
                                 ) {
                                     Text(
-                                        text = "${user.display_name}
-(${user.email})",
+                                        text = "${user.display_name}\n(${user.email})",
                                         modifier = Modifier.padding(14.dp),
                                         fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
                                     )
