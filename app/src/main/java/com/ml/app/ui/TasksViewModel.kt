@@ -92,14 +92,12 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
         when (tab) {
             "my" -> loadMyTasks()
             "all" -> if (user?.role == "plus" || user?.role == "admin") loadAllTasks()
-            "create" -> loadUsers()
         }
     }
 
     fun refreshAll() {
         val user = state.currentUser ?: return
         when (state.selectedTab) {
-            "create" -> loadUsers()
             "all" -> if (user.role == "plus" || user.role == "admin") loadAllTasks() else loadMyTasks()
             else -> loadMyTasks()
         }

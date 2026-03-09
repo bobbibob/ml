@@ -161,7 +161,12 @@ private fun CreateTaskTab(vm: TasksViewModel) {
         )
 
         Button(
-            onClick = { assigneeExpanded = true },
+            onClick = {
+                if (state.users.isEmpty()) {
+                    vm.loadUsers()
+                }
+                assigneeExpanded = true
+            },
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(20.dp)
         ) {
