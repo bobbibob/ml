@@ -568,63 +568,6 @@ if (path === "/create_task" && request.method === "POST") {
           console.log("push_send_skipped_no_token", assigneeUserId)
         }
 
-        const assignee = await env.DB.prepare(`
-          SELECT display_name, fcm_token
-          FROM users
-          WHERE user_id = ?
-          LIMIT 1
-        `).bind(assigneeUserId).first<any>()
-
-        console.log("push_debug", JSON.stringify({
-          assignee_user_id: assigneeUserId,
-          has_token: !!assignee?.fcm_token,
-          title
-        }))
-
-        if (assignee?.fcm_token) {
-          try {
-            await sendPushToToken(
-              env,
-              assignee.fcm_token,
-              "Новая задача",
-              title
-            )
-            console.log("push_send_ok", assigneeUserId)
-          } catch (e) {
-            console.log("push_send_error", String(e))
-          }
-        } else {
-          console.log("push_send_skipped_no_token", assigneeUserId)
-        }
-
-        const assignee = await env.DB.prepare(`
-          SELECT display_name, fcm_token
-          FROM users
-          WHERE user_id = ?
-          LIMIT 1
-        `).bind(assigneeUserId).first<any>()
-
-        console.log("push_debug", JSON.stringify({
-          assignee_user_id: assigneeUserId,
-          has_token: !!assignee?.fcm_token,
-          title
-        }))
-
-        if (assignee?.fcm_token) {
-          try {
-            await sendPushToToken(
-              env,
-              assignee.fcm_token,
-              "Новая задача",
-              title
-            )
-            console.log("push_send_ok", assigneeUserId)
-          } catch (e) {
-            console.log("push_send_error", String(e))
-          }
-        } else {
-          console.log("push_send_skipped_no_token", assigneeUserId)
-        }
 
         return json({ ok: true, task_id: taskId })
       }
