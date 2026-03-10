@@ -352,7 +352,8 @@ Row(verticalAlignment = Alignment.CenterVertically) {
             history = tasksVm.state.history,
             error = tasksVm.state.error ?: tasksVm.state.info,
             onChangeRole = { userId, role -> tasksVm.adminChangeUserRole(userId, role) },
-            onDeleteUser = { userId -> tasksVm.adminDeleteUser(userId) }
+            onDeleteUser = { userId -> tasksVm.adminDeleteUser(userId) },
+            onSendPush = { userId, title, body -> tasksVm.sendPush(userId, title, body) }
           )
         } else if (showAdminScreen) {
           AdminScreen(
@@ -364,7 +365,8 @@ Row(verticalAlignment = Alignment.CenterVertically) {
               history = tasksVm.state.history,
               error = tasksVm.state.error ?: tasksVm.state.info,
               onChangeRole = { userId, role -> tasksVm.adminChangeUserRole(userId, role) },
-              onDeleteUser = { userId -> tasksVm.adminDeleteUser(userId) }
+              onDeleteUser = { userId -> tasksVm.adminDeleteUser(userId) },
+              onSendPush = { userId, title, body -> tasksVm.sendPush(userId, title, body) }
             )
         } else if (showTasks.value) {
           TasksScreen(onBack = { showTasks.value = false }, vm = tasksVm)
@@ -916,7 +918,8 @@ private fun AdminScreen(
   history: List<com.ml.app.data.remote.dto.HistoryItemDto>,
   error: String?,
   onChangeRole: (String, String) -> Unit,
-  onDeleteUser: (String) -> Unit
+  onDeleteUser: (String) -> Unit,
+  onSendPush: (String?, String, String) -> Unit
 ) {
   Column(
     modifier = Modifier
@@ -955,11 +958,90 @@ private fun AdminScreen(
     when (adminTab) {
       "tasks" -> AdminTasksTab(tasks)
       "history" -> AdminHistoryTab(history)
+      "push" -> AdminPushTab(
+        users = users,
+        onSendPush = onSendPush
+      )
       else -> AdminUsersTab(
         users = users,
         onChangeRole = onChangeRole,
         onDeleteUser = onDeleteUser
       )
+    }
+  }
+}
+
+
+@Composable
+private fun AdminPushTab(
+  users: List<com.ml.app.data.remote.dto.UserDto>,
+  onSendPush: (String?, String, String) -> Unit
+) {
+  var expanded by remember { mutableStateOf(false) }
+  var selectedUserId by remember { mutableStateOf<String?>(null) }
+  var selectedLabel by remember { mutableStateOf("Всем") }
+  var title by remember { mutableStateOf("") }
+  var body by remember { mutableStateOf("") }
+
+  Column(
+    verticalArrangement = Arrangement.spacedBy(12.dp)
+  ) {
+    Box {
+      Button(onClick = { expanded = true }) {
+        Text("Кому: $selectedLabel")
+      }
+
+      DropdownMenu(
+        expanded = expanded,
+        onDismissRequest = { expanded = false }
+      ) {
+        DropdownMenuItem(
+          text = { Text("Всем") },
+          onClick = {
+            selectedUserId = null
+            selectedLabel = "Всем"
+            expanded = false
+          }
+        )
+
+        users.forEach { u ->
+          val label = u.display_name.ifBlank { u.email }
+          DropdownMenuItem(
+            text = { Text(label) },
+            onClick = {
+              selectedUserId = u.user_id
+              selectedLabel = label
+              expanded = false
+            }
+          )
+        }
+      }
+    }
+
+    OutlinedTextField(
+      value = title,
+      onValueChange = { title = it },
+      modifier = Modifier.fillMaxWidth(),
+      label = { Text("Заголовок") },
+      singleLine = true
+    )
+
+    OutlinedTextField(
+      value = body,
+      onValueChange = { body = it },
+      modifier = Modifier.fillMaxWidth(),
+      label = { Text("Текст уведомления") },
+      minLines = 4
+    )
+
+    Button(
+      onClick = {
+        onSendPush(selectedUserId, title.trim(), body.trim())
+      },
+      enabled = title.isNotBlank() && body.isNotBlank(),
+      modifier = Modifier.fillMaxWidth()
+    ) {
+      Text("Отправить уведомление")
     }
   }
 }

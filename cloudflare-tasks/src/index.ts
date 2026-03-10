@@ -435,6 +435,63 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
         return json({ ok: true, user_id: userId, role })
       }
 
+
+
+      if (path === "/send_push" && request.method === "POST") {
+        const user = await getCurrentUser(request, env)
+        if (!user) return json({ ok: false, error: "unauthorized" }, 401)
+        if (user.role !== "admin") return json({ ok: false, error: "forbidden" }, 403)
+
+        const body = await request.json<{ user_id?: string; title?: string; body?: string }>().catch(() => null)
+        const userId = String(body?.user_id || "").trim()
+        const title = String(body?.title || "").trim()
+        const messageBody = String(body?.body || "").trim()
+
+        if (!title || !messageBody) {
+          return json({ ok: false, error: "title and body required" }, 400)
+        }
+
+        let targets: Array<{ user_id: string; fcm_token: string | null }> = []
+
+        if (userId) {
+          const target = await env.DB.prepare(`
+            SELECT user_id, fcm_token
+            FROM users
+            WHERE user_id = ?
+            LIMIT 1
+          `).bind(userId).first<any>()
+
+          if (target) targets = [target]
+        } else {
+          const rows = await env.DB.prepare(`
+            SELECT user_id, fcm_token
+            FROM users
+            WHERE fcm_token IS NOT NULL AND TRIM(fcm_token) <> ''
+          `).all<any>()
+          targets = (rows.results || []) as Array<{ user_id: string; fcm_token: string | null }>
+        }
+
+        let sent = 0
+
+        for (const target of targets) {
+          if (!target?.fcm_token) continue
+          try {
+            await sendPushToToken(env, target.fcm_token, title, messageBody)
+            sent++
+          } catch (e) {
+            console.log("admin_push_error", target.user_id, String(e))
+          }
+        }
+
+        await logAction(env, "push", userId || "all", "push_sent", user.user_id, {
+          title,
+          body: messageBody,
+          sent
+        })
+
+        return json({ ok: true, sent })
+      }
+
 if (path === "/create_task" && request.method === "POST") {
         const user = await getCurrentUser(request, env)
         if (!user) return json({ ok: false, error: "unauthorized" }, 401)

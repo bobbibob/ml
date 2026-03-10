@@ -97,4 +97,9 @@ interface MlApiService {
     suspend fun deleteUserRaw(
         @Body body: Map<String, String>
     ): ResponseBody
+
+    @POST("send_push")
+    suspend fun sendPushRaw(
+        @Body body: Map<String, String>
+    ): ResponseBody
 }

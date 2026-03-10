@@ -99,6 +99,27 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun sendPush(userId: String?, title: String, body: String) {
+        viewModelScope.launch {
+            state = state.copy(loading = true, error = null, info = null)
+            when (val res = tasksRepo.sendPush(userId, title, body)) {
+                is AppResult.Success -> {
+                    state = state.copy(
+                        loading = false,
+                        error = null,
+                        info = res.data
+                    )
+                }
+                is AppResult.Error -> {
+                    state = state.copy(
+                        loading = false,
+                        error = res.message
+                    )
+                }
+            }
+        }
+    }
+
     fun logout() {
         authRepo.logout()
         state = TasksUiState()

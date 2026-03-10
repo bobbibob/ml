@@ -280,4 +280,38 @@ class TasksRepository(
             AppResult.Error(t.message ?: "Ошибка удаления пользователя")
         }
     }
+
+    suspend fun sendPush(
+        userId: String?,
+        title: String,
+        body: String
+    ): AppResult<String> {
+        return when (
+            val result = safeApiCall {
+                api.sendPushRaw(
+                    mapOf(
+                        "user_id" to (userId ?: ""),
+                        "title" to title,
+                        "body" to body
+                    )
+                )
+            }
+        ) {
+            is AppResult.Error -> result
+            is AppResult.Success<*> -> {
+                val raw = (result.data as okhttp3.ResponseBody).string()
+                val json = JSONObject(raw)
+                if (json.optBoolean("ok")) {
+                    val sent = json.optInt("sent", 0)
+                    AppResult.Success(
+                        if (sent > 0) "Уведомление отправлено: $sent"
+                        else "Уведомление отправлено"
+                    )
+                } else {
+                    AppResult.Error(json.optString("error", "Не удалось отправить уведомление"))
+                }
+            }
+        }
+    }
+
 }
