@@ -287,6 +287,8 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
         }
   }
 
+@Composable
+private fun DetailsList(
   rows: List<BagDayRow>,
   cardTypes: Map<String, CardType>
 ) {
