@@ -22,9 +22,12 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          wrangler d1 execute ml_tasks --remote --command "
+          wrangler d1 execute ml_tasks --remote --config wrangler.jsonc --command "
           SELECT user_id, email, display_name, role,
-                 CASE WHEN fcm_token IS NULL OR TRIM(fcm_token) = '' THEN 'EMPTY' ELSE SUBSTR(fcm_token,1,24) || '...' END AS fcm_token_short,
+                 CASE
+                   WHEN fcm_token IS NULL OR TRIM(fcm_token) = '' THEN 'EMPTY'
+                   ELSE SUBSTR(fcm_token, 1, 32) || '...'
+                 END AS fcm_token_short,
                  updated_at
           FROM users
           WHERE display_name LIKE '%Robert%'
@@ -32,4 +35,4 @@ jobs:
              OR email LIKE '%biktirob88%'
              OR email LIKE '%meeko.brasil2025%'
              OR email LIKE '%bboobb666%';
-          " --config wrangler.jsonc
+          "
