@@ -303,9 +303,15 @@ class TasksRepository(
                 val json = JSONObject(raw)
                 if (json.optBoolean("ok")) {
                     val sent = json.optInt("sent", 0)
+                    val debug = json.optString("fcm_debug", "")
                     AppResult.Success(
-                        if (sent > 0) "Уведомление отправлено: $sent"
-                        else "Уведомление отправлено"
+                        buildString {
+                            append(if (sent > 0) "Уведомление отправлено: $sent" else "Уведомление отправлено")
+                            if (debug.isNotBlank()) {
+                                append("\n")
+                                append(debug)
+                            }
+                        }
                     )
                 } else {
                     AppResult.Error(json.optString("error", "Не удалось отправить уведомление"))
