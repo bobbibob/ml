@@ -3,7 +3,13 @@ name: Android CI
 on:
   push:
     branches: [ "main", "stable_build" ]
+    paths-ignore:
+      - "cloudflare-tasks/**"
+      - ".github/workflows/deploy-worker.yml"
   pull_request:
+    paths-ignore:
+      - "cloudflare-tasks/**"
+      - ".github/workflows/deploy-worker.yml"
 
 jobs:
   build:
