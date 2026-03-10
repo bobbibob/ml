@@ -256,6 +256,11 @@ async function sendPushToToken(
       }),
     }
   )
+    const debugText = await resp.text()
+    console.log("FCM_DEBUG_RESPONSE", debugText)
+    if (!resp.ok) {
+      throw new Error("fcm_send_failed: " + debugText)
+    }
 
   if (!resp.ok) {
     const text = await resp.text()
