@@ -243,6 +243,15 @@ async function sendPushToToken(
             title,
             body,
           },
+          android: {
+            priority: "high",
+            notification: {
+              channel_id: "ml_tasks_channel",
+              sound: "default",
+              title,
+              body,
+            },
+          },
         },
       }),
     }
