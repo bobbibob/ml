@@ -270,7 +270,7 @@ async function sendPushToToken(
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    if (request.method === "OPTIONS") return json({ ok: true })
+    if (request.method === "OPTIONS") return json({ ok: true, fcm_debug: debugText })
 
     const url = new URL(request.url)
     const path = url.pathname
@@ -406,7 +406,7 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
           WHERE user_id = ?
         `).bind(fcmToken, nowIso(), user.user_id).run()
 
-        return json({ ok: true })
+        return json({ ok: true, fcm_debug: debugText })
       }
 
       if (path === "/users_list" && request.method === "GET") {
