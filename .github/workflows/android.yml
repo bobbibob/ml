@@ -74,3 +74,25 @@ jobs:
           sqlite3 testdata/data.sqlite ".tables"
           echo "svodka rows:"
           sqlite3 testdata/data.sqlite "SELECT COUNT(*) FROM svodka;"
+
+      - name: Show users with FCM token from D1
+        working-directory: cloudflare-tasks
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npm install -g wrangler@4.71.0
+          wrangler d1 execute ml_tasks --remote --config wrangler.jsonc --command "
+          SELECT user_id, email, display_name, role,
+                 CASE
+                   WHEN fcm_token IS NULL OR TRIM(fcm_token) = '' THEN 'EMPTY'
+                   ELSE SUBSTR(fcm_token, 1, 32) || '...'
+                 END AS fcm_token_short,
+                 updated_at
+          FROM users
+          WHERE display_name LIKE '%Robert%'
+             OR display_name LIKE '%bobbi%'
+             OR email LIKE '%biktirob88%'
+             OR email LIKE '%meeko.brasil2025%'
+             OR email LIKE '%bboobb666%';
+          "
