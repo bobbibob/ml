@@ -235,10 +235,6 @@ async function sendPushToToken(
       body: JSON.stringify({
         message: {
           token,
-          notification: {
-            title,
-            body,
-          },
           data: {
             title,
             body,
@@ -248,22 +244,17 @@ async function sendPushToToken(
             notification: {
               channel_id: "ml_tasks_channel",
               sound: "default",
-              title,
-              body,
             },
           },
         },
       }),
     }
   )
-    const debugText = await resp.text()
-    console.log("FCM_DEBUG_RESPONSE", debugText)
-    if (!resp.ok) {
-      throw new Error("fcm_send_failed: " + debugText)
-    }
+
+  const text = await resp.text()
+  console.log("FCM_RESPONSE", text)
 
   if (!resp.ok) {
-    const text = await resp.text()
     throw new Error(`fcm_send_failed: ${text}`)
   }
 }
