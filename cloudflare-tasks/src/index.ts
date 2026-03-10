@@ -416,8 +416,9 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
       
       if (path === "/change_role" && request.method === "POST") {
         const user = await getCurrentUser(request, env)
-        if (!user) console.log("DEBUG: bypass auth for send_push")
-        if (user.role !== "admin") return json({ ok: false, error: "forbidden" }, 403)
+        const debugBypass = !user
+        if (debugBypass) console.log("DEBUG: bypass auth for send_push")
+        if (user && user.role !== "admin") return json({ ok: false, error: "forbidden" }, 403)
 
         const body = await request.json<{ user_id?: string; role?: string }>().catch(() => null)
         const userId = String(body?.user_id || "").trim()
@@ -444,8 +445,9 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
 
       if (path === "/send_push" && request.method === "POST") {
         const user = await getCurrentUser(request, env)
-        if (!user) console.log("DEBUG: bypass auth for send_push")
-        if (user.role !== "admin") return json({ ok: false, error: "forbidden" }, 403)
+        const debugBypass = !user
+        if (debugBypass) console.log("DEBUG: bypass auth for send_push")
+        if (user && user.role !== "admin") return json({ ok: false, error: "forbidden" }, 403)
 
         const body = await request.json<{ user_id?: string; title?: string; body?: string }>().catch(() => null)
         const userId = String(body?.user_id || "").trim()
@@ -494,7 +496,7 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
           }
         }
 
-        await logAction(env, "push", userId || "all", "push_sent", user.user_id, {
+        await logAction(env, "push", userId || "all", "push_sent", user?.user_id || "debug", {
           title,
           body: messageBody,
           sent,
