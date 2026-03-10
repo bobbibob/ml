@@ -945,6 +945,11 @@ private fun AdminScreen(
         onClick = { onTabChange("history") },
         modifier = Modifier.weight(1f)
       ) { Text("История") }
+
+      Button(
+        onClick = { onTabChange("push") },
+        modifier = Modifier.weight(1f)
+      ) { Text("Push") }
     }
 
     error?.takeIf { it.isNotBlank() }?.let {
