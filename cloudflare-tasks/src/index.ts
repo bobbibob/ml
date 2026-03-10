@@ -477,24 +477,39 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
         }
 
         let sent = 0
+        const errors: string[] = []
 
         for (const target of targets) {
-          if (!target?.fcm_token) continue
+          if (!target?.fcm_token) {
+            errors.push(`${target?.user_id || "unknown"}: empty_token`)
+            continue
+          }
           try {
             await sendPushToToken(env, target.fcm_token, title, messageBody)
             sent++
           } catch (e) {
-            console.log("admin_push_error", target.user_id, String(e))
+            const msg = String(e)
+            console.log("admin_push_error", target.user_id, msg)
+            errors.push(`${target.user_id}: ${msg}`)
           }
         }
 
         await logAction(env, "push", userId || "all", "push_sent", user.user_id, {
           title,
           body: messageBody,
-          sent
+          sent,
+          errors
         })
 
-        return json({ ok: true, sent })
+        if (sent <= 0) {
+          return json({
+            ok: false,
+            error: errors.length ? errors.join(" | ") : "push_not_delivered",
+            sent
+          }, 500)
+        }
+
+        return json({ ok: true, sent, errors })
       }
 
 if (path === "/create_task" && request.method === "POST") {
