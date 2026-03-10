@@ -7,29 +7,29 @@ jobs:
   query:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: "20"
 
       - name: Install Wrangler
-        run: npm install -g wrangler
+        run: npm install -g wrangler@4.71.0
 
-      - name: Show admins
+      - name: Show users with FCM token
         working-directory: cloudflare-tasks
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          npx wrangler d1 execute ml_tasks --remote --command "SELECT email, display_name, role FROM users WHERE role='admin';"
-
-      - name: Show selected users with FCM token
-        working-directory: cloudflare-tasks
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          npx wrangler d1 execute ml_tasks --remote --command "SELECT user_id, email, display_name, role, fcm_token, updated_at FROM users WHERE display_name LIKE '%Robert%' OR email LIKE '%biktirob88%' OR email LIKE '%meeko.brasil2025%';"
+          wrangler d1 execute ml_tasks --remote --command "
+          SELECT user_id, email, display_name, role,
+                 CASE WHEN fcm_token IS NULL OR TRIM(fcm_token) = '' THEN 'EMPTY' ELSE SUBSTR(fcm_token,1,24) || '...' END AS fcm_token_short,
+                 updated_at
+          FROM users
+          WHERE display_name LIKE '%Robert%'
+             OR display_name LIKE '%bobbi%'
+             OR email LIKE '%biktirob88%'
+             OR email LIKE '%meeko.brasil2025%'
+             OR email LIKE '%bboobb666%';
+          " --config wrangler.jsonc
