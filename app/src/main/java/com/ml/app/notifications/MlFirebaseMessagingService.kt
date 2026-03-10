@@ -11,12 +11,34 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
+import com.ml.app.core.network.ApiModule
+import com.ml.app.data.repository.AuthRepository
+import com.ml.app.data.session.PrefsSessionStorage
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class MlFirebaseMessagingService : FirebaseMessagingService() {
 
     override fun onNewToken(token: String) {
         super.onNewToken(token)
         Log.d("ML_PUSH", "newToken=$token")
+
+        val session = PrefsSessionStorage(applicationContext)
+        val api = ApiModule.createApi(
+            baseUrl = "https://ml-tasks-api.bboobb666.workers.dev/",
+            sessionStorage = session
+        )
+        val authRepo = AuthRepository(api, session)
+
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                authRepo.saveFcmToken(token)
+                Log.d("ML_PUSH", "token synced")
+            } catch (e: Exception) {
+                Log.e("ML_PUSH", "token sync failed: ${e.message}", e)
+            }
+        }
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
@@ -42,7 +64,7 @@ class MlFirebaseMessagingService : FirebaseMessagingService() {
             val channel = NotificationChannel(
                 channelId,
                 "Задачи ML",
-                NotificationManager.IMPORTANCE_DEFAULT
+                NotificationManager.IMPORTANCE_HIGH
             )
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(channel)
@@ -53,7 +75,6 @@ class MlFirebaseMessagingService : FirebaseMessagingService() {
                 this,
                 Manifest.permission.POST_NOTIFICATIONS
             ) == PackageManager.PERMISSION_GRANTED
-
             if (!granted) return
         }
 
@@ -62,9 +83,11 @@ class MlFirebaseMessagingService : FirebaseMessagingService() {
             .setContentTitle(title)
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .build()
 
-        NotificationManagerCompat.from(this).notify((System.currentTimeMillis() % Int.MAX_VALUE).toInt(), notification)
+        NotificationManagerCompat.from(this)
+            .notify((System.currentTimeMillis() % Int.MAX_VALUE).toInt(), notification)
     }
 }
