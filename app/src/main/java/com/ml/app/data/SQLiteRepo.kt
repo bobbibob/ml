@@ -38,13 +38,14 @@ class SQLiteRepo(private val context: Context) {
         """
           SELECT s.date AS date,
                  s.bag_id AS bag_id,
-                 s.bag_id AS bag_name,
+                   COALESCE(b.bag_name, s.bag_id) AS bag_name,
                  SUM(COALESCE(s.orders,0)) AS orders,
                  SUM(COALESCE(s.rk_spend,0) + COALESCE(s.ig_spend,0)) AS spend,
                  MAX(s.price) AS price,
                  MAX(COALESCE(s.cogs,0)) AS cogs
           FROM svodka s
-                    WHERE s.date IS NOT NULL AND s.date != ''
+            FROM svodka s
+            LEFT JOIN bags b ON b.bag_id = s.bag_id
             AND s.bag_id IS NOT NULL AND s.bag_id != ''
             ${totalColorWhere()}
           GROUP BY s.date, s.bag_id
@@ -114,7 +115,7 @@ class SQLiteRepo(private val context: Context) {
       db.rawQuery(
         """
           SELECT s.bag_id AS bag_id,
-                 s.bag_id AS bag_name,
+                   COALESCE(b.bag_name, s.bag_id) AS bag_name,
                  MAX(s.price) AS price,
                  MAX(s.hypothesis) AS hypothesis,
                  SUM(COALESCE(s.orders,0)) AS orders,
@@ -128,7 +129,8 @@ class SQLiteRepo(private val context: Context) {
                  SUM(COALESCE(s.ig_spend,0)) AS ig_spend,
                  SUM(COALESCE(s.ig_impressions,0)) AS ig_impressions,
                  SUM(COALESCE(s.ig_clicks,0)) AS ig_clicks
-          FROM svodka s
+            FROM svodka s
+            LEFT JOIN bags b ON b.bag_id = s.bag_id
                     WHERE s.date=? AND s.bag_id IS NOT NULL AND s.bag_id != ''
             ${totalColorWhere()}
           GROUP BY s.bag_id
