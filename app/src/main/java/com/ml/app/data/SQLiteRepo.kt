@@ -12,6 +12,10 @@ import kotlin.math.roundToInt
 class SQLiteRepo(private val context: Context) {
 
   private fun openDbReadOnly(): SQLiteDatabase {
+    val merged = PackDbSync.mergedDbFile(context)
+    if (!merged.exists() || merged.length() == 0L) {
+      runCatching { PackDbSync.refreshMergedDb(context) }
+    }
     val dbFile: File = PackDbSync.dbFileToUse(context)
     return SQLiteDatabase.openDatabase(dbFile.absolutePath, null, SQLiteDatabase.OPEN_READONLY)
   }
@@ -23,7 +27,7 @@ class SQLiteRepo(private val context: Context) {
   }
 
   // svodka has per-color rows + TOTAL rows. For per-bag aggregates use only TOTAL rows.
-  private fun totalColorWhere(): String = "AND s.color IN ('__TOTAL__','TOTAL')"
+  private fun totalColorWhere(): String = ""
 
   suspend fun loadTimeline(limitDays: Int = 180): List<DaySummary> = withContext(Dispatchers.IO) {
     openDbReadOnly().use { db ->
@@ -274,6 +278,10 @@ class SQLiteRepo(private val context: Context) {
 
   // --------- USER DATA (merged DB) ----------
   private fun openDbReadWrite(): SQLiteDatabase {
+    val merged = PackDbSync.mergedDbFile(context)
+    if (!merged.exists() || merged.length() == 0L) {
+      runCatching { PackDbSync.refreshMergedDb(context) }
+    }
     val dbFile: File = PackDbSync.dbFileToUse(context)
     return SQLiteDatabase.openDatabase(dbFile.absolutePath, null, SQLiteDatabase.OPEN_READWRITE)
   }
