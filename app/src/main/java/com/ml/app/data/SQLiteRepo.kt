@@ -34,6 +34,7 @@ class SQLiteRepo(private val context: Context) {
       val images = queryImagesByBagId(db)
       val days = ArrayList<DaySummary>()
         val bagNames = queryBagNamesById(db)
+        val bagNames = queryBagNamesById(db)
 
       db.rawQuery(
         """
@@ -110,6 +111,7 @@ class SQLiteRepo(private val context: Context) {
   suspend fun loadForDate(date: String): List<BagDayRow> = withContext(Dispatchers.IO) {
     openDbReadOnly().use { db ->
       val images = queryImagesByBagId(db)
+        val bagNames = queryBagNamesById(db)
       val out = ArrayList<BagDayRow>()
         val bagNames = queryBagNamesById(db)
 
