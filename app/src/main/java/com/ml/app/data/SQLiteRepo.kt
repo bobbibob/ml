@@ -27,7 +27,7 @@ class SQLiteRepo(private val context: Context) {
   }
 
   // svodka has per-color rows + TOTAL rows. For per-bag aggregates use only TOTAL rows.
-  private fun totalColorWhere(): String = ""
+  private fun totalColorWhere(): String = "AND s.color IN ('__TOTAL__','TOTAL')"
 
   suspend fun loadTimeline(limitDays: Int = 180): List<DaySummary> = withContext(Dispatchers.IO) {
     openDbReadOnly().use { db ->
