@@ -118,6 +118,34 @@ object PackDbSync {
     db.execSQL("CREATE INDEX IF NOT EXISTS idx_${T_BAG_USER_COLOR_PRICE}_bag ON $T_BAG_USER_COLOR_PRICE(bag_id);")
   }
 
+
+  private fun columnExists(db: SQLiteDatabase, table: String, column: String): Boolean {
+    return db.rawQuery("PRAGMA table_info(" + table + ")", null).use { c ->
+      val idx = c.getColumnIndex("name")
+      while (c.moveToNext()) {
+        if (idx >= 0 && c.getString(idx) == column) return@use true
+      }
+      false
+    }
+  }
+
+  private fun normalizeSvodkaSchema(db: SQLiteDatabase) {
+    if (!tableExists(db, "svodka")) return
+
+    val hasBagId = columnExists(db, "svodka", "bag_id")
+    val hasBag = columnExists(db, "svodka", "bag")
+
+    if (!hasBagId && hasBag) {
+      db.execSQL("ALTER TABLE svodka ADD COLUMN bag_id TEXT")
+      db.execSQL("UPDATE svodka SET bag_id = bag WHERE bag_id IS NULL OR bag_id = ''")
+    }
+
+    if (columnExists(db, "svodka", "bag_id")) {
+      db.execSQL("CREATE INDEX IF NOT EXISTS idx_svodka_bag_id ON svodka(bag_id)")
+      db.execSQL("CREATE INDEX IF NOT EXISTS idx_svodka_date_bag_id_color ON svodka(date, bag_id, color)")
+    }
+  }
+
   private fun tableExists(db: SQLiteDatabase, name: String): Boolean {
     return db.rawQuery(
       "SELECT 1 FROM sqlite_master WHERE type='table' AND name=? LIMIT 1",
@@ -134,6 +162,7 @@ object PackDbSync {
       try {
         // IMPORTANT: use SAME connection (no nested openDatabase)
         ensureUserTables(toDb)
+        normalizeSvodkaSchema(toDb)
 
         // merge bag_card_type
         if (tableExists(fromDb, T_CARD_TYPE)) {
