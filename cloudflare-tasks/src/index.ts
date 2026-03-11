@@ -443,6 +443,23 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
 
 
 
+      
+      if (path === "/pack_download" && request.method === "GET") {
+        const objectKey = "packs/current/database_pack.zip"
+        const obj = await env.R2.get(objectKey)
+
+        if (!obj) {
+          return json({ ok:false, error:"pack_not_found" },404)
+        }
+
+        return new Response(obj.body, {
+          headers: {
+            "content-type": "application/zip",
+            "content-length": obj.size?.toString() ?? ""
+          }
+        })
+      }
+
       if (path === "/send_push" && request.method === "POST") {
         const user = await getCurrentUser(request, env)
         const debugBypass = !user
