@@ -33,6 +33,7 @@ class SQLiteRepo(private val context: Context) {
     openDbReadOnly().use { db ->
       val images = queryImagesByBagId(db)
       val days = ArrayList<DaySummary>()
+        val bagNames = queryBagNamesById(db)
 
       db.rawQuery(
         """
@@ -79,7 +80,7 @@ class SQLiteRepo(private val context: Context) {
           curDate = date
 
           val bagId = c.getString(iBagId)
-          val bagName = c.getString(iBagName)
+            val bagName = bagNames[bagId] ?: c.getString(iBagName)
           val orders = c.getDouble(iOrders).roundToInt()
           val spend = c.getDouble(iSpend)
           val price = if (c.isNull(iPrice)) null else c.getDouble(iPrice)
@@ -110,6 +111,7 @@ class SQLiteRepo(private val context: Context) {
     openDbReadOnly().use { db ->
       val images = queryImagesByBagId(db)
       val out = ArrayList<BagDayRow>()
+        val bagNames = queryBagNamesById(db)
 
       db.rawQuery(
         """
@@ -153,7 +155,7 @@ class SQLiteRepo(private val context: Context) {
 
         while (c.moveToNext()) {
           val bagId = c.getString(iId)
-          val bagName = c.getString(iName)
+            val bagName = bagNames[bagId] ?: c.getString(iName)
 
           val price = if (c.isNull(iPrice)) null else c.getDouble(iPrice)
           val hyp = if (c.isNull(iHyp)) null else c.getString(iHyp)
@@ -211,6 +213,29 @@ class SQLiteRepo(private val context: Context) {
       out
     }
   }
+
+    fun queryBagNamesById(db: SQLiteDatabase): Map<String, String> {
+      val out = HashMap<String, String>()
+      try {
+        db.rawQuery(
+          """
+          SELECT bag_id, bag_name
+          FROM bags
+          WHERE bag_id IS NOT NULL AND bag_id != ''
+            AND bag_name IS NOT NULL AND bag_name != ''
+          """.trimIndent(),
+          null
+        ).use { c ->
+          val iId = c.getColumnIndexOrThrow("bag_id")
+          val iName = c.getColumnIndexOrThrow("bag_name")
+          while (c.moveToNext()) {
+            out[c.getString(iId)] = c.getString(iName)
+          }
+        }
+      } catch (_: Throwable) {
+      }
+      return out
+    }
 
   fun queryImagesByBagId(db: SQLiteDatabase): Map<String, String?> {
     val out = HashMap<String, String?>()
