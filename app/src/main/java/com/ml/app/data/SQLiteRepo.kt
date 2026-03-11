@@ -38,7 +38,7 @@ class SQLiteRepo(private val context: Context) {
         """
           SELECT s.date AS date,
                  s.bag_id AS bag_id,
-                 s.bag_id AS bag_name,
+                 COALESCE(b.bag_name, s.bag_id) AS bag_name,
                  SUM(COALESCE(s.orders,0)) AS orders,
                  SUM(COALESCE(s.rk_spend,0) + COALESCE(s.ig_spend,0)) AS spend,
                  MAX(s.price) AS price,
@@ -114,7 +114,7 @@ class SQLiteRepo(private val context: Context) {
       db.rawQuery(
         """
           SELECT s.bag_id AS bag_id,
-                 s.bag_id AS bag_name,
+                 COALESCE(b.bag_name, s.bag_id) AS bag_name,
                  MAX(s.price) AS price,
                  MAX(s.hypothesis) AS hypothesis,
                  SUM(COALESCE(s.orders,0)) AS orders,
@@ -536,7 +536,7 @@ class SQLiteRepo(private val context: Context) {
       db.rawQuery(
         """
         SELECT
-          s.bag_id AS bag_name,
+          COALESCE(b.bag_name, s.bag_id) AS bag_name,
           s.hypothesis AS hypothesis,
           s.price AS price,
           s.cogs AS cogs
@@ -561,7 +561,7 @@ class SQLiteRepo(private val context: Context) {
       if (bagName == null) {
         db.rawQuery(
           """
-          SELECT s.bag_id AS bag_name
+          SELECT COALESCE(b.bag_name, s.bag_id) AS bag_name
           FROM svodka s
                     WHERE s.bag_id=?
           LIMIT 1
