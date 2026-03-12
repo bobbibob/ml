@@ -377,6 +377,28 @@ fun refreshTimeline() {
     openDetails(date)
   }
 
+
+  fun syncServerSummaries() {
+    viewModelScope.launch(Dispatchers.IO) {
+      try {
+        _state.value = _state.value.copy(
+          loading = true,
+          status = "Syncing summaries…"
+        )
+        pullRecentDailySummaries()
+        if (_state.value.mode is ScreenMode.Details) {
+          kotlin.runCatching { syncSelectedDateFromServer() }
+        }
+        refreshTimeline()
+      } catch (t: Throwable) {
+        _state.value = _state.value.copy(
+          loading = false,
+          status = "SYNC ERROR: ${t.message}"
+        )
+      }
+    }
+  }
+
   fun refreshDetails() {
     viewModelScope.launch(Dispatchers.IO) {
       try {
@@ -440,6 +462,34 @@ fun refreshTimeline() {
       }
     }
   }
+
+  private suspend fun pullRecentDailySummaries() {
+    val session = PrefsSessionStorage(ctx)
+    if (session.getToken().isNullOrBlank()) return
+
+    val api = ApiModule.createApi(
+      baseUrl = "https://ml-tasks-api.bboobb666.workers.dev/",
+      sessionStorage = session
+    )
+    val syncRepo = DailySummarySyncRepository(api, ctx)
+
+    when (val recent = syncRepo.getRecentSummaryDates(30)) {
+      is com.ml.app.core.result.AppResult.Success -> {
+        for (date in recent.data) {
+          when (val byDate = syncRepo.getDailySummaryByDate(date)) {
+            is com.ml.app.core.result.AppResult.Success -> {
+              repo.applyRemoteDailySummary(date, byDate.data)
+            }
+            is com.ml.app.core.result.AppResult.Error -> {
+            }
+          }
+        }
+      }
+      is com.ml.app.core.result.AppResult.Error -> {
+      }
+    }
+  }
+
   private suspend fun syncSelectedDateFromServer() {
     val session = PrefsSessionStorage(ctx)
     if (session.getToken().isNullOrBlank()) {
