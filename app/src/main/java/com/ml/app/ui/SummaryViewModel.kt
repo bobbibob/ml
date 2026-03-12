@@ -451,7 +451,7 @@ fun refreshTimeline() {
       baseUrl = "https://ml-tasks-api.bboobb666.workers.dev/",
       sessionStorage = session
     )
-    val syncRepo = DailySummarySyncRepository(api)
+    val syncRepo = DailySummarySyncRepository(api, ctx)
     val date = _state.value.selectedDate.toString()
 
     _state.value = _state.value.copy(status = "SYNC start date=$date")

@@ -56,6 +56,11 @@ async function ensureDailySummaryTable(env: Env) {
       UNIQUE(summary_date, bag_id, color)
     )
   `).run()
+
+  try { await env.DB.prepare("ALTER TABLE daily_summary_entries ADD COLUMN price REAL").run() } catch {}
+  try { await env.DB.prepare("ALTER TABLE daily_summary_entries ADD COLUMN cogs REAL").run() } catch {}
+  try { await env.DB.prepare("ALTER TABLE daily_summary_entries ADD COLUMN delivery_fee REAL").run() } catch {}
+  try { await env.DB.prepare("ALTER TABLE daily_summary_entries ADD COLUMN hypothesis TEXT").run() } catch {}
 }
 
 async function ensureReminderColumns(env: Env) {
@@ -558,6 +563,10 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
             ig_spend?: number | null;
             ig_impressions?: number | null;
             ig_clicks?: number | null;
+            price?: number | null;
+            cogs?: number | null;
+            delivery_fee?: number | null;
+            hypothesis?: string | null;
           }>
         }>().catch(() => null)
 
@@ -593,8 +602,9 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
               entry_id, summary_date, bag_id, color, orders,
               rk_enabled, rk_spend, rk_impressions, rk_clicks, rk_stake,
               ig_enabled, ig_spend, ig_impressions, ig_clicks,
+              price, cogs, delivery_fee, hypothesis,
               created_by_user_id, updated_by_user_id, created_at, updated_at, deleted_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
             ON CONFLICT(summary_date, bag_id, color) DO UPDATE SET
               orders=excluded.orders,
               rk_enabled=excluded.rk_enabled,
@@ -606,6 +616,10 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
               ig_spend=excluded.ig_spend,
               ig_impressions=excluded.ig_impressions,
               ig_clicks=excluded.ig_clicks,
+              price=excluded.price,
+              cogs=excluded.cogs,
+              delivery_fee=excluded.delivery_fee,
+              hypothesis=excluded.hypothesis,
               updated_by_user_id=excluded.updated_by_user_id,
               updated_at=excluded.updated_at,
               deleted_at=NULL
@@ -624,6 +638,10 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
             entry?.ig_spend ?? null,
             entry?.ig_impressions ?? null,
             entry?.ig_clicks ?? null,
+            entry?.price ?? null,
+            entry?.cogs ?? null,
+            entry?.delivery_fee ?? null,
+            entry?.hypothesis ?? null,
             createdBy,
             user.user_id,
             now,
@@ -648,6 +666,7 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
             entry_id, summary_date, bag_id, color, orders,
             rk_enabled, rk_spend, rk_impressions, rk_clicks, rk_stake,
             ig_enabled, ig_spend, ig_impressions, ig_clicks,
+            price, cogs, delivery_fee, hypothesis,
             created_by_user_id, updated_by_user_id, created_at, updated_at
           FROM daily_summary_entries
           WHERE summary_date = ? AND deleted_at IS NULL

@@ -394,7 +394,7 @@ fun AddDailySummaryScreen(
                                         baseUrl = "https://ml-tasks-api.bboobb666.workers.dev/",
                                         sessionStorage = session
                                     )
-                                    val syncRepo = DailySummarySyncRepository(api)
+                                    val syncRepo = DailySummarySyncRepository(api, ctx)
 
                                     kotlin.runCatching {
                                         withTimeout(15000) {

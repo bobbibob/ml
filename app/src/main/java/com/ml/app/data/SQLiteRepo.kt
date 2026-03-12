@@ -1063,6 +1063,63 @@ class SQLiteRepo(private val context: Context) {
     }
   }
 
+
+  data class DailySnapshotRow(
+    val price: Double?,
+    val cogs: Double?,
+    val deliveryFee: Double?,
+    val hypothesis: String?
+  )
+
+  suspend fun getLatestSnapshotForBagColor(
+    bagId: String,
+    color: String
+  ): DailySnapshotRow? = withContext(Dispatchers.IO) {
+    openDbReadOnly().use { db ->
+      kotlin.runCatching { db.execSQL("ALTER TABLE svodka ADD COLUMN delivery_fee REAL") }
+
+      val row = db.rawQuery(
+        """
+        SELECT price, cogs, delivery_fee, hypothesis
+        FROM svodka
+        WHERE bag_id=? AND color=? AND (price IS NOT NULL OR cogs IS NOT NULL OR delivery_fee IS NOT NULL OR hypothesis IS NOT NULL)
+        ORDER BY date DESC
+        LIMIT 1
+        """.trimIndent(),
+        arrayOf(bagId, color)
+      ).use { c ->
+        if (c.moveToFirst()) {
+          DailySnapshotRow(
+            price = if (c.isNull(0)) null else c.getDouble(0),
+            cogs = if (c.isNull(1)) null else c.getDouble(1),
+            deliveryFee = if (c.isNull(2)) null else c.getDouble(2),
+            hypothesis = if (c.isNull(3)) null else c.getString(3)
+          )
+        } else null
+      }
+
+      row ?: db.rawQuery(
+        """
+        SELECT price, cogs, delivery_fee, hypothesis
+        FROM svodka
+        WHERE bag_id=? AND color IN ('__TOTAL__','TOTAL') AND (price IS NOT NULL OR cogs IS NOT NULL OR delivery_fee IS NOT NULL OR hypothesis IS NOT NULL)
+        ORDER BY date DESC
+        LIMIT 1
+        """.trimIndent(),
+        arrayOf(bagId)
+      ).use { c ->
+        if (c.moveToFirst()) {
+          DailySnapshotRow(
+            price = if (c.isNull(0)) null else c.getDouble(0),
+            cogs = if (c.isNull(1)) null else c.getDouble(1),
+            deliveryFee = if (c.isNull(2)) null else c.getDouble(2),
+            hypothesis = if (c.isNull(3)) null else c.getString(3)
+          )
+        } else null
+      }
+    }
+  }
+
   suspend fun saveDailySummary(
     date: String,
     bags: List<DailySummaryBagSave>
@@ -1269,29 +1326,8 @@ class SQLiteRepo(private val context: Context) {
           var totalStake: Double? = null
 
           for (entry in bagEntries) {
-            val svodkaFallback = db.rawQuery(
-              """
-              SELECT price, cogs
-              FROM svodka
-              WHERE bag_id=? AND color=?
-                AND (price IS NOT NULL OR cogs IS NOT NULL)
-              ORDER BY date DESC
-              LIMIT 1
-              """.trimIndent(),
-              arrayOf(bagId, entry.color)
-            ).use { c ->
-              if (c.moveToFirst()) {
-                Pair(
-                  if (c.isNull(0)) null else c.getDouble(0),
-                  if (c.isNull(1)) null else c.getDouble(1)
-                )
-              } else {
-                Pair<Double?, Double?>(null, null)
-              }
-            }
-
-            val colorPrice = svodkaFallback.first ?: defaultPrice
-            val colorCogs = svodkaFallback.second ?: defaultCogs
+            val colorPrice = entry.price ?: defaultPrice
+            val colorCogs = entry.cogs ?: defaultCogs
 
             db.execSQL(
               """

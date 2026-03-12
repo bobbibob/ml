@@ -15,6 +15,10 @@ data class DailySummaryEntryDto(
     val ig_spend: Double? = null,
     val ig_impressions: Long? = null,
     val ig_clicks: Long? = null,
+    val price: Double? = null,
+    val cogs: Double? = null,
+    val delivery_fee: Double? = null,
+    val hypothesis: String? = null,
     val created_by_user_id: String? = null,
     val updated_by_user_id: String? = null,
     val created_at: String? = null,
@@ -33,7 +37,11 @@ data class DailySummaryUpsertItemDto(
     val ig_enabled: Boolean = false,
     val ig_spend: Double? = null,
     val ig_impressions: Long? = null,
-    val ig_clicks: Long? = null
+    val ig_clicks: Long? = null,
+    val price: Double? = null,
+    val cogs: Double? = null,
+    val delivery_fee: Double? = null,
+    val hypothesis: String? = null
 )
 
 data class DailySummaryUpsertRequest(
