@@ -27,6 +27,7 @@ import com.ml.app.data.remote.response.BasicOkResponse
 import com.ml.app.data.remote.dto.DailySummaryUpsertResponse
 import com.ml.app.data.remote.dto.DailySummaryUpsertRequest
 import com.ml.app.data.remote.dto.DailySummaryByDateResponse
+import com.ml.app.data.remote.dto.DailySummaryRecentDatesResponse
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
@@ -105,6 +106,11 @@ interface MlApiService {
     suspend fun dailySummaryUpsert(
         @Body body: DailySummaryUpsertRequest
     ): DailySummaryUpsertResponse
+
+    @GET("daily_summary_recent_dates")
+    suspend fun getDailySummaryRecentDates(
+        @retrofit2.http.Query("limit") limit: Int = 30
+    ): DailySummaryRecentDatesResponse
 
     @GET("daily_summary_by_date")
     suspend fun getDailySummaryByDate(

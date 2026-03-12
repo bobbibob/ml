@@ -46,8 +46,23 @@ class SyncManager(
         }
     }
 
+    suspend fun pullRecentDailySummaries(limit: Int = 30) {
+        if (session.getToken().isNullOrBlank()) return
+
+        val syncRepo = DailySummarySyncRepository(api(), ctx)
+        when (val res = syncRepo.getRecentSummaryDates(limit)) {
+            is AppResult.Success -> {
+                for (date in res.data) {
+                    pullDailySummary(date)
+                }
+            }
+            is AppResult.Error -> {}
+        }
+    }
+
     suspend fun fullSync(selectedDate: LocalDate?) {
         pushPendingDailySummary()
+        pullRecentDailySummaries(30)
         selectedDate?.let { pullDailySummary(it.toString()) }
     }
 }

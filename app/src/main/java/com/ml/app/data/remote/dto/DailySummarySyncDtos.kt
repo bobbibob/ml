@@ -62,3 +62,15 @@ data class DailySummaryByDateResponse(
     val entries: List<DailySummaryEntryDto> = emptyList(),
     val error: String? = null
 )
+
+
+data class DailySummaryRecentDateDto(
+    val summary_date: String,
+    val updated_at: String? = null
+)
+
+data class DailySummaryRecentDatesResponse(
+    val ok: Boolean,
+    val dates: List<DailySummaryRecentDateDto> = emptyList(),
+    val error: String? = null
+)

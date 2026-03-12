@@ -70,4 +70,14 @@ class DailySummarySyncRepository(
             }
         }
     }
+
+    suspend fun getRecentSummaryDates(limit: Int = 30): AppResult<List<String>> {
+        return when (val result = safeApiCall { api.getDailySummaryRecentDates(limit) }) {
+            is AppResult.Error -> result
+            is AppResult.Success -> {
+                if (result.data.ok) AppResult.Success(result.data.dates.map { it.summary_date })
+                else AppResult.Error(result.data.error ?: "Failed to load recent dates")
+            }
+        }
+    }
 }
