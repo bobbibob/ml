@@ -202,11 +202,13 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
         val hasHealthyLocal = isLocalPackHealthy()
         // Auto pack update check
         kotlin.runCatching {
-            val remote = r2.headPack()
-            val saved = prefsPack.getString("pack_etag", null)
-            if (saved == null || saved != remote.etag) {
-                downloadAndInstallPack("Updating pack…")
-                prefsPack.edit().putString("pack_etag", remote.etag).apply()
+            kotlinx.coroutines.withTimeout(3000) {
+                val remote = r2.headPack()
+                val saved = prefsPack.getString("pack_etag", null)
+                if (saved == null || saved != remote.etag) {
+                    downloadAndInstallPack("Updating pack…")
+                    prefsPack.edit().putString("pack_etag", remote.etag).apply()
+                }
             }
         }
 
