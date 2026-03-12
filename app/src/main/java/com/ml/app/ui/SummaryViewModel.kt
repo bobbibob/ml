@@ -442,7 +442,10 @@ fun refreshTimeline() {
   }
   private suspend fun syncSelectedDateFromServer() {
     val session = PrefsSessionStorage(ctx)
-    if (session.getToken().isNullOrBlank()) return
+    if (session.getToken().isNullOrBlank()) {
+      _state.value = _state.value.copy(status = "SYNC no session token")
+      return
+    }
 
     val api = ApiModule.createApi(
       baseUrl = "https://ml-tasks-api.bboobb666.workers.dev/",
@@ -451,11 +454,16 @@ fun refreshTimeline() {
     val syncRepo = DailySummarySyncRepository(api)
     val date = _state.value.selectedDate.toString()
 
+    _state.value = _state.value.copy(status = "SYNC start date=$date")
+
     when (val res = syncRepo.getDailySummaryByDate(date)) {
       is com.ml.app.core.result.AppResult.Success -> {
+        _state.value = _state.value.copy(status = "SYNC fetched entries=${res.data.size} date=$date")
         repo.applyRemoteDailySummary(date, res.data)
+        _state.value = _state.value.copy(status = "SYNC applied entries=${res.data.size} date=$date")
       }
       is com.ml.app.core.result.AppResult.Error -> {
+        _state.value = _state.value.copy(status = "SYNC error: ${res.message}")
       }
     }
   }
