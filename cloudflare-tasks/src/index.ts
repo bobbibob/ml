@@ -453,6 +453,15 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
       }
 
 
+      if (path === "/devices_debug" && request.method === "GET") {
+        const rows = await env.DB.prepare(`
+          SELECT user_id, platform, device_name, substr(fcm_token,1,24) AS token_prefix, updated_at
+          FROM user_devices
+          ORDER BY updated_at DESC
+        `).all()
+        return json({ ok: true, devices: rows.results || [] })
+      }
+
       if (path === "/users_list" && request.method === "GET") {
         const user = await getCurrentUser(request, env)
         if (!user) console.log("DEBUG: bypass auth for send_push")
