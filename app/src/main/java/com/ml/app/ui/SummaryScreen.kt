@@ -30,6 +30,10 @@ import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
+
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Close
+
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -631,7 +635,36 @@ private fun TimelineList(
             val net = ProfitCalc.netProfit(b.orders.toDouble(), price, b.spend, b.cogs, null)
 
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-              BagThumb(b.imagePath)
+              
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End
+          ) {
+
+            Icon(
+              imageVector = Icons.Default.Edit,
+              contentDescription = "edit",
+              modifier = Modifier
+                .padding(end = 12.dp)
+                .size(20.dp)
+                .clickable {
+                  vm.openAddDailySummary()
+                }
+            )
+
+            Icon(
+              imageVector = Icons.Default.Close,
+              contentDescription = "delete",
+              tint = Color.Red,
+              modifier = Modifier
+                .size(20.dp)
+                .clickable {
+                }
+            )
+
+          }
+
+BagThumb(b.imagePath)
               Spacer(Modifier.width(10.dp))
               Column(Modifier.weight(1f)) {
                 Text(
