@@ -1088,6 +1088,7 @@ class SQLiteRepo(private val context: Context) {
           val defaultCogs = bagUser.third
 
           var weightedPriceSum = 0.0
+          var weightedCogsSum = 0.0
           var weightedOrders = 0
 
           for ((color, orders) in bag.ordersByColor) {
@@ -1127,8 +1128,13 @@ class SQLiteRepo(private val context: Context) {
               else -> defaultCogs
             }
 
-            if (colorPrice != null && orders > 0) {
-              weightedPriceSum += colorPrice * orders
+            if (orders > 0) {
+              if (colorPrice != null) {
+                weightedPriceSum += colorPrice * orders
+              }
+              if (colorCogs != null) {
+                weightedCogsSum += colorCogs * orders
+              }
               weightedOrders += orders
             }
 
@@ -1149,22 +1155,14 @@ class SQLiteRepo(private val context: Context) {
             )
           }
 
-          val totalCogs = db.rawQuery(
-            """
-            SELECT cogs
-            FROM svodka
-            WHERE bag_id=? AND color='__TOTAL__' AND cogs IS NOT NULL
-            ORDER BY date DESC
-            LIMIT 1
-            """.trimIndent(),
-            arrayOf(bag.bagId)
-          ).use { c ->
-            if (c.moveToFirst() && !c.isNull(0)) c.getDouble(0) else defaultCogs
+          val totalPrice = when {
+            weightedOrders > 0 && weightedPriceSum > 0.0 -> weightedPriceSum / weightedOrders.toDouble()
+            else -> defaultPrice
           }
 
-          val totalPrice = when {
-            weightedOrders > 0 -> weightedPriceSum / weightedOrders.toDouble()
-            else -> defaultPrice
+          val totalCogs = when {
+            weightedOrders > 0 && weightedCogsSum > 0.0 -> weightedCogsSum / weightedOrders.toDouble()
+            else -> defaultCogs
           }
 
           db.execSQL(
@@ -1208,7 +1206,7 @@ class SQLiteRepo(private val context: Context) {
               if (bag.igEnabled) bag.igSpend ?: 0.0 else 0.0,
               if (bag.igEnabled) (bag.igImpressions ?: 0L).toDouble() else 0.0,
               if (bag.igEnabled) (bag.igClicks ?: 0L).toDouble() else 0.0,
-              cogs
+              totalCogs
             )
           )
         }
