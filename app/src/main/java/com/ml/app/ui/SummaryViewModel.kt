@@ -198,53 +198,56 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
 
   fun init() {
     viewModelScope.launch(Dispatchers.IO) {
-      try {
-        val hasHealthyLocal = isLocalPackHealthy()
-        // Auto pack update check
-        kotlin.runCatching {
-            kotlinx.coroutines.withTimeout(3000) {
-                val remote = r2.headPack()
-                val saved = prefsPack.getString("pack_etag", null)
-                if (saved == null || saved != remote.etag) {
-                    downloadAndInstallPack("Updating pack…")
-                    prefsPack.edit().putString("pack_etag", remote.etag).apply()
+        try {
+            val hasHealthyLocal = isLocalPackHealthy()
+            _state.value = _state.value.copy(hasPack = hasHealthyLocal)
+
+            if (hasHealthyLocal) {
+                kotlin.runCatching { PackDbSync.refreshMergedDb(ctx) }
+                _state.value = _state.value.copy(status = "Открываем локальную базу…")
+                refreshTimeline()
+
+                viewModelScope.launch(Dispatchers.IO) {
+                    kotlin.runCatching {
+                        kotlinx.coroutines.withTimeout(3000) {
+                            val remote = r2.headPack()
+                            val saved = prefsPack.getString("pack_etag", null)
+
+                            if (saved == null || saved != remote.etag) {
+                                downloadAndInstallPack("Updating pack…")
+                                prefsPack.edit().putString("pack_etag", remote.etag).apply()
+                            }
+                        }
+                    }
                 }
+
+                return@launch
             }
+
+            clearLocalPack()
+
+            val bundledOk = installBundledPackIfPresent()
+            if (bundledOk) {
+                refreshTimeline()
+            } else {
+                _state.value = _state.value.copy(
+                    loading = false,
+                    hasPack = false,
+                    status = "Нет локальной базы"
+                )
+            }
+        } catch (t: Throwable) {
+            clearLocalPack()
+            _state.value = _state.value.copy(
+                loading = false,
+                hasPack = false,
+                status = "Ошибка запуска: ${t.message}"
+            )
         }
-
-        _state.value = _state.value.copy(hasPack = hasHealthyLocal)
-
-        if (hasHealthyLocal) {
-          kotlin.runCatching { PackDbSync.refreshMergedDb(ctx) }
-          _state.value = _state.value.copy(status = "Открываем локальную базу…")
-          refreshTimeline()
-          return@launch
-        }
-
-        clearLocalPack()
-
-        val bundledOk = installBundledPackIfPresent()
-        if (bundledOk) {
-          refreshTimeline()
-        } else {
-          _state.value = _state.value.copy(
-            loading = false,
-            hasPack = false,
-            status = "Нет локальной базы"
-          )
-        }
-      } catch (t: Throwable) {
-        clearLocalPack()
-        _state.value = _state.value.copy(
-          loading = false,
-          hasPack = false,
-          status = "Ошибка запуска: ${t.message}"
-        )
-      }
     }
-  }
+}
 
-  fun refreshTimeline() {
+fun refreshTimeline() {
     viewModelScope.launch(Dispatchers.IO) {
       try {
         _state.value = _state.value.copy(
