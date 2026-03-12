@@ -38,8 +38,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.ml.app.core.network.ApiModule
-import com.ml.app.data.PackUploadManager
 import com.ml.app.data.SQLiteRepo
+import com.ml.app.data.repository.DailySummarySyncRepository
 import com.ml.app.data.session.PrefsSessionStorage
 import java.time.LocalDate
 import kotlinx.coroutines.CoroutineScope
@@ -389,19 +389,22 @@ fun AddDailySummaryScreen(
                                 onBack()
 
                                 CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                                    val session = PrefsSessionStorage(ctx)
+                                    val api = ApiModule.createApi(
+                                        baseUrl = "https://ml-tasks-api.bboobb666.workers.dev/",
+                                        sessionStorage = session
+                                    )
+                                    val syncRepo = DailySummarySyncRepository(api)
+
                                     kotlin.runCatching {
                                         withTimeout(15000) {
-                                            PackUploadManager.saveUserChangesAndUpload(ctx)
+                                            syncRepo.upsertDailySummary(summaryDate, bags)
                                         }
                                     }
 
                                     if (isNewDay) {
                                         kotlin.runCatching {
                                             withTimeout(10000) {
-                                                val api = ApiModule.createApi(
-                                                    baseUrl = "https://ml-tasks-api.bboobb666.workers.dev/",
-                                                    sessionStorage = PrefsSessionStorage(ctx)
-                                                )
                                                 api.notifyNewSummary(mapOf("date" to summaryDate))
                                             }
                                         }

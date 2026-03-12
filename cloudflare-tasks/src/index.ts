@@ -27,6 +27,37 @@ function json(data: unknown, status = 200): Response {
 }
 
 
+async function ensureDailySummaryTable(env: Env) {
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS daily_summary_entries (
+      entry_id TEXT PRIMARY KEY,
+      summary_date TEXT NOT NULL,
+      bag_id TEXT NOT NULL,
+      color TEXT NOT NULL,
+      orders INTEGER NOT NULL DEFAULT 0,
+
+      rk_enabled INTEGER NOT NULL DEFAULT 0,
+      rk_spend REAL,
+      rk_impressions INTEGER,
+      rk_clicks INTEGER,
+      rk_stake REAL,
+
+      ig_enabled INTEGER NOT NULL DEFAULT 0,
+      ig_spend REAL,
+      ig_impressions INTEGER,
+      ig_clicks INTEGER,
+
+      created_by_user_id TEXT NOT NULL,
+      updated_by_user_id TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      deleted_at TEXT,
+
+      UNIQUE(summary_date, bag_id, color)
+    )
+  `).run()
+}
+
 async function ensureReminderColumns(env: Env) {
   const commands = [
     "ALTER TABLE tasks ADD COLUMN reminder_type TEXT",
@@ -288,7 +319,8 @@ export default {
 
     
           await ensureUserDevicesTable(env)
-await ensureReminderColumns(env)
+await ensureDailySummaryTable(env)
+    await ensureReminderColumns(env)
 try {
       if (path === "/google_login" && request.method === "POST") {
         const body = await request.json<{ id_token?: string }>().catch(() => null)
@@ -507,6 +539,127 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
 
       
       
+      if (path === "/daily_summary_upsert" && request.method === "POST") {
+        const user = await getCurrentUser(request, env)
+        if (!user) return json({ ok: false, error: "unauthorized" }, 401)
+
+        const body = await request.json<{
+          summary_date?: string;
+          entries?: Array<{
+            bag_id?: string;
+            color?: string;
+            orders?: number;
+            rk_enabled?: boolean;
+            rk_spend?: number | null;
+            rk_impressions?: number | null;
+            rk_clicks?: number | null;
+            rk_stake?: number | null;
+            ig_enabled?: boolean;
+            ig_spend?: number | null;
+            ig_impressions?: number | null;
+            ig_clicks?: number | null;
+          }>
+        }>().catch(() => null)
+
+        const summaryDate = String(body?.summary_date || "").trim()
+        const entries = Array.isArray(body?.entries) ? body.entries : []
+
+        if (!summaryDate) return json({ ok: false, error: "summary_date required" }, 400)
+
+        for (const entry of entries) {
+          const bagId = String(entry?.bag_id || "").trim()
+          const color = String(entry?.color || "").trim()
+          if (!bagId || !color) {
+            return json({ ok: false, error: "bag_id and color required" }, 400)
+          }
+
+          const existing = await env.DB.prepare(`
+            SELECT entry_id, created_by_user_id
+            FROM daily_summary_entries
+            WHERE summary_date = ? AND bag_id = ? AND color = ?
+            LIMIT 1
+          `).bind(summaryDate, bagId, color).first<{ entry_id: string; created_by_user_id: string }>()
+
+          if (existing && existing.created_by_user_id !== user.user_id && user.role !== "admin") {
+            return json({ ok: false, error: "forbidden" }, 403)
+          }
+
+          const entryId = existing?.entry_id || randomId("dse")
+          const createdBy = existing?.created_by_user_id || user.user_id
+          const now = nowIso()
+
+          await env.DB.prepare(`
+            INSERT INTO daily_summary_entries (
+              entry_id, summary_date, bag_id, color, orders,
+              rk_enabled, rk_spend, rk_impressions, rk_clicks, rk_stake,
+              ig_enabled, ig_spend, ig_impressions, ig_clicks,
+              created_by_user_id, updated_by_user_id, created_at, updated_at, deleted_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+            ON CONFLICT(summary_date, bag_id, color) DO UPDATE SET
+              orders=excluded.orders,
+              rk_enabled=excluded.rk_enabled,
+              rk_spend=excluded.rk_spend,
+              rk_impressions=excluded.rk_impressions,
+              rk_clicks=excluded.rk_clicks,
+              rk_stake=excluded.rk_stake,
+              ig_enabled=excluded.ig_enabled,
+              ig_spend=excluded.ig_spend,
+              ig_impressions=excluded.ig_impressions,
+              ig_clicks=excluded.ig_clicks,
+              updated_by_user_id=excluded.updated_by_user_id,
+              updated_at=excluded.updated_at,
+              deleted_at=NULL
+          `).bind(
+            entryId,
+            summaryDate,
+            bagId,
+            color,
+            Number(entry?.orders || 0),
+            entry?.rk_enabled ? 1 : 0,
+            entry?.rk_spend ?? null,
+            entry?.rk_impressions ?? null,
+            entry?.rk_clicks ?? null,
+            entry?.rk_stake ?? null,
+            entry?.ig_enabled ? 1 : 0,
+            entry?.ig_spend ?? null,
+            entry?.ig_impressions ?? null,
+            entry?.ig_clicks ?? null,
+            createdBy,
+            user.user_id,
+            now,
+            now
+          ).run()
+        }
+
+        await logAction(env, "daily_summary", summaryDate, "daily_summary_upsert", user.user_id, {
+          summary_date: summaryDate,
+          entries_count: entries.length
+        })
+
+        return json({ ok: true, summary_date: summaryDate, count: entries.length })
+      }
+
+      if (path === "/daily_summary_by_date" && request.method === "GET") {
+        const user = await getCurrentUser(request, env)
+        if (!user) return json({ ok: false, error: "unauthorized" }, 401)
+
+        const summaryDate = String(url.searchParams.get("date") || "").trim()
+        if (!summaryDate) return json({ ok: false, error: "date required" }, 400)
+
+        const rows = await env.DB.prepare(`
+          SELECT
+            entry_id, summary_date, bag_id, color, orders,
+            rk_enabled, rk_spend, rk_impressions, rk_clicks, rk_stake,
+            ig_enabled, ig_spend, ig_impressions, ig_clicks,
+            created_by_user_id, updated_by_user_id, created_at, updated_at
+          FROM daily_summary_entries
+          WHERE summary_date = ? AND deleted_at IS NULL
+          ORDER BY bag_id, color
+        `).bind(summaryDate).all()
+
+        return json({ ok: true, summary_date: summaryDate, entries: rows.results || [] })
+      }
+
       if (path === "/pack_meta" && request.method === "GET") {
         const objectKey = "packs/current/database_pack.zip"
         const manifestKey = "packs/current/manifest.json"

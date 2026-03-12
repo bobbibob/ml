@@ -24,6 +24,9 @@ import com.ml.app.data.remote.response.RegisterResponse
 import com.ml.app.data.remote.response.TasksResponse
 import com.ml.app.data.remote.response.UsersResponse
 import com.ml.app.data.remote.response.BasicOkResponse
+import com.ml.app.data.remote.dto.DailySummaryUpsertResponse
+import com.ml.app.data.remote.dto.DailySummaryUpsertRequest
+import com.ml.app.data.remote.dto.DailySummaryByDateResponse
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
@@ -97,6 +100,16 @@ interface MlApiService {
     suspend fun deleteUserRaw(
         @Body body: Map<String, String>
     ): ResponseBody
+
+    @POST("daily_summary_upsert")
+    suspend fun dailySummaryUpsert(
+        @Body body: DailySummaryUpsertRequest
+    ): DailySummaryUpsertResponse
+
+    @GET("daily_summary_by_date")
+    suspend fun getDailySummaryByDate(
+        @retrofit2.http.Query("date") date: String
+    ): DailySummaryByDateResponse
 
     @POST("notify_new_summary")
     suspend fun notifyNewSummary(
