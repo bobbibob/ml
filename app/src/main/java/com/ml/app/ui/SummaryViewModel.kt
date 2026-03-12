@@ -21,6 +21,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import org.json.JSONObject
+import com.google.firebase.messaging.FirebaseMessaging
+import com.ml.app.core.network.ApiModule
+import com.ml.app.data.repository.AuthRepository
+import com.ml.app.data.session.PrefsSessionStorage
 
 sealed class ScreenMode {
   data object Timeline : ScreenMode()
@@ -52,6 +56,27 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
   val state: StateFlow<SummaryState> = _state
 
 
+
+
+  private fun syncFcmTokenIfLoggedIn() {
+    val session = PrefsSessionStorage(ctx)
+    if (session.getToken().isNullOrBlank()) return
+
+    val api = ApiModule.createApi(
+      baseUrl = "https://ml-tasks-api.bboobb666.workers.dev/",
+      sessionStorage = session
+    )
+    val authRepo = AuthRepository(api, session)
+
+    FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+      if (!task.isSuccessful) return@addOnCompleteListener
+      val token = task.result ?: return@addOnCompleteListener
+
+      viewModelScope.launch(Dispatchers.IO) {
+        kotlin.runCatching { authRepo.saveFcmToken(token) }
+      }
+    }
+  }
   private fun buildRuntimeDebugInfo(): String {
     return try {
       val packDb = PackPaths.dbFile(ctx)
@@ -197,7 +222,8 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
   }
 
   fun init() {
-    viewModelScope.launch(Dispatchers.IO) {
+        syncFcmTokenIfLoggedIn()
+viewModelScope.launch(Dispatchers.IO) {
         try {
             val hasHealthyLocal = isLocalPackHealthy()
             _state.value = _state.value.copy(hasPack = hasHealthyLocal)
