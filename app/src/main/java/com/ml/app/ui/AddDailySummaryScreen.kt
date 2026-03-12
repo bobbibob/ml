@@ -41,6 +41,7 @@ import com.ml.app.core.network.ApiModule
 import com.ml.app.data.SQLiteRepo
 import com.ml.app.data.repository.DailySummarySyncRepository
 import com.ml.app.data.session.PrefsSessionStorage
+import com.ml.app.data.sync.SyncManager
 import java.time.LocalDate
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -385,6 +386,7 @@ fun AddDailySummaryScreen(
                                 val isNewDay = repo.loadForDate(summaryDate).isEmpty()
 
                                 repo.saveDailySummary(summaryDate, bags)
+                                repo.enqueueDailySummarySync(summaryDate, bags)
                                 saveError = null
                                 onBack()
 
@@ -394,11 +396,11 @@ fun AddDailySummaryScreen(
                                         baseUrl = "https://ml-tasks-api.bboobb666.workers.dev/",
                                         sessionStorage = session
                                     )
-                                    val syncRepo = DailySummarySyncRepository(api, ctx)
+                                    val syncManager = SyncManager(ctx)
 
                                     kotlin.runCatching {
                                         withTimeout(15000) {
-                                            syncRepo.upsertDailySummary(summaryDate, bags)
+                                            syncManager.pushPendingDailySummary()
                                         }
                                     }
 
