@@ -1218,5 +1218,148 @@ class SQLiteRepo(private val context: Context) {
     }
   }
 
+  suspend fun applyRemoteDailySummary(
+    date: String,
+    entries: List<com.ml.app.data.remote.dto.DailySummaryEntryDto>
+  ) = withContext(Dispatchers.IO) {
+    openDbReadWrite().use { db ->
+      db.beginTransaction()
+      try {
+        db.execSQL(
+          "DELETE FROM svodka WHERE date=? AND source IN ('android-app','remote-sync')",
+          arrayOf(date)
+        )
+
+        val grouped = entries.groupBy { it.bag_id }
+
+        for ((bagId, bagEntries) in grouped) {
+          val bagSnapshot = db.rawQuery(
+            """
+            SELECT hypothesis, price, cogs
+            FROM svodka
+            WHERE bag_id=? AND color IN ('__TOTAL__','TOTAL')
+              AND (price IS NOT NULL OR cogs IS NOT NULL OR hypothesis IS NOT NULL)
+            ORDER BY date DESC
+            LIMIT 1
+            """.trimIndent(),
+            arrayOf(bagId)
+          ).use { c ->
+            if (c.moveToFirst()) {
+              Triple(
+                if (c.isNull(0)) null else c.getString(0),
+                if (c.isNull(1)) null else c.getDouble(1),
+                if (c.isNull(2)) null else c.getDouble(2)
+              )
+            } else {
+              Triple<String?, Double?, Double?>(null, null, null)
+            }
+          }
+
+          val hypothesis = bagSnapshot.first
+          val defaultPrice = bagSnapshot.second
+          val defaultCogs = bagSnapshot.third
+
+          var totalOrders = 0
+          var totalRkSpend = 0.0
+          var totalRkImpr = 0L
+          var totalRkClicks = 0L
+          var totalIgSpend = 0.0
+          var totalIgImpr = 0L
+          var totalIgClicks = 0L
+          var totalStake: Double? = null
+
+          for (entry in bagEntries) {
+            val svodkaFallback = db.rawQuery(
+              """
+              SELECT price, cogs
+              FROM svodka
+              WHERE bag_id=? AND color=?
+                AND (price IS NOT NULL OR cogs IS NOT NULL)
+              ORDER BY date DESC
+              LIMIT 1
+              """.trimIndent(),
+              arrayOf(bagId, entry.color)
+            ).use { c ->
+              if (c.moveToFirst()) {
+                Pair(
+                  if (c.isNull(0)) null else c.getDouble(0),
+                  if (c.isNull(1)) null else c.getDouble(1)
+                )
+              } else {
+                Pair<Double?, Double?>(null, null)
+              }
+            }
+
+            val colorPrice = svodkaFallback.first ?: defaultPrice
+            val colorCogs = svodkaFallback.second ?: defaultCogs
+
+            db.execSQL(
+              """
+              INSERT INTO svodka(date, period_start, period_end, bag_id, color, hypothesis, price, orders, source, cogs)
+              VALUES(?,?,?,?,?,?,?,?,?,?)
+              ON CONFLICT(date, bag_id, color) DO UPDATE SET
+                period_start=excluded.period_start,
+                period_end=excluded.period_end,
+                hypothesis=excluded.hypothesis,
+                price=excluded.price,
+                orders=excluded.orders,
+                source=excluded.source,
+                cogs=excluded.cogs
+              """.trimIndent(),
+              arrayOf(
+                date, date, date, bagId, entry.color, hypothesis,
+                colorPrice, entry.orders.toDouble(), "remote-sync", colorCogs
+              )
+            )
+
+            totalOrders += entry.orders
+            totalRkSpend += if (entry.rk_enabled) (entry.rk_spend ?: 0.0) else 0.0
+            totalRkImpr += if (entry.rk_enabled) (entry.rk_impressions ?: 0L) else 0L
+            totalRkClicks += if (entry.rk_enabled) (entry.rk_clicks ?: 0L) else 0L
+            totalIgSpend += if (entry.ig_enabled) (entry.ig_spend ?: 0.0) else 0.0
+            totalIgImpr += if (entry.ig_enabled) (entry.ig_impressions ?: 0L) else 0L
+            totalIgClicks += if (entry.ig_enabled) (entry.ig_clicks ?: 0L) else 0L
+            if (entry.rk_enabled && entry.rk_stake != null) totalStake = entry.rk_stake
+          }
+
+          db.execSQL(
+            """
+            INSERT INTO svodka(
+              date, period_start, period_end, bag_id, color, hypothesis, price, orders, source,
+              rk_spend, rk_impressions, rk_clicks, stake_pct,
+              ig_spend, ig_impressions, ig_clicks, cogs
+            )
+            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            ON CONFLICT(date, bag_id, color) DO UPDATE SET
+              period_start=excluded.period_start,
+              period_end=excluded.period_end,
+              hypothesis=excluded.hypothesis,
+              price=excluded.price,
+              orders=excluded.orders,
+              source=excluded.source,
+              rk_spend=excluded.rk_spend,
+              rk_impressions=excluded.rk_impressions,
+              rk_clicks=excluded.rk_clicks,
+              stake_pct=excluded.stake_pct,
+              ig_spend=excluded.ig_spend,
+              ig_impressions=excluded.ig_impressions,
+              ig_clicks=excluded.ig_clicks,
+              cogs=excluded.cogs
+            """.trimIndent(),
+            arrayOf(
+              date, date, date, bagId, "__TOTAL__", hypothesis, defaultPrice,
+              totalOrders.toDouble(), "remote-sync",
+              totalRkSpend, totalRkImpr.toDouble(), totalRkClicks.toDouble(), totalStake ?: 0.0,
+              totalIgSpend, totalIgImpr.toDouble(), totalIgClicks.toDouble(), defaultCogs
+            )
+          )
+        }
+
+        db.setTransactionSuccessful()
+      } finally {
+        db.endTransaction()
+      }
+    }
+  }
 
 }

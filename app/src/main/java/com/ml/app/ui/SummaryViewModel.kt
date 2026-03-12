@@ -10,6 +10,7 @@ import com.ml.app.data.PackPaths
 import com.ml.app.data.PackUploadManager
 import com.ml.app.data.R2Client
 import com.ml.app.data.SQLiteRepo
+import com.ml.app.data.repository.DailySummarySyncRepository
 import com.ml.app.data.ZipUtil
 import com.ml.app.domain.BagDayRow
 import com.ml.app.domain.CardType
@@ -386,6 +387,7 @@ fun refreshTimeline() {
 
         
         val date = _state.value.selectedDate.toString()
+        kotlin.runCatching { syncSelectedDateFromServer() }
         val rows = repo.loadForDate(date)
 
         val resolved = repo.getResolvedStocksForDate(date)
@@ -438,4 +440,24 @@ fun refreshTimeline() {
       }
     }
   }
+  private suspend fun syncSelectedDateFromServer() {
+    val session = PrefsSessionStorage(ctx)
+    if (session.getToken().isNullOrBlank()) return
+
+    val api = ApiModule.createApi(
+      baseUrl = "https://ml-tasks-api.bboobb666.workers.dev/",
+      sessionStorage = session
+    )
+    val syncRepo = DailySummarySyncRepository(api)
+    val date = _state.value.selectedDate.toString()
+
+    when (val res = syncRepo.getDailySummaryByDate(date)) {
+      is com.ml.app.core.result.AppResult.Success -> {
+        repo.applyRemoteDailySummary(date, res.data)
+      }
+      is com.ml.app.core.result.AppResult.Error -> {
+      }
+    }
+  }
+
 }
