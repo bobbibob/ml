@@ -692,8 +692,6 @@ private fun DetailsList(
           Spacer(Modifier.height(10.dp))
 
           Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            TypePill(text = "Классика", selected = type == CardType.CLASSIC)
-            TypePill(text = "Премиум", selected = type == CardType.PREMIUM)
 
           }
 
