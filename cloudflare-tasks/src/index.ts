@@ -443,6 +443,12 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
           nowIso()
         ).run()
 
+        await env.DB.prepare(`
+          UPDATE users
+          SET fcm_token = ?, updated_at = ?
+          WHERE user_id = ?
+        `).bind(fcmToken, nowIso(), user.user_id).run()
+
         return json({ ok: true })
       }
 
@@ -556,8 +562,10 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
         }
 
         const rows = await env.DB.prepare(`
-          SELECT user_id, fcm_token
-          FROM user_devices
+          SELECT user_id, fcm_token FROM user_devices
+          WHERE fcm_token IS NOT NULL AND TRIM(fcm_token) != ''
+          UNION
+          SELECT user_id, fcm_token FROM users
           WHERE fcm_token IS NOT NULL AND TRIM(fcm_token) != ''
         `).all<{ user_id: string; fcm_token: string | null }>()
 
@@ -601,18 +609,21 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
         let targets: Array<{ user_id: string; fcm_token: string | null }> = []
 
         if (userId) {
-          const target = await env.DB.prepare(`
-            SELECT user_id, fcm_token
-            FROM user_devices
+          const rows = await env.DB.prepare(`
+            SELECT user_id, fcm_token FROM user_devices
             WHERE user_id = ?
-            LIMIT 1
-          `).bind(userId).first<any>()
+            UNION
+            SELECT user_id, fcm_token FROM users
+            WHERE user_id = ? AND fcm_token IS NOT NULL AND TRIM(fcm_token) <> ''
+          `).bind(userId, userId).all<any>()
 
-          if (target) targets = [target]
+          targets = (rows.results || []) as Array<{ user_id: string; fcm_token: string | null }>
         } else {
           const rows = await env.DB.prepare(`
-            SELECT user_id, fcm_token
-            FROM user_devices
+            SELECT user_id, fcm_token FROM user_devices
+            WHERE fcm_token IS NOT NULL AND TRIM(fcm_token) <> ''
+            UNION
+            SELECT user_id, fcm_token FROM users
             WHERE fcm_token IS NOT NULL AND TRIM(fcm_token) <> ''
           `).all<any>()
           targets = (rows.results || []) as Array<{ user_id: string; fcm_token: string | null }>
