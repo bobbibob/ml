@@ -497,6 +497,45 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
         })
       }
 
+      if (path === "/notify_new_summary" && request.method === "POST") {
+        const user = await getCurrentUser(request, env)
+        if (!user) return json({ ok: false, error: "unauthorized" }, 401)
+
+        const body = await request.json<{ date?: string }>().catch(() => null)
+        const date = String(body?.date || "").trim()
+
+        if (!date) {
+          return json({ ok: false, error: "date required" }, 400)
+        }
+
+        const rows = await env.DB.prepare(`
+          SELECT user_id, fcm_token
+          FROM users
+          WHERE fcm_token IS NOT NULL AND TRIM(fcm_token) != ''
+        `).all<{ user_id: string; fcm_token: string | null }>()
+
+        let sent = 0
+
+        for (const row of rows.results || []) {
+          const token = String(row.fcm_token || "").trim()
+          if (!token) continue
+
+          try {
+            await sendPushToToken(
+              env,
+              token,
+              "Новая сводка",
+              `Добавлена сводка за ${date}`
+            )
+            sent++
+          } catch (e) {
+            console.log("notify_new_summary_push_error", String(e))
+          }
+        }
+
+        return json({ ok: true, sent })
+      }
+
       if (path === "/send_push" && request.method === "POST") {
         const user = await getCurrentUser(request, env)
         const debugBypass = !user

@@ -37,10 +37,16 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.ml.app.core.network.ApiModule
 import com.ml.app.data.PackUploadManager
 import com.ml.app.data.SQLiteRepo
+import com.ml.app.data.session.PrefsSessionStorage
 import java.time.LocalDate
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 
 private data class DailySummaryBagUi(
     val bagId: String,
@@ -375,14 +381,29 @@ fun AddDailySummaryScreen(
                             }
 
                             try {
-                                repo.saveDailySummary(selectedDate.toString(), bags)
+                                val summaryDate = selectedDate.toString()
+                                val isNewDay = repo.loadForDate(summaryDate).isEmpty()
+
+                                repo.saveDailySummary(summaryDate, bags)
                                 saveError = null
                                 onBack()
 
-                                scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                                CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
                                     kotlin.runCatching {
-                                        kotlinx.coroutines.withTimeout(15000) {
+                                        withTimeout(15000) {
                                             PackUploadManager.saveUserChangesAndUpload(ctx)
+                                        }
+                                    }
+
+                                    if (isNewDay) {
+                                        kotlin.runCatching {
+                                            withTimeout(10000) {
+                                                val api = ApiModule.createApi(
+                                                    baseUrl = "https://ml-tasks-api.bboobb666.workers.dev/",
+                                                    sessionStorage = PrefsSessionStorage(ctx)
+                                                )
+                                                api.notifyNewSummary(mapOf("date" to summaryDate))
+                                            }
                                         }
                                     }
                                 }

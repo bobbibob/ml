@@ -98,6 +98,11 @@ interface MlApiService {
         @Body body: Map<String, String>
     ): ResponseBody
 
+    @POST("notify_new_summary")
+    suspend fun notifyNewSummary(
+        @Body body: Map<String, String>
+    ): BasicOkResponse
+
     @POST("send_push")
     suspend fun sendPushRaw(
         @Body body: Map<String, String>
