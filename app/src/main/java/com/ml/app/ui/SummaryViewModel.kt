@@ -54,19 +54,29 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
   private suspend fun downloadAndInstallPack(statusText: String) {
     _state.value = _state.value.copy(loading = true, status = statusText)
 
+    val packDir = PackPaths.packDir(ctx)
+    if (!packDir.exists()) packDir.mkdirs()
+
     val zip = r2.downloadPackZip()
-    ZipUtil.unzipToDir(zip, PackPaths.packDir(ctx))
+    ZipUtil.unzipToDir(zip, packDir)
 
     val dbFile = PackPaths.dbFile(ctx)
     if (!dbFile.exists() || dbFile.length() == 0L) {
-      throw IllegalStateException("data.sqlite not found after unzip")
+      throw IllegalStateException("data.sqlite not found after unzip: ${dbFile.absolutePath}")
     }
 
-    PackDbSync.mergedDbFile(ctx).delete()
-    PackDbSync.refreshMergedDb(ctx)
+    kotlin.runCatching {
+      PackDbSync.mergedDbFile(ctx).delete()
+      PackDbSync.refreshMergedDb(ctx)
+    }
 
-    _state.value = _state.value.copy(hasPack = true, loading = false, status = "Downloaded")
-    refreshAfterSync()
+    _state.value = _state.value.copy(
+      hasPack = true,
+      loading = false,
+      status = "Downloaded"
+    )
+
+    refreshTimeline()
   }
 
   fun init() {
