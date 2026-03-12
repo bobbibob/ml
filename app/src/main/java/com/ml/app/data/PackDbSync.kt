@@ -153,6 +153,122 @@ object PackDbSync {
     ).use { c -> c.moveToFirst() }
   }
 
+  private fun mergeLocalSvodkaRows(fromDb: SQLiteDatabase, toDb: SQLiteDatabase) {
+    if (!tableExists(fromDb, "svodka") || !tableExists(toDb, "svodka")) return
+
+    kotlin.runCatching { toDb.execSQL("ALTER TABLE svodka ADD COLUMN delivery_fee REAL") }
+
+    fromDb.rawQuery(
+      """
+      SELECT
+        date, period_start, period_end, bag_id, color, source, hypothesis, price, orders, stock,
+        rk_spend, rk_impressions, rk_clicks, rk_ctr, rk_cpc, stake_pct,
+        ig_spend, ig_impressions, ig_clicks, ig_ctr, ig_cpc,
+        cogs, profit_net, roi_pct, notes, updated_at, delivery_fee
+      FROM svodka
+      WHERE source IN ('android-app','remote-sync')
+      """.trimIndent(),
+      null
+    ).use { c ->
+      val iDate = c.getColumnIndexOrThrow("date")
+      val iPeriodStart = c.getColumnIndexOrThrow("period_start")
+      val iPeriodEnd = c.getColumnIndexOrThrow("period_end")
+      val iBagId = c.getColumnIndexOrThrow("bag_id")
+      val iColor = c.getColumnIndexOrThrow("color")
+      val iSource = c.getColumnIndexOrThrow("source")
+      val iHyp = c.getColumnIndexOrThrow("hypothesis")
+      val iPrice = c.getColumnIndexOrThrow("price")
+      val iOrders = c.getColumnIndexOrThrow("orders")
+      val iStock = c.getColumnIndexOrThrow("stock")
+      val iRkSpend = c.getColumnIndexOrThrow("rk_spend")
+      val iRkImpr = c.getColumnIndexOrThrow("rk_impressions")
+      val iRkClicks = c.getColumnIndexOrThrow("rk_clicks")
+      val iRkCtr = c.getColumnIndexOrThrow("rk_ctr")
+      val iRkCpc = c.getColumnIndexOrThrow("rk_cpc")
+      val iStake = c.getColumnIndexOrThrow("stake_pct")
+      val iIgSpend = c.getColumnIndexOrThrow("ig_spend")
+      val iIgImpr = c.getColumnIndexOrThrow("ig_impressions")
+      val iIgClicks = c.getColumnIndexOrThrow("ig_clicks")
+      val iIgCtr = c.getColumnIndexOrThrow("ig_ctr")
+      val iIgCpc = c.getColumnIndexOrThrow("ig_cpc")
+      val iCogs = c.getColumnIndexOrThrow("cogs")
+      val iProfit = c.getColumnIndexOrThrow("profit_net")
+      val iRoi = c.getColumnIndexOrThrow("roi_pct")
+      val iNotes = c.getColumnIndexOrThrow("notes")
+      val iUpdatedAt = c.getColumnIndexOrThrow("updated_at")
+      val iDelivery = kotlin.runCatching { c.getColumnIndexOrThrow("delivery_fee") }.getOrDefault(-1)
+
+      while (c.moveToNext()) {
+        toDb.execSQL(
+          """
+          INSERT INTO svodka(
+            date, period_start, period_end, bag_id, color, source, hypothesis, price, orders, stock,
+            rk_spend, rk_impressions, rk_clicks, rk_ctr, rk_cpc, stake_pct,
+            ig_spend, ig_impressions, ig_clicks, ig_ctr, ig_cpc,
+            cogs, profit_net, roi_pct, notes, updated_at, delivery_fee
+          )
+          VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+          ON CONFLICT(date, bag_id, color) DO UPDATE SET
+            period_start=excluded.period_start,
+            period_end=excluded.period_end,
+            source=excluded.source,
+            hypothesis=excluded.hypothesis,
+            price=excluded.price,
+            orders=excluded.orders,
+            stock=excluded.stock,
+            rk_spend=excluded.rk_spend,
+            rk_impressions=excluded.rk_impressions,
+            rk_clicks=excluded.rk_clicks,
+            rk_ctr=excluded.rk_ctr,
+            rk_cpc=excluded.rk_cpc,
+            stake_pct=excluded.stake_pct,
+            ig_spend=excluded.ig_spend,
+            ig_impressions=excluded.ig_impressions,
+            ig_clicks=excluded.ig_clicks,
+            ig_ctr=excluded.ig_ctr,
+            ig_cpc=excluded.ig_cpc,
+            cogs=excluded.cogs,
+            profit_net=excluded.profit_net,
+            roi_pct=excluded.roi_pct,
+            notes=excluded.notes,
+            updated_at=excluded.updated_at,
+            delivery_fee=excluded.delivery_fee
+          """.trimIndent(),
+          arrayOf(
+            c.getString(iDate),
+            if (c.isNull(iPeriodStart)) null else c.getString(iPeriodStart),
+            if (c.isNull(iPeriodEnd)) null else c.getString(iPeriodEnd),
+            c.getString(iBagId),
+            c.getString(iColor),
+            if (c.isNull(iSource)) null else c.getString(iSource),
+            if (c.isNull(iHyp)) null else c.getString(iHyp),
+            if (c.isNull(iPrice)) null else c.getDouble(iPrice),
+            if (c.isNull(iOrders)) null else c.getDouble(iOrders),
+            if (c.isNull(iStock)) null else c.getDouble(iStock),
+            if (c.isNull(iRkSpend)) null else c.getDouble(iRkSpend),
+            if (c.isNull(iRkImpr)) null else c.getDouble(iRkImpr),
+            if (c.isNull(iRkClicks)) null else c.getDouble(iRkClicks),
+            if (c.isNull(iRkCtr)) null else c.getDouble(iRkCtr),
+            if (c.isNull(iRkCpc)) null else c.getDouble(iRkCpc),
+            if (c.isNull(iStake)) null else c.getDouble(iStake),
+            if (c.isNull(iIgSpend)) null else c.getDouble(iIgSpend),
+            if (c.isNull(iIgImpr)) null else c.getDouble(iIgImpr),
+            if (c.isNull(iIgClicks)) null else c.getDouble(iIgClicks),
+            if (c.isNull(iIgCtr)) null else c.getDouble(iIgCtr),
+            if (c.isNull(iIgCpc)) null else c.getDouble(iIgCpc),
+            if (c.isNull(iCogs)) null else c.getDouble(iCogs),
+            if (c.isNull(iProfit)) null else c.getDouble(iProfit),
+            if (c.isNull(iRoi)) null else c.getDouble(iRoi),
+            if (c.isNull(iNotes)) null else c.getString(iNotes),
+            if (c.isNull(iUpdatedAt)) null else c.getString(iUpdatedAt),
+            if (iDelivery == -1 || c.isNull(iDelivery)) null else c.getDouble(iDelivery)
+          )
+        )
+      }
+    }
+  }
+
+
   private fun mergeUserTables(fromDbFile: File, toDbFile: File) {
     val fromDb = SQLiteDatabase.openDatabase(fromDbFile.absolutePath, null, SQLiteDatabase.OPEN_READONLY)
     val toDb = SQLiteDatabase.openDatabase(toDbFile.absolutePath, null, SQLiteDatabase.OPEN_READWRITE)
@@ -380,6 +496,7 @@ object PackDbSync {
         }
 
 
+        mergeLocalSvodkaRows(fromDb, toDb)
         toDb.setTransactionSuccessful()
       } finally {
         toDb.endTransaction()
