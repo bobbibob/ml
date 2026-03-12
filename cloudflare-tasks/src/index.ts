@@ -479,7 +479,7 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
         })
       }
 
-      if (path === "/pack_download" && request.method === "GET") {
+      if (path === "/pack_download" && (request.method === "GET" || request.method === "HEAD")) {
         const objectKey = "packs/current/database_pack.zip"
         const obj = await env.R2.get(objectKey)
 
@@ -487,7 +487,7 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
           return json({ ok:false, error:"pack_not_found" },404)
         }
 
-        return new Response(obj.body, {
+        return new Response(request.method === "HEAD" ? null : obj.body, {
           headers: {
             "content-type": "application/zip",
             "content-length": obj.size?.toString() ?? "",
