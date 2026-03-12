@@ -162,12 +162,17 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
         val ids = t.flatMap { it.byBags }.map { it.bagId }.distinct()
         val types = typeStore.getTypes(ids)
 
+        val latestDate = t.firstOrNull()?.date?.let {
+          kotlin.runCatching { java.time.LocalDate.parse(it) }.getOrNull()
+        } ?: _state.value.selectedDate
+
         _state.value = _state.value.copy(
           timeline = t,
           cardTypes = types,
+          selectedDate = latestDate,
           loading = false,
           hasPack = true,
-          status = "SUMMARY days=${t.size}, bags=${ids.size}"
+          status = "SUMMARY days=${t.size}, latest=${latestDate}"
         )
       } catch (t: Throwable) {
         _state.value = _state.value.copy(
