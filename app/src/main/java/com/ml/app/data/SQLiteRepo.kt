@@ -1068,32 +1068,63 @@ class SQLiteRepo(private val context: Context) {
         for (bag in bags) {
           val totalOrders = bag.ordersByColor.sumOf { it.second }
 
+          val bagUser = db.rawQuery(
+            "SELECT hypothesis, price, cogs FROM bag_user WHERE bag_id=? LIMIT 1",
+            arrayOf(bag.bagId)
+          ).use { c ->
+            if (c.moveToFirst()) {
+              Triple(
+                if (c.isNull(0)) null else c.getString(0),
+                if (c.isNull(1)) null else c.getDouble(1),
+                if (c.isNull(2)) null else c.getDouble(2)
+              )
+            } else {
+              Triple<String?, Double?, Double?>(null, null, null)
+            }
+          }
+
+          val hypothesis = bagUser.first
+          val defaultPrice = bagUser.second
+          val cogs = bagUser.third
+
           for ((color, orders) in bag.ordersByColor) {
+            val colorPrice = db.rawQuery(
+              "SELECT price FROM bag_user_color_price WHERE bag_id=? AND color=? LIMIT 1",
+              arrayOf(bag.bagId, color)
+            ).use { c ->
+              if (c.moveToFirst() && !c.isNull(0)) c.getDouble(0) else defaultPrice
+            }
+
             db.execSQL(
               """
-              INSERT INTO svodka(date, period_start, period_end, bag_id, color, orders, source)
-              VALUES(?,?,?,?,?,?,?)
+              INSERT INTO svodka(date, period_start, period_end, bag_id, color, hypothesis, price, orders, source, cogs)
+              VALUES(?,?,?,?,?,?,?,?,?,?)
               ON CONFLICT(date, bag_id, color) DO UPDATE SET
                 period_start=excluded.period_start,
                 period_end=excluded.period_end,
+                hypothesis=excluded.hypothesis,
+                price=excluded.price,
                 orders=excluded.orders,
-                source=excluded.source
+                source=excluded.source,
+                cogs=excluded.cogs
               """.trimIndent(),
-              arrayOf(date, date, date, bag.bagId, color, orders.toDouble(), "android-app")
+              arrayOf(date, date, date, bag.bagId, color, hypothesis, colorPrice, orders.toDouble(), "android-app", cogs)
             )
           }
 
           db.execSQL(
             """
             INSERT INTO svodka(
-              date, period_start, period_end, bag_id, color, orders, source,
+              date, period_start, period_end, bag_id, color, hypothesis, price, orders, source,
               rk_spend, rk_impressions, rk_clicks, stake_pct,
-              ig_spend, ig_impressions, ig_clicks
+              ig_spend, ig_impressions, ig_clicks, cogs
             )
-            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             ON CONFLICT(date, bag_id, color) DO UPDATE SET
               period_start=excluded.period_start,
               period_end=excluded.period_end,
+              hypothesis=excluded.hypothesis,
+              price=excluded.price,
               orders=excluded.orders,
               source=excluded.source,
               rk_spend=excluded.rk_spend,
@@ -1102,7 +1133,8 @@ class SQLiteRepo(private val context: Context) {
               stake_pct=excluded.stake_pct,
               ig_spend=excluded.ig_spend,
               ig_impressions=excluded.ig_impressions,
-              ig_clicks=excluded.ig_clicks
+              ig_clicks=excluded.ig_clicks,
+              cogs=excluded.cogs
             """.trimIndent(),
             arrayOf(
               date,
@@ -1110,6 +1142,8 @@ class SQLiteRepo(private val context: Context) {
               date,
               bag.bagId,
               "__TOTAL__",
+              hypothesis,
+              defaultPrice,
               totalOrders.toDouble(),
               "android-app",
               if (bag.rkEnabled) bag.rkSpend ?: 0.0 else 0.0,
@@ -1118,7 +1152,8 @@ class SQLiteRepo(private val context: Context) {
               if (bag.rkEnabled) bag.rkStake ?: 0.0 else 0.0,
               if (bag.igEnabled) bag.igSpend ?: 0.0 else 0.0,
               if (bag.igEnabled) (bag.igImpressions ?: 0L).toDouble() else 0.0,
-              if (bag.igEnabled) (bag.igClicks ?: 0L).toDouble() else 0.0
+              if (bag.igEnabled) (bag.igClicks ?: 0L).toDouble() else 0.0,
+              cogs
             )
           )
         }
