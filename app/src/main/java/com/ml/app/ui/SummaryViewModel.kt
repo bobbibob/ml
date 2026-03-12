@@ -51,6 +51,52 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
   private val _state = MutableStateFlow(SummaryState())
   val state: StateFlow<SummaryState> = _state
 
+
+  private fun buildRuntimeDebugInfo(): String {
+    return try {
+      val packDb = PackPaths.dbFile(ctx)
+      val mergedDb = PackDbSync.mergedDbFile(ctx)
+
+      val packExists = packDb.exists()
+      val packSize = if (packExists) packDb.length() else -1L
+      val mergedExists = mergedDb.exists()
+      val mergedSize = if (mergedExists) mergedDb.length() else -1L
+
+      val dbToRead = if (packExists && packSize > 0L) packDb else mergedDb
+
+      if (!dbToRead.exists() || dbToRead.length() <= 0L) {
+        return "DBG packExists=$packExists packSize=$packSize mergedExists=$mergedExists mergedSize=$mergedSize NO_DB"
+      }
+
+      val db = android.database.sqlite.SQLiteDatabase.openDatabase(
+        dbToRead.absolutePath,
+        null,
+        android.database.sqlite.SQLiteDatabase.OPEN_READONLY
+      )
+
+      db.use {
+        val svodkaCount = it.rawQuery("SELECT COUNT(*) FROM svodka", null).use { c ->
+          if (c.moveToFirst()) c.getInt(0) else -1
+        }
+        val totalCount = it.rawQuery(
+          "SELECT COUNT(*) FROM svodka WHERE color IN ('__TOTAL__','TOTAL')",
+          null
+        ).use { c ->
+          if (c.moveToFirst()) c.getInt(0) else -1
+        }
+        val maxDate = it.rawQuery("SELECT MAX(date) FROM svodka", null).use { c ->
+          if (c.moveToFirst()) c.getString(0) ?: "null" else "null"
+        }
+        val selected = _state.value.selectedDate.toString()
+
+        "DBG db=${dbToRead.absolutePath} packSize=$packSize mergedSize=$mergedSize svodka=$svodkaCount total=$totalCount maxDate=$maxDate selected=$selected"
+      }
+    } catch (t: Throwable) {
+      "DBG ERROR ${t::class.java.simpleName}: ${t.message}"
+    }
+  }
+
+
   private suspend fun installBundledPackIfPresent(): Boolean {
     val resId = ctx.resources.getIdentifier("bootstrap_pack", "raw", ctx.packageName)
     if (resId == 0) return false
@@ -158,13 +204,14 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
           status = "Loading summary…"
         )
 
+        val debugBefore = buildRuntimeDebugInfo()
         val t = repo.loadTimeline(limitDays = 180)
         val ids = t.flatMap { it.byBags }.map { it.bagId }.distinct()
         val types = typeStore.getTypes(ids)
-
         val latestDate = t.firstOrNull()?.date?.let {
           kotlin.runCatching { java.time.LocalDate.parse(it) }.getOrNull()
         } ?: _state.value.selectedDate
+        val debugAfter = buildRuntimeDebugInfo()
 
         _state.value = _state.value.copy(
           timeline = t,
@@ -172,12 +219,12 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
           selectedDate = latestDate,
           loading = false,
           hasPack = true,
-          status = "SUMMARY days=${t.size}, latest=${latestDate}"
+          status = "SUMMARY days=${t.size}; before=[$debugBefore]; after=[$debugAfter]"
         )
       } catch (t: Throwable) {
         _state.value = _state.value.copy(
           loading = false,
-          status = "SUMMARY ERROR: ${t::class.java.simpleName}: ${t.message}"
+          status = "SUMMARY ERROR: ${t::class.java.simpleName}: ${t.message}; ${buildRuntimeDebugInfo()}"
         )
       }
     }
