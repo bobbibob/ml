@@ -97,6 +97,40 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
   }
 
 
+
+  private fun isLocalPackHealthy(): Boolean {
+    return try {
+      val dbFile = PackPaths.dbFile(ctx)
+      if (!dbFile.exists() || dbFile.length() < 1024L * 1024L) return false
+
+      val db = android.database.sqlite.SQLiteDatabase.openDatabase(
+        dbFile.absolutePath,
+        null,
+        android.database.sqlite.SQLiteDatabase.OPEN_READONLY
+      )
+
+      db.use {
+        val svodkaCount = it.rawQuery("SELECT COUNT(*) FROM svodka", null).use { c ->
+          if (c.moveToFirst()) c.getInt(0) else 0
+        }
+        val totalCount = it.rawQuery(
+          "SELECT COUNT(*) FROM svodka WHERE color IN ('__TOTAL__','TOTAL')",
+          null
+        ).use { c ->
+          if (c.moveToFirst()) c.getInt(0) else 0
+        }
+        svodkaCount > 0 && totalCount > 0
+      }
+    } catch (_: Throwable) {
+      false
+    }
+  }
+
+  private fun clearLocalPack() {
+    kotlin.runCatching { PackPaths.packDir(ctx).deleteRecursively() }
+    kotlin.runCatching { PackDbSync.mergedDbFile(ctx).delete() }
+  }
+
   private suspend fun installBundledPackIfPresent(): Boolean {
     val resId = ctx.resources.getIdentifier("bootstrap_pack", "raw", ctx.packageName)
     if (resId == 0) return false
@@ -165,16 +199,17 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
   fun init() {
     viewModelScope.launch(Dispatchers.IO) {
       try {
-        val dbFile = PackPaths.dbFile(ctx)
-        val hasLocal = dbFile.exists() && dbFile.length() > 0L
-        _state.value = _state.value.copy(hasPack = hasLocal)
+        val hasHealthyLocal = isLocalPackHealthy()
+        _state.value = _state.value.copy(hasPack = hasHealthyLocal)
 
-        if (hasLocal) {
+        if (hasHealthyLocal) {
           kotlin.runCatching { PackDbSync.refreshMergedDb(ctx) }
           _state.value = _state.value.copy(status = "Открываем локальную базу…")
           refreshTimeline()
           return@launch
         }
+
+        clearLocalPack()
 
         val bundledOk = installBundledPackIfPresent()
         if (bundledOk) {
@@ -187,6 +222,7 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
           )
         }
       } catch (t: Throwable) {
+        clearLocalPack()
         _state.value = _state.value.copy(
           loading = false,
           hasPack = false,
