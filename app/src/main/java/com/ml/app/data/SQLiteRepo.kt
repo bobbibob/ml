@@ -788,6 +788,7 @@ class SQLiteRepo(private val context: Context) {
             AND bag_id IS NOT NULL AND bag_id != ''
             AND color IS NOT NULL AND color != ''
             AND color NOT IN ('__TOTAL__','TOTAL')
+            AND stock IS NOT NULL
           GROUP BY bag_id, color
         ) x
           ON x.bag_id = s1.bag_id
