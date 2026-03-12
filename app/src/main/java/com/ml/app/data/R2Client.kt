@@ -8,6 +8,7 @@ import okhttp3.Request
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.asRequestBody
 import java.io.File
+import java.util.concurrent.TimeUnit
 
 data class RemotePackMeta(
   val etag: String?,
@@ -16,8 +17,17 @@ data class RemotePackMeta(
 )
 
 class R2Client(context: Context) {
-  private val http = OkHttpClient()
+  private val http = OkHttpClient.Builder()
+    .connectTimeout(30, TimeUnit.SECONDS)
+    .readTimeout(240, TimeUnit.SECONDS)
+    .writeTimeout(240, TimeUnit.SECONDS)
+    .callTimeout(300, TimeUnit.SECONDS)
+    .build()
+
   private val secrets = Secrets.load(context)
+
+  private fun workerPackUrl(): String =
+    "https://ml-tasks-api.bboobb666.workers.dev/pack_download"
 
   private fun stripTrailingSlashes(s: String): String {
     var x = s
@@ -41,17 +51,10 @@ class R2Client(context: Context) {
   private fun objectUrl(): String = "$endpoint/$bucket/$objectKey"
 
   suspend fun headPack(): RemotePackMeta = withContext(Dispatchers.IO) {
-    val url = objectUrl()
-    val payloadHash = "UNSIGNED-PAYLOAD"
-
-    val signed = SigV4.sign(
-      "HEAD", url, region, "s3",
-      accessKey, secretKey, payloadHash
-    )
-
-    val req = Request.Builder().url(url).head().apply {
-      for ((k, v) in signed.headers) header(k, v)
-    }.build()
+    val req = Request.Builder()
+      .url(workerPackUrl())
+      .head()
+      .build()
 
     http.newCall(req).execute().use { resp ->
       if (!resp.isSuccessful) {
@@ -67,17 +70,10 @@ class R2Client(context: Context) {
   }
 
   suspend fun downloadPackZip(): ByteArray = withContext(Dispatchers.IO) {
-    val url = objectUrl()
-    val payloadHash = "UNSIGNED-PAYLOAD"
-
-    val signed = SigV4.sign(
-      "GET", url, region, "s3",
-      accessKey, secretKey, payloadHash
-    )
-
-    val req = Request.Builder().url(url).get().apply {
-      for ((k, v) in signed.headers) header(k, v)
-    }.build()
+    val req = Request.Builder()
+      .url(workerPackUrl())
+      .get()
+      .build()
 
     http.newCall(req).execute().use { resp ->
       if (!resp.isSuccessful) {
@@ -102,9 +98,7 @@ class R2Client(context: Context) {
       accessKey = accessKey,
       secretKey = secretKey,
       payloadHashHex = payloadHash,
-      extraHeaders = mapOf(
-        "content-type" to "application/zip"
-      )
+      extraHeaders = mapOf("content-type" to "application/zip")
     )
 
     val body = zipFile.asRequestBody("application/zip".toMediaType())
