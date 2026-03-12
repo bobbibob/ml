@@ -99,7 +99,7 @@ class SQLiteRepo(private val context: Context) {
               imagePath = images[bagId],
               spend = spend,
               price = price,
-              cogs = cogs
+              totalCogs = cogs
             )
           )
         }
@@ -1085,17 +1085,46 @@ class SQLiteRepo(private val context: Context) {
 
           val hypothesis = bagUser.first
           val defaultPrice = bagUser.second
-          val cogs = bagUser.third
+          val defaultCogs = bagUser.third
 
           var weightedPriceSum = 0.0
           var weightedOrders = 0
 
           for ((color, orders) in bag.ordersByColor) {
+            val svodkaFallback = db.rawQuery(
+              """
+              SELECT price, cogs
+              FROM svodka
+              WHERE bag_id=? AND color=? AND price IS NOT NULL
+              ORDER BY date DESC
+              LIMIT 1
+              """.trimIndent(),
+              arrayOf(bag.bagId, color)
+            ).use { c ->
+              if (c.moveToFirst()) {
+                Pair(
+                  if (c.isNull(0)) null else c.getDouble(0),
+                  if (c.isNull(1)) null else c.getDouble(1)
+                )
+              } else {
+                Pair<Double?, Double?>(null, null)
+              }
+            }
+
             val colorPrice = db.rawQuery(
               "SELECT price FROM bag_user_color_price WHERE bag_id=? AND color=? LIMIT 1",
               arrayOf(bag.bagId, color)
             ).use { c ->
-              if (c.moveToFirst() && !c.isNull(0)) c.getDouble(0) else defaultPrice
+              when {
+                c.moveToFirst() && !c.isNull(0) -> c.getDouble(0)
+                svodkaFallback.first != null -> svodkaFallback.first
+                else -> defaultPrice
+              }
+            }
+
+            val colorCogs = when {
+              svodkaFallback.second != null -> svodkaFallback.second
+              else -> defaultCogs
             }
 
             if (colorPrice != null && orders > 0) {
@@ -1116,8 +1145,21 @@ class SQLiteRepo(private val context: Context) {
                 source=excluded.source,
                 cogs=excluded.cogs
               """.trimIndent(),
-              arrayOf(date, date, date, bag.bagId, color, hypothesis, colorPrice, orders.toDouble(), "android-app", cogs)
+              arrayOf(date, date, date, bag.bagId, color, hypothesis, colorPrice, orders.toDouble(), "android-app", colorCogs)
             )
+          }
+
+          val totalCogs = db.rawQuery(
+            """
+            SELECT cogs
+            FROM svodka
+            WHERE bag_id=? AND color='__TOTAL__' AND cogs IS NOT NULL
+            ORDER BY date DESC
+            LIMIT 1
+            """.trimIndent(),
+            arrayOf(bag.bagId)
+          ).use { c ->
+            if (c.moveToFirst() && !c.isNull(0)) c.getDouble(0) else defaultCogs
           }
 
           val totalPrice = when {
