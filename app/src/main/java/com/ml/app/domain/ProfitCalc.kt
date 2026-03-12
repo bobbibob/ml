@@ -1,22 +1,18 @@
 package com.ml.app.domain
 
 object ProfitCalc {
-  fun feePct(type: CardType): Double = when (type) {
-    CardType.CLASSIC -> 24.0
-    CardType.PREMIUM -> 29.0
-  }
+  private const val MARKETPLACE_PCT = 24.0
+  private const val FF_COST = 3.0
+  private const val DEFAULT_DELIVERY_FEE = 6.75
 
-  // (price - price/100*feePct - 19 - cogs) * orders - spend
   fun netProfit(
-    type: CardType,
     orders: Double,
     price: Double,
     spend: Double,
     cogs: Double,
-    fixedCost: Double = 19.0
+    deliveryFee: Double = DEFAULT_DELIVERY_FEE
   ): Double {
-    val pct = feePct(type)
-    val perOrder = price - (price * pct / 100.0) - fixedCost - cogs
+    val perOrder = price - (price * MARKETPLACE_PCT / 100.0) - FF_COST - deliveryFee - cogs
     return perOrder * orders - spend
   }
 }
