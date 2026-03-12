@@ -6,10 +6,29 @@ import com.ml.app.domain.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
+import java.time.Instant
+import org.json.JSONObject
+import org.json.JSONArray
 import java.io.File
 import kotlin.math.roundToInt
 
 class SQLiteRepo(private val context: Context) {
+
+  private fun ensureDailySummarySyncQueueTable(db: SQLiteDatabase) {
+    db.execSQL(
+      """
+      CREATE TABLE IF NOT EXISTS daily_summary_sync_queue(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        summary_date TEXT NOT NULL,
+        payload_json TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        last_error TEXT,
+        updated_at TEXT NOT NULL
+      );
+      """.trimIndent()
+    )
+  }
+
 
   private fun openDbReadOnly(): SQLiteDatabase {
     val merged = PackDbSync.mergedDbFile(context)
@@ -1059,6 +1078,134 @@ class SQLiteRepo(private val context: Context) {
         igSpend = igSpend,
         igImpressions = igImpressions,
         igClicks = igClicks
+      )
+    }
+  }
+
+
+  data class PendingDailySummarySync(
+    val id: Long,
+    val summaryDate: String,
+    val bags: List<DailySummaryBagSave>,
+    val status: String,
+    val lastError: String?
+  )
+
+  private fun serializeDailySummaryBags(bags: List<DailySummaryBagSave>): String {
+    val arr = JSONArray()
+    for (bag in bags) {
+      val o = JSONObject()
+      o.put("bagId", bag.bagId)
+      val orders = JSONArray()
+      for ((color, count) in bag.ordersByColor) {
+        val row = JSONObject()
+        row.put("color", color)
+        row.put("count", count)
+        orders.put(row)
+      }
+      o.put("ordersByColor", orders)
+      o.put("rkEnabled", bag.rkEnabled)
+      o.put("rkSpend", bag.rkSpend)
+      o.put("rkImpressions", bag.rkImpressions)
+      o.put("rkClicks", bag.rkClicks)
+      o.put("rkStake", bag.rkStake)
+      o.put("igEnabled", bag.igEnabled)
+      o.put("igSpend", bag.igSpend)
+      o.put("igImpressions", bag.igImpressions)
+      o.put("igClicks", bag.igClicks)
+      arr.put(o)
+    }
+    return arr.toString()
+  }
+
+  private fun deserializeDailySummaryBags(json: String): List<DailySummaryBagSave> {
+    val arr = JSONArray(json)
+    val out = ArrayList<DailySummaryBagSave>()
+    for (i in 0 until arr.length()) {
+      val o = arr.getJSONObject(i)
+      val orders = ArrayList<Pair<String, Int>>()
+      val ordersArr = o.getJSONArray("ordersByColor")
+      for (j in 0 until ordersArr.length()) {
+        val row = ordersArr.getJSONObject(j)
+        orders.add(row.getString("color") to row.getInt("count"))
+      }
+      out.add(
+        DailySummaryBagSave(
+          bagId = o.getString("bagId"),
+          ordersByColor = orders,
+          rkEnabled = o.optBoolean("rkEnabled", false),
+          rkSpend = if (o.isNull("rkSpend")) null else o.optDouble("rkSpend"),
+          rkImpressions = if (o.isNull("rkImpressions")) null else o.optLong("rkImpressions"),
+          rkClicks = if (o.isNull("rkClicks")) null else o.optLong("rkClicks"),
+          rkStake = if (o.isNull("rkStake")) null else o.optDouble("rkStake"),
+          igEnabled = o.optBoolean("igEnabled", false),
+          igSpend = if (o.isNull("igSpend")) null else o.optDouble("igSpend"),
+          igImpressions = if (o.isNull("igImpressions")) null else o.optLong("igImpressions"),
+          igClicks = if (o.isNull("igClicks")) null else o.optLong("igClicks")
+        )
+      )
+    }
+    return out
+  }
+
+  suspend fun enqueueDailySummarySync(
+    date: String,
+    bags: List<DailySummaryBagSave>
+  ) = withContext(Dispatchers.IO) {
+    openDbReadWrite().use { db ->
+      ensureDailySummarySyncQueueTable(db)
+      db.execSQL(
+        "INSERT INTO daily_summary_sync_queue(summary_date,payload_json,status,last_error,updated_at) VALUES(?,?,?,?,?)",
+        arrayOf(date, serializeDailySummaryBags(bags), "pending", null, Instant.now().toString())
+      )
+    }
+  }
+
+  suspend fun getPendingDailySummarySyncItems(): List<PendingDailySummarySync> = withContext(Dispatchers.IO) {
+    openDbReadWrite().use { db ->
+      ensureDailySummarySyncQueueTable(db)
+      val out = ArrayList<PendingDailySummarySync>()
+      db.rawQuery(
+        """
+        SELECT id, summary_date, payload_json, status, last_error
+        FROM daily_summary_sync_queue
+        WHERE status IN ('pending','error')
+        ORDER BY id ASC
+        """.trimIndent(),
+        null
+      ).use { c ->
+        while (c.moveToNext()) {
+          out.add(
+            PendingDailySummarySync(
+              id = c.getLong(0),
+              summaryDate = c.getString(1),
+              bags = deserializeDailySummaryBags(c.getString(2)),
+              status = c.getString(3),
+              lastError = if (c.isNull(4)) null else c.getString(4)
+            )
+          )
+        }
+      }
+      out
+    }
+  }
+
+  suspend fun markDailySummarySyncSuccess(id: Long) = withContext(Dispatchers.IO) {
+    openDbReadWrite().use { db ->
+      ensureDailySummarySyncQueueTable(db)
+      db.execSQL(
+        "UPDATE daily_summary_sync_queue SET status='synced', last_error=NULL, updated_at=? WHERE id=?",
+        arrayOf(Instant.now().toString(), id)
+      )
+    }
+  }
+
+  suspend fun markDailySummarySyncError(id: Long, error: String) = withContext(Dispatchers.IO) {
+    openDbReadWrite().use { db ->
+      ensureDailySummarySyncQueueTable(db)
+      db.execSQL(
+        "UPDATE daily_summary_sync_queue SET status='error', last_error=?, updated_at=? WHERE id=?",
+        arrayOf(error, Instant.now().toString(), id)
       )
     }
   }
