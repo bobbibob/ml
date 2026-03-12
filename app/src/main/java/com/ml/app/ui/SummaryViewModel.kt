@@ -118,26 +118,27 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
 
   fun init() {
     viewModelScope.launch(Dispatchers.IO) {
-      val has = PackPaths.dbFile(ctx).exists() && PackPaths.dbFile(ctx).length() > 0L
-      _state.value = _state.value.copy(hasPack = has)
+      try {
+        val hasLocal = PackPaths.dbFile(ctx).exists() && PackPaths.dbFile(ctx).length() > 0L
+        _state.value = _state.value.copy(hasPack = hasLocal)
 
-      if (has) {
-        kotlin.runCatching { PackDbSync.refreshMergedDb(ctx) }
-        refreshTimeline()
-        syncIfChanged()
-        return@launch
+        if (hasLocal) {
+          kotlin.runCatching { PackDbSync.refreshMergedDb(ctx) }
+          _state.value = _state.value.copy(status = "Using local pack")
+          refreshTimeline()
+          return@launch
+        }
+
+        val bundledOk = kotlin.runCatching { installBundledPackIfPresent() }.getOrDefault(false)
+        if (bundledOk) return@launch
+
+        downloadAndInstallPack("Downloading pack…")
+      } catch (t: Throwable) {
+        _state.value = _state.value.copy(
+          loading = false,
+          status = "INIT ERROR: ${t::class.java.simpleName}: ${t.message}"
+        )
       }
-
-      val installedBundled = kotlin.runCatching {
-        installBundledPackIfPresent()
-      }.getOrDefault(false)
-
-      if (installedBundled) {
-        syncIfChanged()
-        return@launch
-      }
-
-      downloadAndInstallPack("Downloading…")
     }
   }
 
@@ -146,7 +147,7 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
       try {
         _state.value = _state.value.copy(
           loading = true,
-          status = "Loading…"
+          status = "Loading summary…"
         )
 
         val t = repo.loadTimeline(limitDays = 180)
@@ -157,12 +158,13 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
           timeline = t,
           cardTypes = types,
           loading = false,
-          status = "OK"
+          hasPack = true,
+          status = "SUMMARY days=${t.size}, bags=${ids.size}"
         )
       } catch (t: Throwable) {
         _state.value = _state.value.copy(
           loading = false,
-          status = "Error: ${t.message}"
+          status = "SUMMARY ERROR: ${t::class.java.simpleName}: ${t.message}"
         )
       }
     }
@@ -284,35 +286,16 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
     viewModelScope.launch(Dispatchers.IO) {
       try {
         val hasLocal = PackPaths.dbFile(ctx).exists() && PackPaths.dbFile(ctx).length() > 0L
-        if (!hasLocal) return@launch
-
-        val remote = r2.headPack()
-        val remoteKey = listOf(
-          remote.etag ?: "",
-          remote.lastModified ?: "",
-          remote.contentLength?.toString() ?: ""
-        ).joinToString("|")
-
-        val savedKey = prefsPack.getString("remote_pack_key", "") ?: ""
-        if (remoteKey.isBlank() || remoteKey == savedKey) return@launch
-
-        _state.value = _state.value.copy(loading = true, status = "Updating…")
-        val zip = r2.downloadPackZip()
-        ZipUtil.unzipToDir(zip, PackPaths.packDir(ctx))
-
-        val dbFile = PackPaths.dbFile(ctx)
-        if (!dbFile.exists() || dbFile.length() == 0L) {
-          throw IllegalStateException("data.sqlite not found after unzip")
+        if (!hasLocal) {
+          downloadAndInstallPack("Downloading pack…")
+          return@launch
         }
-
-        PackDbSync.mergedDbFile(ctx).delete()
-        PackDbSync.refreshMergedDb(ctx)
-        prefsPack.edit().putString("remote_pack_key", remoteKey).apply()
-
-        _state.value = _state.value.copy(hasPack = true, loading = false, status = "Updated")
-        refreshAfterSync()
-      } catch (_: Throwable) {
-        _state.value = _state.value.copy(loading = false, status = "OK")
+        downloadAndInstallPack("Updating pack…")
+      } catch (t: Throwable) {
+        _state.value = _state.value.copy(
+          loading = false,
+          status = "UPDATE ERROR: ${t::class.java.simpleName}: ${t.message}"
+        )
       }
     }
   }
