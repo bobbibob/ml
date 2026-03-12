@@ -1087,12 +1087,20 @@ class SQLiteRepo(private val context: Context) {
           val defaultPrice = bagUser.second
           val cogs = bagUser.third
 
+          var weightedPriceSum = 0.0
+          var weightedOrders = 0
+
           for ((color, orders) in bag.ordersByColor) {
             val colorPrice = db.rawQuery(
               "SELECT price FROM bag_user_color_price WHERE bag_id=? AND color=? LIMIT 1",
               arrayOf(bag.bagId, color)
             ).use { c ->
               if (c.moveToFirst() && !c.isNull(0)) c.getDouble(0) else defaultPrice
+            }
+
+            if (colorPrice != null && orders > 0) {
+              weightedPriceSum += colorPrice * orders
+              weightedOrders += orders
             }
 
             db.execSQL(
@@ -1110,6 +1118,11 @@ class SQLiteRepo(private val context: Context) {
               """.trimIndent(),
               arrayOf(date, date, date, bag.bagId, color, hypothesis, colorPrice, orders.toDouble(), "android-app", cogs)
             )
+          }
+
+          val totalPrice = when {
+            weightedOrders > 0 -> weightedPriceSum / weightedOrders.toDouble()
+            else -> defaultPrice
           }
 
           db.execSQL(
@@ -1143,7 +1156,7 @@ class SQLiteRepo(private val context: Context) {
               bag.bagId,
               "__TOTAL__",
               hypothesis,
-              defaultPrice,
+              totalPrice,
               totalOrders.toDouble(),
               "android-app",
               if (bag.rkEnabled) bag.rkSpend ?: 0.0 else 0.0,
