@@ -444,6 +444,41 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
 
 
       
+      
+      if (path === "/pack_meta" && request.method === "GET") {
+        const objectKey = "packs/current/database_pack.zip"
+        const manifestKey = "packs/current/manifest.json"
+
+        const obj = await env.R2.get(objectKey)
+        if (!obj) {
+          return json({ ok: false, error: "pack_not_found" }, 404)
+        }
+
+        let version = 0
+        let updatedAt: string | null = null
+
+        const manifestObj = await env.R2.get(manifestKey)
+        if (manifestObj) {
+          try {
+            const manifestText = await manifestObj.text()
+            const manifest = JSON.parse(manifestText)
+            version = Number(manifest.version || 0)
+            updatedAt = manifest.updated_at || null
+          } catch (e) {
+            console.log("pack_meta_manifest_parse_error", String(e))
+          }
+        }
+
+        return json({
+          ok: true,
+          version,
+          size: obj.size ?? 0,
+          etag: obj.httpEtag ?? null,
+          updated_at: updatedAt,
+          object_key: objectKey
+        })
+      }
+
       if (path === "/pack_download" && request.method === "GET") {
         const objectKey = "packs/current/database_pack.zip"
         const obj = await env.R2.get(objectKey)
@@ -455,7 +490,9 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
         return new Response(obj.body, {
           headers: {
             "content-type": "application/zip",
-            "content-length": obj.size?.toString() ?? ""
+            "content-length": obj.size?.toString() ?? "",
+            "etag": obj.httpEtag ?? "",
+            "cache-control": "no-store"
           }
         })
       }
