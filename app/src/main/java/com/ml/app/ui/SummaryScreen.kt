@@ -416,7 +416,7 @@ Row(verticalAlignment = Alignment.CenterVertically) {
               items = state.timeline,
               cardTypes = state.cardTypes,
               onOpen = { vm.openDetails(LocalDate.parse(it.date)) },
-              onEditDay = { vm.openDetails(it.dateAsLocalDate()) }
+              onEditDay = { vm.openDetails(LocalDate.parse(it.date)) }
             )
 
             is ScreenMode.Details -> DetailsList(
