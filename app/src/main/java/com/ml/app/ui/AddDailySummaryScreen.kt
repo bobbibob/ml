@@ -376,18 +376,16 @@ fun AddDailySummaryScreen(
 
                             try {
                                 repo.saveDailySummary(selectedDate.toString(), bags)
-
-                                val uploadError = kotlin.runCatching {
-                                    PackUploadManager.saveUserChangesAndUpload(ctx)
-                                }.exceptionOrNull()
-
-                                saveError = if (uploadError != null) {
-                                    "Сводка сохранена локально. Ошибка выгрузки: ${uploadError.message ?: uploadError::class.java.simpleName}"
-                                } else {
-                                    null
-                                }
-
+                                saveError = null
                                 onBack()
+
+                                scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                                    kotlin.runCatching {
+                                        kotlinx.coroutines.withTimeout(15000) {
+                                            PackUploadManager.saveUserChangesAndUpload(ctx)
+                                        }
+                                    }
+                                }
                             } catch (t: Throwable) {
                                 saveError = t.message ?: t.toString()
                             }
