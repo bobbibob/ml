@@ -222,9 +222,8 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
   }
 
   fun init() {
-            syncFcmTokenIfLoggedIn()
-syncFcmTokenIfLoggedIn()
-viewModelScope.launch(Dispatchers.IO) {
+    syncFcmTokenIfLoggedIn()
+    viewModelScope.launch(Dispatchers.IO) {
         try {
             val hasHealthyLocal = isLocalPackHealthy()
             _state.value = _state.value.copy(hasPack = hasHealthyLocal)
