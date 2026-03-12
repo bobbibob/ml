@@ -102,6 +102,7 @@ fun AddEditArticleScreen(
     var name by remember { mutableStateOf("") }
     var hypothesis by remember { mutableStateOf("") }
     var cost by remember { mutableStateOf("") }
+    var deliveryFee by remember { mutableStateOf("") }
     var priceForAllEnabled by remember { mutableStateOf(true) }
     var priceAll by remember { mutableStateOf("") }
     var cardType by remember { mutableStateOf("classic") }
@@ -491,7 +492,13 @@ fun AddEditArticleScreen(
                 OutlinedTextField(
                     value = cost,
                     onValueChange = { cost = it },
-                    label = { Text("Себестоимость") },
+                    label = { Text("Себестоимость") }
+                )
+
+                OutlinedTextField(
+                    value = deliveryFee,
+                    onValueChange = { deliveryFee = it },
+                    label = { Text("Доставка") },
                     modifier = Modifier.fillMaxWidth()
                 )
 

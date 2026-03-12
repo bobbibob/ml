@@ -311,7 +311,9 @@ class SQLiteRepo(private val context: Context) {
       runCatching { PackDbSync.refreshMergedDb(context) }
     }
     val dbFile: File = PackDbSync.dbFileToUse(context)
-    return SQLiteDatabase.openDatabase(dbFile.absolutePath, null, SQLiteDatabase.OPEN_READWRITE)
+    val db = SQLiteDatabase.openDatabase(dbFile.absolutePath, null, SQLiteDatabase.OPEN_READWRITE)
+    kotlin.runCatching { db.execSQL("ALTER TABLE bag_user ADD COLUMN delivery_fee REAL") }
+    return db
   }
 
   data class BagUserRow(
