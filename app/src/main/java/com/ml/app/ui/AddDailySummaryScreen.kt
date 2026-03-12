@@ -82,8 +82,7 @@ fun AddDailySummaryScreen(
 
     suspend fun loadForDate() {
         val metaByBag = repo.listSummaryBagColorMeta().associateBy { it.bagId }
-        val resolvedByBag = repo.getResolvedStocksForDate(LocalDate.now().toString())
-            .filter { it.stock > 0.0 }
+        val resolvedByBag = repo.getResolvedStocksForDate(selectedDate.toString())
             .groupBy { it.bagId }
 
         items.clear()
@@ -95,7 +94,6 @@ fun AddDailySummaryScreen(
                     bagName = meta.bagName,
                     photoPath = meta.photoPath,
                     colors = rows
-                        .filter { it.stock > 0.0 }
                         .map { it.color }
                         .distinct()
                         .sortedBy { c -> c.lowercase() }
