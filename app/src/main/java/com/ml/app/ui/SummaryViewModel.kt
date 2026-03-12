@@ -119,24 +119,32 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
   fun init() {
     viewModelScope.launch(Dispatchers.IO) {
       try {
-        val hasLocal = PackPaths.dbFile(ctx).exists() && PackPaths.dbFile(ctx).length() > 0L
+        val dbFile = PackPaths.dbFile(ctx)
+        val hasLocal = dbFile.exists() && dbFile.length() > 0L
         _state.value = _state.value.copy(hasPack = hasLocal)
 
         if (hasLocal) {
           kotlin.runCatching { PackDbSync.refreshMergedDb(ctx) }
-          _state.value = _state.value.copy(status = "Using local pack")
+          _state.value = _state.value.copy(status = "Открываем локальную базу…")
           refreshTimeline()
           return@launch
         }
 
-        val bundledOk = kotlin.runCatching { installBundledPackIfPresent() }.getOrDefault(false)
-        if (bundledOk) return@launch
-
-        downloadAndInstallPack("Downloading pack…")
+        val bundledOk = installBundledPackIfPresent()
+        if (bundledOk) {
+          refreshTimeline()
+        } else {
+          _state.value = _state.value.copy(
+            loading = false,
+            hasPack = false,
+            status = "Нет локальной базы"
+          )
+        }
       } catch (t: Throwable) {
         _state.value = _state.value.copy(
           loading = false,
-          status = "INIT ERROR: ${t::class.java.simpleName}: ${t.message}"
+          hasPack = false,
+          status = "Ошибка запуска: ${t.message}"
         )
       }
     }
@@ -283,21 +291,7 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
   }
 
   fun syncIfChanged() {
-    viewModelScope.launch(Dispatchers.IO) {
-      try {
-        val hasLocal = PackPaths.dbFile(ctx).exists() && PackPaths.dbFile(ctx).length() > 0L
-        if (!hasLocal) {
-          downloadAndInstallPack("Downloading pack…")
-          return@launch
-        }
-        downloadAndInstallPack("Updating pack…")
-      } catch (t: Throwable) {
-        _state.value = _state.value.copy(
-          loading = false,
-          status = "UPDATE ERROR: ${t::class.java.simpleName}: ${t.message}"
-        )
-      }
-    }
+    _state.value = _state.value.copy(status = "Обновление отключено")
   }
 
   private fun refreshAfterSync() {
