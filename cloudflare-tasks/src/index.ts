@@ -676,6 +676,21 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
         return json({ ok: true, summary_date: summaryDate, count: (rows.results || []).length, entries: rows.results || [] })
       }
 
+      if (path === "/daily_summary_recent_dates_debug" && request.method === "GET") {
+        const limit = Math.max(1, Math.min(60, Number(url.searchParams.get("limit") || 30)))
+
+        const rows = await env.DB.prepare(`
+          SELECT summary_date, MAX(updated_at) AS updated_at
+          FROM daily_summary_entries
+          WHERE deleted_at IS NULL
+          GROUP BY summary_date
+          ORDER BY summary_date DESC
+          LIMIT ?
+        `).bind(limit).all()
+
+        return json({ ok: true, dates: rows.results || [] })
+      }
+
       if (path === "/daily_summary_recent_dates" && request.method === "GET") {
         const user = await getCurrentUser(request, env)
         if (!user) return json({ ok: false, error: "unauthorized" }, 401)
