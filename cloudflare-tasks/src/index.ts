@@ -432,7 +432,16 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
             device_name=excluded.device_name,
             updated_at=excluded.updated_at,
             last_seen_at=excluded.last_seen_at
-        `).bind(deviceId, user.user_id, fcmToken, platform, deviceName, nowIso(), nowIso(), nowIso()).run()
+        `).bind(
+          deviceId,
+          user.user_id,
+          fcmToken,
+          platform,
+          deviceName,
+          nowIso(),
+          nowIso(),
+          nowIso()
+        ).run()
 
         return json({ ok: true })
       }
