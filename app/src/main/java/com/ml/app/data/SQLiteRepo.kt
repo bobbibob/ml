@@ -322,14 +322,16 @@ class SQLiteRepo(private val context: Context) {
     val hypothesis: String?,
     val price: Double?,
     val cogs: Double?,
+    val deliveryFee: Double?,
     val cardType: String?,
     val photoPath: String?
   )
 
   suspend fun getBagUser(bagId: String): BagUserRow? = withContext(Dispatchers.IO) {
     openDbReadWrite().use { db ->
+      kotlin.runCatching { db.execSQL("ALTER TABLE bag_user ADD COLUMN delivery_fee REAL") }
       db.rawQuery(
-        "SELECT bag_id,name,hypothesis,price,cogs,card_type,photo_path FROM bag_user WHERE bag_id=?",
+        "SELECT bag_id,name,hypothesis,price,cogs,delivery_fee,card_type,photo_path FROM bag_user WHERE bag_id=?",
         arrayOf(bagId)
       ).use { c ->
         if (!c.moveToFirst()) return@withContext null
@@ -343,6 +345,7 @@ class SQLiteRepo(private val context: Context) {
           hypothesis = nstr("hypothesis"),
           price = ndbl("price"),
           cogs = ndbl("cogs"),
+          deliveryFee = ndbl("delivery_fee"),
           cardType = nstr("card_type"),
           photoPath = nstr("photo_path")
         )
