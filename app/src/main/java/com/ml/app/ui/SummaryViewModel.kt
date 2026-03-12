@@ -200,6 +200,16 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
     viewModelScope.launch(Dispatchers.IO) {
       try {
         val hasHealthyLocal = isLocalPackHealthy()
+        // Auto pack update check
+        kotlin.runCatching {
+            val remote = r2.headPack()
+            val saved = prefsPack.getString("pack_etag", null)
+            if (saved == null || saved != remote.etag) {
+                downloadAndInstallPack("Updating pack…")
+                prefsPack.edit().putString("pack_etag", remote.etag).apply()
+            }
+        }
+
         _state.value = _state.value.copy(hasPack = hasHealthyLocal)
 
         if (hasHealthyLocal) {
