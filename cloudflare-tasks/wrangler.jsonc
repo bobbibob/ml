@@ -11,5 +11,11 @@
   ],
   "vars": {
     "FIREBASE_PROJECT_ID": "ml-tasks-26f47"
-  }
+  },
+  "r2_buckets": [
+    {
+      "binding": "R2",
+      "bucket_name": "ml-br"
+    }
+  ]
 }
