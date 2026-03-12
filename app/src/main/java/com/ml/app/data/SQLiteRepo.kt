@@ -1206,7 +1206,7 @@ class SQLiteRepo(private val context: Context) {
               if (bag.igEnabled) bag.igSpend ?: 0.0 else 0.0,
               if (bag.igEnabled) (bag.igImpressions ?: 0L).toDouble() else 0.0,
               if (bag.igEnabled) (bag.igClicks ?: 0L).toDouble() else 0.0,
-              totalCogs
+              cogs
             )
           )
         }
