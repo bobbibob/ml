@@ -1,5 +1,6 @@
 package com.ml.app.data.repository
 
+import android.content.Context
 import com.ml.app.core.network.safeApiCall
 import com.ml.app.core.result.AppResult
 import com.ml.app.data.remote.api.MlApiService
@@ -9,14 +10,20 @@ import com.ml.app.data.remote.dto.DailySummaryUpsertRequest
 import com.ml.app.data.SQLiteRepo
 
 class DailySummarySyncRepository(
-    private val api: MlApiService
+    private val api: MlApiService,
+    private val context: Context
 ) {
     suspend fun upsertDailySummary(
         date: String,
         bags: List<SQLiteRepo.DailySummaryBagSave>
     ): AppResult<Unit> {
+        val db = SQLiteRepo(context)
+
         val entries = bags.flatMap { bag ->
             bag.ordersByColor.map { (color, orders) ->
+                val snap = kotlinx.coroutines.runBlocking {
+                    db.getLatestSnapshotForBagColor(bag.bagId, color)
+                }
                 DailySummaryUpsertItemDto(
                     bag_id = bag.bagId,
                     color = color,
@@ -29,7 +36,11 @@ class DailySummarySyncRepository(
                     ig_enabled = bag.igEnabled,
                     ig_spend = bag.igSpend,
                     ig_impressions = bag.igImpressions,
-                    ig_clicks = bag.igClicks
+                    ig_clicks = bag.igClicks,
+                    price = snap?.price,
+                    cogs = snap?.cogs,
+                    delivery_fee = snap?.deliveryFee,
+                    hypothesis = snap?.hypothesis
                 )
             }
         }
