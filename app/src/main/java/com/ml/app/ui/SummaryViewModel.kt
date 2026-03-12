@@ -51,6 +51,43 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
   private val _state = MutableStateFlow(SummaryState())
   val state: StateFlow<SummaryState> = _state
 
+  private suspend fun installBundledPackIfPresent(): Boolean {
+    val resId = ctx.resources.getIdentifier("bootstrap_pack", "raw", ctx.packageName)
+    if (resId == 0) return false
+
+    _state.value = _state.value.copy(
+      loading = true,
+      status = "Installing bundled base…"
+    )
+
+    val bytes = ctx.resources.openRawResource(resId).use { it.readBytes() }
+
+    val packDir = PackPaths.packDir(ctx)
+    if (!packDir.exists()) packDir.mkdirs()
+
+    ZipUtil.unzipToDir(bytes, packDir)
+
+    val dbFile = PackPaths.dbFile(ctx)
+    if (!dbFile.exists() || dbFile.length() == 0L) {
+      throw IllegalStateException("bundled data.sqlite not found after unzip: ${dbFile.absolutePath}")
+    }
+
+    kotlin.runCatching {
+      PackDbSync.mergedDbFile(ctx).delete()
+      PackDbSync.refreshMergedDb(ctx)
+    }
+
+    _state.value = _state.value.copy(
+      hasPack = true,
+      loading = false,
+      status = "Bundled base installed"
+    )
+
+    refreshTimeline()
+    return true
+  }
+
+
   private suspend fun downloadAndInstallPack(statusText: String) {
     _state.value = _state.value.copy(loading = true, status = statusText)
 
@@ -81,20 +118,26 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
 
   fun init() {
     viewModelScope.launch(Dispatchers.IO) {
-      val has = PackPaths.dbFile(ctx).exists() && PackPaths.imagesDir(ctx).exists()
+      val has = PackPaths.dbFile(ctx).exists() && PackPaths.dbFile(ctx).length() > 0L
       _state.value = _state.value.copy(hasPack = has)
 
       if (has) {
-        kotlin.runCatching {
-          PackDbSync.refreshMergedDb(ctx)
-        }
-      }
-
-      syncIfChanged()
-
-      if (_state.value.hasPack) {
+        kotlin.runCatching { PackDbSync.refreshMergedDb(ctx) }
         refreshTimeline()
+        syncIfChanged()
+        return@launch
       }
+
+      val installedBundled = kotlin.runCatching {
+        installBundledPackIfPresent()
+      }.getOrDefault(false)
+
+      if (installedBundled) {
+        syncIfChanged()
+        return@launch
+      }
+
+      downloadAndInstallPack("Downloading…")
     }
   }
 
