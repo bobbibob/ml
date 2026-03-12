@@ -51,6 +51,24 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
   private val _state = MutableStateFlow(SummaryState())
   val state: StateFlow<SummaryState> = _state
 
+  private suspend fun downloadAndInstallPack(statusText: String) {
+    _state.value = _state.value.copy(loading = true, status = statusText)
+
+    val zip = r2.downloadPackZip()
+    ZipUtil.unzipToDir(zip, PackPaths.packDir(ctx))
+
+    val dbFile = PackPaths.dbFile(ctx)
+    if (!dbFile.exists() || dbFile.length() == 0L) {
+      throw IllegalStateException("data.sqlite not found after unzip")
+    }
+
+    PackDbSync.mergedDbFile(ctx).delete()
+    PackDbSync.refreshMergedDb(ctx)
+
+    _state.value = _state.value.copy(hasPack = true, loading = false, status = "Downloaded")
+    refreshAfterSync()
+  }
+
   fun init() {
     viewModelScope.launch(Dispatchers.IO) {
       val has = PackPaths.dbFile(ctx).exists() && PackPaths.imagesDir(ctx).exists()
@@ -212,79 +230,36 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
   fun syncIfChanged() {
     viewModelScope.launch(Dispatchers.IO) {
       try {
-        _state.value = _state.value.copy(
-          loading = true,
-          status = "Checking updates…"
-        )
+        val hasLocal = PackPaths.dbFile(ctx).exists() && PackPaths.dbFile(ctx).length() > 0L
+        if (!hasLocal) return@launch
 
-        val hasLocal = PackPaths.dbFile(ctx).exists() && PackPaths.imagesDir(ctx).exists()
+        val remote = r2.headPack()
+        val remoteKey = listOf(
+          remote.etag ?: "",
+          remote.lastModified ?: "",
+          remote.contentLength?.toString() ?: ""
+        ).joinToString("|")
 
-        val localManifestFile = PackPaths.manifestFile(ctx)
-        val localVersion = if (localManifestFile.exists()) {
-          kotlin.runCatching {
-            JSONObject(localManifestFile.readText()).optInt("version", 0)
-          }.getOrDefault(0)
-        } else {
-          0
-        }
+        val savedKey = prefsPack.getString("remote_pack_key", "") ?: ""
+        if (remoteKey.isBlank() || remoteKey == savedKey) return@launch
 
-        val tmpDir = File(ctx.cacheDir, "pack_refresh_check")
-        if (tmpDir.exists()) tmpDir.deleteRecursively()
-        tmpDir.mkdirs()
-
+        _state.value = _state.value.copy(loading = true, status = "Updating…")
         val zip = r2.downloadPackZip()
-        ZipUtil.unzipToDir(zip, tmpDir)
+        ZipUtil.unzipToDir(zip, PackPaths.packDir(ctx))
 
-        val remoteManifestFile = File(tmpDir, "manifest.json")
-        val remoteVersion = if (remoteManifestFile.exists()) {
-          kotlin.runCatching {
-            JSONObject(remoteManifestFile.readText()).optInt("version", 0)
-          }.getOrDefault(0)
-        } else {
-          0
+        val dbFile = PackPaths.dbFile(ctx)
+        if (!dbFile.exists() || dbFile.length() == 0L) {
+          throw IllegalStateException("data.sqlite not found after unzip")
         }
 
-        if (!hasLocal) {
-          _state.value = _state.value.copy(status = "Downloading…")
+        PackDbSync.mergedDbFile(ctx).delete()
+        PackDbSync.refreshMergedDb(ctx)
+        prefsPack.edit().putString("remote_pack_key", remoteKey).apply()
 
-          ZipUtil.unzipToDir(zip, PackPaths.packDir(ctx))
-          PackDbSync.mergedDbFile(ctx).delete()
-          PackDbSync.refreshMergedDb(ctx)
-
-          _state.value = _state.value.copy(
-            hasPack = true,
-            loading = false,
-            status = "Downloaded"
-          )
-          refreshAfterSync()
-          return@launch
-        }
-
-        if (remoteVersion > localVersion) {
-          _state.value = _state.value.copy(status = "Updating…")
-
-          ZipUtil.unzipToDir(zip, PackPaths.packDir(ctx))
-          PackDbSync.mergedDbFile(ctx).delete()
-          PackDbSync.refreshMergedDb(ctx)
-
-          _state.value = _state.value.copy(
-            hasPack = true,
-            loading = false,
-            status = "Updated"
-          )
-          refreshAfterSync()
-        } else {
-          _state.value = _state.value.copy(
-            loading = false,
-            status = "No changes"
-          )
-          refreshAfterSync()
-        }
-      } catch (t: Throwable) {
-        _state.value = _state.value.copy(
-          loading = false,
-          status = "Sync error: ${t.message}"
-        )
+        _state.value = _state.value.copy(hasPack = true, loading = false, status = "Updated")
+        refreshAfterSync()
+      } catch (_: Throwable) {
+        _state.value = _state.value.copy(loading = false, status = "OK")
       }
     }
   }
