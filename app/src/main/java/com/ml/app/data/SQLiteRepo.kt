@@ -1073,8 +1073,15 @@ class SQLiteRepo(private val context: Context) {
         for (bag in bags) {
           val totalOrders = bag.ordersByColor.sumOf { it.second }
 
-          val bagUser = db.rawQuery(
-            "SELECT hypothesis, price, cogs FROM bag_user WHERE bag_id=? LIMIT 1",
+          val bagSnapshot = db.rawQuery(
+            """
+            SELECT hypothesis, price, cogs
+            FROM svodka
+            WHERE bag_id=? AND color IN ('__TOTAL__','TOTAL')
+              AND (price IS NOT NULL OR cogs IS NOT NULL OR hypothesis IS NOT NULL)
+            ORDER BY date DESC
+            LIMIT 1
+            """.trimIndent(),
             arrayOf(bag.bagId)
           ).use { c ->
             if (c.moveToFirst()) {
@@ -1088,9 +1095,9 @@ class SQLiteRepo(private val context: Context) {
             }
           }
 
-          val hypothesis = bagUser.first
-          val defaultPrice = bagUser.second
-          val defaultCogs = bagUser.third
+          val hypothesis = bagSnapshot.first
+          val defaultPrice = bagSnapshot.second
+          val defaultCogs = bagSnapshot.third
 
           var weightedPriceSum = 0.0
           var weightedCogsSum = 0.0
@@ -1101,7 +1108,8 @@ class SQLiteRepo(private val context: Context) {
               """
               SELECT price, cogs
               FROM svodka
-              WHERE bag_id=? AND color=? AND price IS NOT NULL
+              WHERE bag_id=? AND color=?
+                AND (price IS NOT NULL OR cogs IS NOT NULL)
               ORDER BY date DESC
               LIMIT 1
               """.trimIndent(),
@@ -1117,21 +1125,8 @@ class SQLiteRepo(private val context: Context) {
               }
             }
 
-            val colorPrice = db.rawQuery(
-              "SELECT price FROM bag_user_color_price WHERE bag_id=? AND color=? LIMIT 1",
-              arrayOf(bag.bagId, color)
-            ).use { c ->
-              when {
-                c.moveToFirst() && !c.isNull(0) -> c.getDouble(0)
-                svodkaFallback.first != null -> svodkaFallback.first
-                else -> defaultPrice
-              }
-            }
-
-            val colorCogs = when {
-              svodkaFallback.second != null -> svodkaFallback.second
-              else -> defaultCogs
-            }
+            val colorPrice = svodkaFallback.first ?: defaultPrice
+            val colorCogs = svodkaFallback.second ?: defaultCogs
 
             if (orders > 0) {
               if (colorPrice != null) {
