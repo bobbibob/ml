@@ -12,9 +12,13 @@ import kotlin.math.roundToInt
 class SQLiteRepo(private val context: Context) {
 
   private fun openDbReadOnly(): SQLiteDatabase {
-    val dbFile: File = PackPaths.dbFile(context)
+    val merged = PackDbSync.mergedDbFile(context)
+    if (!merged.exists() || merged.length() == 0L) {
+      runCatching { PackDbSync.refreshMergedDb(context) }
+    }
+    val dbFile: File = PackDbSync.dbFileToUse(context)
     require(dbFile.exists() && dbFile.length() > 0L) {
-      "Pack DB missing: ${dbFile.absolutePath}"
+      "Readable DB missing: ${dbFile.absolutePath}"
     }
     return SQLiteDatabase.openDatabase(dbFile.absolutePath, null, SQLiteDatabase.OPEN_READONLY)
   }
