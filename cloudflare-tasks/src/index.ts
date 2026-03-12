@@ -63,6 +63,25 @@ async function ensureFcmTokenColumn(env: Env) {
   } catch {}
 }
 
+async function ensureUserDevicesTable(env: Env) {
+  try {
+    await env.DB.prepare(`
+      CREATE TABLE IF NOT EXISTS user_devices (
+        device_id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        fcm_token TEXT NOT NULL UNIQUE,
+        platform TEXT,
+        device_name TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        last_seen_at TEXT NOT NULL
+      )
+    `).run()
+  } catch (e) {
+    console.log("ensureUserDevicesTable error", String(e))
+  }
+}
+
 function randomId(prefix: string): string {
   const bytes = crypto.getRandomValues(new Uint8Array(8))
   const hex = Array.from(bytes).map(b => b.toString(16).padStart(2, "0")).join("")
@@ -268,7 +287,8 @@ export default {
       await ensureFcmTokenColumn(env)
 
     
-      await ensureReminderColumns(env)
+          await ensureUserDevicesTable(env)
+await ensureReminderColumns(env)
 try {
       if (path === "/google_login" && request.method === "POST") {
         const body = await request.json<{ id_token?: string }>().catch(() => null)
@@ -382,14 +402,40 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
 
       if (path === "/save_fcm_token" && request.method === "POST") {
         const user = await getCurrentUser(request, env)
-        if (!user) console.log("DEBUG: bypass auth for send_push")
+        if (!user) return json({ ok: false, error: "unauthorized" }, 401)
 
-        const body = await request.json<{ fcm_token?: string }>().catch(() => null)
+        const body = await request.json<{ fcm_token?: string; platform?: string; device_name?: string }>().catch(() => null)
         const fcmToken = String(body?.fcm_token || "").trim()
+        const platform = String(body?.platform || "android").trim() || "android"
+        const deviceName = String(body?.device_name || "").trim() || null
 
         if (!fcmToken) {
           return json({ ok: false, error: "fcm_token required" }, 400)
         }
+
+        const existing = await env.DB.prepare(`
+          SELECT device_id
+          FROM user_devices
+          WHERE fcm_token = ?
+          LIMIT 1
+        `).bind(fcmToken).first<{ device_id: string }>()
+
+        const deviceId = existing?.device_id || randomId("dev")
+
+        await env.DB.prepare(`
+          INSERT INTO user_devices (
+            device_id, user_id, fcm_token, platform, device_name, created_at, updated_at, last_seen_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(fcm_token) DO UPDATE SET
+            user_id=excluded.user_id,
+            platform=excluded.platform,
+            device_name=excluded.device_name,
+            updated_at=excluded.updated_at,
+            last_seen_at=excluded.last_seen_at
+        `).bind(deviceId, user.user_id, fcmToken, platform, deviceName, nowIso(), nowIso(), nowIso()).run()
+
+        return json({ ok: true })
+      }
 
         await env.DB.prepare(`
           UPDATE users
@@ -510,7 +556,7 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
 
         const rows = await env.DB.prepare(`
           SELECT user_id, fcm_token
-          FROM users
+          FROM user_devices
           WHERE fcm_token IS NOT NULL AND TRIM(fcm_token) != ''
         `).all<{ user_id: string; fcm_token: string | null }>()
 
@@ -556,7 +602,7 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
         if (userId) {
           const target = await env.DB.prepare(`
             SELECT user_id, fcm_token
-            FROM users
+            FROM user_devices
             WHERE user_id = ?
             LIMIT 1
           `).bind(userId).first<any>()
@@ -565,7 +611,7 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
         } else {
           const rows = await env.DB.prepare(`
             SELECT user_id, fcm_token
-            FROM users
+            FROM user_devices
             WHERE fcm_token IS NOT NULL AND TRIM(fcm_token) <> ''
           `).all<any>()
           targets = (rows.results || []) as Array<{ user_id: string; fcm_token: string | null }>
