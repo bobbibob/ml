@@ -415,7 +415,8 @@ Row(verticalAlignment = Alignment.CenterVertically) {
             is ScreenMode.Timeline -> TimelineList(
               items = state.timeline,
               cardTypes = state.cardTypes,
-              onOpen = { vm.openDetails(LocalDate.parse(it.date)) }
+              onOpen = { vm.openDetails(LocalDate.parse(it.date)) },
+              onEditDay = { vm.openDetails(it.dateAsLocalDate()) }
             )
 
             is ScreenMode.Details -> DetailsList(
@@ -583,7 +584,8 @@ private fun TasksBottomBar(
 private fun TimelineList(
   items: List<DaySummary>,
   cardTypes: Map<String, CardType>,
-  onOpen: (DaySummary) -> Unit
+  onOpen: (DaySummary) -> Unit,
+  onEditDay: (DaySummary) -> Unit
 ) {
   LazyColumn(
     modifier = Modifier.fillMaxSize(),
@@ -648,7 +650,7 @@ private fun TimelineList(
                 .padding(end = 12.dp)
                 .size(20.dp)
                 .clickable {
-                  vm.openAddDailySummary()
+                  onEditDay(day)
                 }
             )
 
