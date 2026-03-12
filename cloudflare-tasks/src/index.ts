@@ -579,6 +579,7 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
         `).all<{ user_id: string; fcm_token: string | null }>()
 
         let sent = 0
+        const errors: string[] = []
 
         for (const row of rows.results || []) {
           const token = String(row.fcm_token || "").trim()
@@ -593,11 +594,13 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
             )
             sent++
           } catch (e) {
-            console.log("notify_new_summary_push_error", String(e))
+            const msg = String(e)
+            console.log("notify_new_summary_push_error", msg)
+            errors.push(msg)
           }
         }
 
-        return json({ ok: true, sent })
+        return json({ ok: true, sent, total: (rows.results || []).length, errors })
       }
 
       if (path === "/send_push" && request.method === "POST") {
