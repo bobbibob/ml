@@ -446,14 +446,6 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
         return json({ ok: true })
       }
 
-        await env.DB.prepare(`
-          UPDATE users
-          SET fcm_token = ?, updated_at = ?
-          WHERE user_id = ?
-        `).bind(fcmToken, nowIso(), user.user_id).run()
-
-        return json({ ok: true, fcm_debug: debugText })
-      }
 
       if (path === "/users_list" && request.method === "GET") {
         const user = await getCurrentUser(request, env)
