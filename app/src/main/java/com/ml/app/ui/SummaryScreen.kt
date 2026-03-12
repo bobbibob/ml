@@ -670,17 +670,14 @@ private fun DetailsList(
     verticalArrangement = Arrangement.spacedBy(12.dp)
   ) {
     items(rows) { r ->
-      val perColorNetBeforeSpend = r.ordersByColors.sumOf { ov ->
-        val colorPrice = ov.value
-        val priceForColor = if (colorPrice > 0.0) colorPrice else (r.price ?: 0.0)
-        ProfitCalc.netProfitBeforeSpend(
-          orders = ov.orders,
-          price = priceForColor,
-          cogs = r.cogs,
-          deliveryFee = null
-        )
-      }
-      val net = perColorNetBeforeSpend - r.totalSpend
+      val price = r.price ?: 0.0
+      val net = ProfitCalc.netProfit(
+        orders = r.totalOrders,
+        price = price,
+        spend = r.totalSpend,
+        cogs = r.cogs,
+        deliveryFee = null
+      )
 
       Card(colors = CardDefaults.cardColors(containerColor = SoftGray), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(14.dp)) {
