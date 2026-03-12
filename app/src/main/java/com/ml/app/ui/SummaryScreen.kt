@@ -630,19 +630,12 @@ private fun TimelineList(
 
           }
 
-          Spacer(Modifier.height(10.dp))
+          Spacer(Modifier.height(8.dp))
 
-          day.byBags.take(10).forEach { b ->
-            val price = b.price ?: 0.0
-            val net = ProfitCalc.netProfit(b.orders.toDouble(), price, b.spend, b.cogs, null)
-
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-              
           Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.End
           ) {
-
             Icon(
               imageVector = Icons.Default.Edit,
               contentDescription = "edit",
@@ -663,10 +656,16 @@ private fun TimelineList(
                 .clickable {
                 }
             )
-
           }
 
-BagThumb(b.imagePath)
+          Spacer(Modifier.height(10.dp))
+
+          day.byBags.take(10).forEach { b ->
+            val price = b.price ?: 0.0
+            val net = ProfitCalc.netProfit(b.orders.toDouble(), price, b.spend, b.cogs, null)
+
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+              BagThumb(b.imagePath)
               Spacer(Modifier.width(10.dp))
               Column(Modifier.weight(1f)) {
                 Text(
@@ -685,6 +684,8 @@ BagThumb(b.imagePath)
               }
             }
             Spacer(Modifier.height(6.dp))
+
+
 
           }
         }
