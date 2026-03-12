@@ -99,7 +99,7 @@ class SQLiteRepo(private val context: Context) {
               imagePath = images[bagId],
               spend = spend,
               price = price,
-              totalCogs = cogs
+              cogs = cogs
             )
           )
         }
@@ -1160,7 +1160,7 @@ class SQLiteRepo(private val context: Context) {
             else -> defaultPrice
           }
 
-          val totalCogs = when {
+          val cogs = when {
             weightedOrders > 0 && weightedCogsSum > 0.0 -> weightedCogsSum / weightedOrders.toDouble()
             else -> defaultCogs
           }
