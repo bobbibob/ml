@@ -102,7 +102,6 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
   LaunchedEffect(tasksVm.state.currentUser?.user_id) {
     if (tasksVm.state.currentUser != null) {
       vm.init()
-      vm.fullSync()
     }
   }
 
@@ -183,7 +182,7 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
 
   val pullState = rememberPullRefreshState(
     refreshing = state.loading,
-    onRefresh = { vm.fullSync() }
+    onRefresh = { vm.syncIfChanged() }
   )
 
   Box(

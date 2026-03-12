@@ -41,7 +41,6 @@ import com.ml.app.core.network.ApiModule
 import com.ml.app.data.SQLiteRepo
 import com.ml.app.data.repository.DailySummarySyncRepository
 import com.ml.app.data.session.PrefsSessionStorage
-import com.ml.app.data.sync.SyncManager
 import java.time.LocalDate
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -82,7 +81,8 @@ fun AddDailySummaryScreen(
 
     suspend fun loadForDate() {
         val metaByBag = repo.listSummaryBagColorMeta().associateBy { it.bagId }
-        val resolvedByBag = repo.getResolvedStocksForDate(selectedDate.toString())
+        val resolvedByBag = repo.getResolvedStocksForDate(LocalDate.now().toString())
+            .filter { it.stock > 0.0 }
             .groupBy { it.bagId }
 
         items.clear()
@@ -94,6 +94,7 @@ fun AddDailySummaryScreen(
                     bagName = meta.bagName,
                     photoPath = meta.photoPath,
                     colors = rows
+                        .filter { it.stock > 0.0 }
                         .map { it.color }
                         .distinct()
                         .sortedBy { c -> c.lowercase() }
@@ -384,8 +385,7 @@ fun AddDailySummaryScreen(
                                 val isNewDay = repo.loadForDate(summaryDate).isEmpty()
 
                                 repo.saveDailySummary(summaryDate, bags)
-                                repo.enqueueDailySummarySync(summaryDate, bags)
-                                saveError = null
+                                                                saveError = null
                                 onBack()
 
                                 CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
@@ -394,11 +394,11 @@ fun AddDailySummaryScreen(
                                         baseUrl = "https://ml-tasks-api.bboobb666.workers.dev/",
                                         sessionStorage = session
                                     )
-                                    val syncManager = SyncManager(ctx)
+                                    val syncRepo = DailySummarySyncRepository(api, ctx)
 
                                     kotlin.runCatching {
                                         withTimeout(15000) {
-                                            syncManager.pushPendingDailySummary()
+                                            syncRepo.upsertDailySummary(summaryDate, bags)
                                         }
                                     }
 

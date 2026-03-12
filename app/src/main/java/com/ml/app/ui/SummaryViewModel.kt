@@ -26,7 +26,6 @@ import com.google.firebase.messaging.FirebaseMessaging
 import com.ml.app.core.network.ApiModule
 import com.ml.app.data.repository.AuthRepository
 import com.ml.app.data.session.PrefsSessionStorage
-import com.ml.app.data.sync.SyncManager
 
 sealed class ScreenMode {
   data object Timeline : ScreenMode()
@@ -376,26 +375,6 @@ fun refreshTimeline() {
 
   fun setDateFromPicker(date: LocalDate) {
     openDetails(date)
-  }
-
-
-  fun fullSync() {
-    viewModelScope.launch(Dispatchers.IO) {
-      try {
-        _state.value = _state.value.copy(
-          loading = true,
-          status = "Syncing…"
-        )
-        SyncManager(ctx).fullSync(_state.value.selectedDate)
-        refreshTimeline()
-        refreshDetails()
-      } catch (t: Throwable) {
-        _state.value = _state.value.copy(
-          loading = false,
-          status = "SYNC ERROR: ${t.message}"
-        )
-      }
-    }
   }
 
   fun refreshDetails() {
