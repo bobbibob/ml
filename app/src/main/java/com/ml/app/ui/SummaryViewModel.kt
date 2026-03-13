@@ -382,7 +382,27 @@ fun refreshTimeline() {
       val remote = r2.headPack()
       val saved = prefsPack.getString("pack_etag", null)
 
-      if (saved == null || saved != remote.etag) {
+      if (!saved.isNullOrBlank() && saved == remote.etag) {
+        return@runCatching
+      }
+
+      val localManifestVersion = kotlin.runCatching {
+        val manifestFile = PackPaths.manifestFile(ctx)
+        if (manifestFile.exists()) {
+          JSONObject(manifestFile.readText()).optInt("version", 0)
+        } else {
+          0
+        }
+      }.getOrDefault(0)
+
+      val remoteMeta = kotlin.runCatching { r2.fetchPackVersionMeta() }.getOrNull()
+
+      if (saved.isNullOrBlank() && remoteMeta != null && localManifestVersion >= remoteMeta.version) {
+        prefsPack.edit().putString("pack_etag", remote.etag).apply()
+        return@runCatching
+      }
+
+      if (saved != remote.etag) {
         downloadAndInstallPack("Updating pack…")
         prefsPack.edit().putString("pack_etag", remote.etag).apply()
       }

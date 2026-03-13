@@ -9,11 +9,17 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.asRequestBody
 import java.io.File
 import java.util.concurrent.TimeUnit
+import org.json.JSONObject
 
 data class RemotePackMeta(
   val etag: String?,
   val lastModified: String?,
   val contentLength: Long?
+)
+
+data class RemotePackVersionMeta(
+  val version: Int,
+  val etag: String?
 )
 
 class R2Client(context: Context) {
@@ -28,6 +34,9 @@ class R2Client(context: Context) {
 
   private fun workerPackUrl(): String =
     "https://ml-tasks-api.bboobb666.workers.dev/pack_download"
+
+  private fun workerPackMetaUrl(): String =
+    "https://ml-tasks-api.bboobb666.workers.dev/pack_meta"
 
   private fun stripTrailingSlashes(s: String): String {
     var x = s
@@ -83,6 +92,32 @@ class R2Client(context: Context) {
       resp.body?.bytes() ?: throw IllegalStateException("Empty body")
     }
   }
+
+  suspend fun fetchPackVersionMeta(): RemotePackVersionMeta = withContext(Dispatchers.IO) {
+    val req = Request.Builder()
+      .url(workerPackMetaUrl())
+      .get()
+      .build()
+
+    http.newCall(req).execute().use { resp ->
+      if (!resp.isSuccessful) {
+        val msg = resp.body?.string()?.take(800) ?: ""
+        throw IllegalStateException("pack_meta failed: HTTP ${resp.code} ${resp.message} $msg")
+      }
+
+      val body = resp.body?.string() ?: throw IllegalStateException("Empty body")
+      val json = JSONObject(body)
+      if (!json.optBoolean("ok", false)) {
+        throw IllegalStateException(json.optString("error", "pack_meta not ok"))
+      }
+
+      RemotePackVersionMeta(
+        version = json.optInt("version", 0),
+        etag = json.optString("etag", null)
+      )
+    }
+  }
+
 
   suspend fun uploadPackZip(zipFile: File) = withContext(Dispatchers.IO) {
     require(zipFile.exists()) { "ZIP not found: ${zipFile.absolutePath}" }
