@@ -30,7 +30,7 @@ import com.ml.app.data.session.PrefsSessionStorage
 sealed class ScreenMode {
   data object Timeline : ScreenMode()
   data object Stocks : ScreenMode()
-  data object AddDailySummary : ScreenMode()
+  data class AddDailySummary(val date: LocalDate) : ScreenMode()
   data class Details(val date: LocalDate) : ScreenMode()
   data class ArticleEditor(val bagId: String? = null) : ScreenMode()
 }
@@ -336,8 +336,11 @@ fun refreshTimeline() {
     _state.value = _state.value.copy(mode = ScreenMode.Timeline)
   }
 
-  fun openAddDailySummary() {
-    _state.value = _state.value.copy(mode = ScreenMode.AddDailySummary)
+  fun openAddDailySummary(date: LocalDate = LocalDate.now().minusDays(1)) {
+    _state.value = _state.value.copy(
+      mode = ScreenMode.AddDailySummary(date),
+      selectedDate = date
+    )
   }
 
   fun backFromAddDailySummary() {

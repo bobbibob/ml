@@ -444,7 +444,7 @@ Row(verticalAlignment = Alignment.CenterVertically) {
               items = state.timeline,
               cardTypes = state.cardTypes,
               onOpen = { vm.openDetails(LocalDate.parse(it.date)) },
-              onEditDay = { vm.openDetails(LocalDate.parse(it.date)) },
+              onEditDay = { vm.openAddDailySummary(LocalDate.parse(it.date)) },
               canDelete = tasksVm.state.currentUser?.role == "admin",
               onDeleteDay = { pendingDeleteDate = it.date }
             )
@@ -465,6 +465,7 @@ Row(verticalAlignment = Alignment.CenterVertically) {
             )
 
             is ScreenMode.AddDailySummary -> AddDailySummaryScreen(
+              initialDate = state.selectedDate,
               onBack = { vm.backFromAddDailySummary() }
             )
           }

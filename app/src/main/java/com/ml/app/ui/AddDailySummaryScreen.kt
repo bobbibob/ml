@@ -57,6 +57,7 @@ private data class DailySummaryBagUi(
 
 @Composable
 fun AddDailySummaryScreen(
+    initialDate: LocalDate,
     onBack: () -> Unit
 ) {
     val ctx = LocalContext.current
@@ -64,7 +65,7 @@ fun AddDailySummaryScreen(
     val scope = rememberCoroutineScope()
     var saveError by remember { mutableStateOf<String?>(null) }
 
-    var selectedDate by remember { mutableStateOf(LocalDate.now().minusDays(1)) }
+    var selectedDate by remember(initialDate) { mutableStateOf(initialDate) }
     val items = remember { mutableStateListOf<DailySummaryBagUi>() }
     val orders = remember { mutableStateMapOf<String, Int>() }
 
