@@ -52,7 +52,7 @@ class SQLiteRepo(private val context: Context) {
   private fun totalColorWhere(): String = "AND s.color IN ('__TOTAL__','TOTAL')"
 
   suspend fun loadTimeline(limitDays: Int = 180): List<DaySummary> = withContext(Dispatchers.IO) {
-    openDbReadOnly().use { db ->
+    openDbReadWrite().use { db ->
 
       db.rawQuery("PRAGMA table_info(svodka)", null).use { c ->
         val cols = mutableSetOf<String>()
@@ -144,7 +144,7 @@ class SQLiteRepo(private val context: Context) {
   }
 
   suspend fun loadForDate(date: String): List<BagDayRow> = withContext(Dispatchers.IO) {
-    openDbReadOnly().use { db ->
+    openDbReadWrite().use { db ->
       val images = queryImagesByBagId(db)
         val bagNames = queryBagNamesById(db)
       val out = ArrayList<BagDayRow>()
@@ -1249,7 +1249,7 @@ class SQLiteRepo(private val context: Context) {
     bagId: String,
     color: String
   ): DailySnapshotRow? = withContext(Dispatchers.IO) {
-    openDbReadOnly().use { db ->
+    openDbReadWrite().use { db ->
       db.rawQuery("PRAGMA table_info(svodka)", null).use { c ->
         val cols = mutableSetOf<String>()
         while (c.moveToNext()) cols.add(c.getString(1))
