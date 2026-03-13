@@ -298,10 +298,6 @@ async function sendPushToToken(
           },
           android: {
             priority: "high",
-            notification: {
-              channel_id: "ml_tasks_channel",
-              sound: "default",
-            },
           },
         },
       }),
