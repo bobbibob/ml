@@ -96,7 +96,7 @@ class SQLiteRepo(private val context: Context) {
         val iSpend = c.getColumnIndexOrThrow("spend")
         val iPrice = c.getColumnIndexOrThrow("price")
         val iCogs = c.getColumnIndexOrThrow("cogs")
-        val iDeliveryFee = c.getColumnIndexOrThrow("delivery_fee")
+        val iDeliveryFee = c.getColumnIndex("delivery_fee")
 
         var curDate: String? = null
         var curTotal = 0
@@ -159,6 +159,7 @@ class SQLiteRepo(private val context: Context) {
                  SUM(COALESCE(s.orders,0)) AS orders,
 
                  MAX(COALESCE(s.cogs,0)) AS cogs,
+                 MAX(s.delivery_fee) AS delivery_fee,
 
                  SUM(COALESCE(s.rk_spend,0)) AS rk_spend,
                  SUM(COALESCE(s.rk_impressions,0)) AS rk_impressions,
@@ -181,6 +182,7 @@ class SQLiteRepo(private val context: Context) {
         val iHyp = c.getColumnIndexOrThrow("hypothesis")
         val iOrders = c.getColumnIndexOrThrow("orders")
         val iCogs = c.getColumnIndexOrThrow("cogs")
+        val iDeliveryFee = c.getColumnIndexOrThrow("delivery_fee")
 
         val iRkSpend = c.getColumnIndexOrThrow("rk_spend")
         val iRkImpr = c.getColumnIndexOrThrow("rk_impressions")
@@ -237,6 +239,7 @@ class SQLiteRepo(private val context: Context) {
               totalSpend = totalSpend,
               cpo = cpo,
               cogs = cogs,
+              deliveryFee = if (c.isNull(iDeliveryFee)) null else c.getDouble(iDeliveryFee),
               ordersByColors = queryOrdersByColors(db, date, bagId),
               stockByColors = queryStockByColors(db, date, bagId),
               rk = rk,
