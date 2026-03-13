@@ -317,7 +317,7 @@ async function sendPushToToken(
 }
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     if (request.method === "OPTIONS") return json({ ok: true, fcm_debug: debugText })
 
     const url = new URL(request.url)
@@ -1055,25 +1055,27 @@ if (path === "/create_task" && request.method === "POST") {
         }))
 
         if (assignee?.fcm_token) {
-          try {
-            const authorName = String(user.display_name || user.email || "Автор").trim() || "Автор"
-            await sendPushToToken(
-              env,
-              assignee.fcm_token,
-              "Новая задача",
-              `Задача "${title}" от ${authorName}`,
-              {
-                type: "task_created",
-                task_id: taskId,
-                open_tasks: "true",
-                task_title: title,
-                author_name: authorName
-              }
-            )
-            console.log("push_send_ok", assigneeUserId)
-          } catch (e) {
-            console.log("push_send_error", String(e))
-          }
+          const authorName = String(user.display_name || user.email || "Автор").trim() || "Автор"
+          ctx.waitUntil((async () => {
+            try {
+              await sendPushToToken(
+                env,
+                assignee.fcm_token,
+                "Новая задача",
+                `Задача "${title}" от ${authorName}`,
+                {
+                  type: "task_created",
+                  task_id: taskId,
+                  open_tasks: "true",
+                  task_title: title,
+                  author_name: authorName
+                }
+              )
+              console.log("push_send_ok", assigneeUserId)
+            } catch (e) {
+              console.log("push_send_error", String(e))
+            }
+          })())
         } else {
           console.log("push_send_skipped_no_token", assigneeUserId)
         }
