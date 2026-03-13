@@ -40,6 +40,7 @@ data class BagDayRow(
   val cpo: Double = 0.0,
 
   val cogs: Double = 0.0,
+  val deliveryFee: Double? = null,
 
   val ordersByColors: List<ColorValue> = emptyList(),
   val stockByColors: List<ColorValue> = emptyList(),

@@ -656,7 +656,7 @@ private fun TimelineList(
       val daySpend = day.byBags.sumOf { it.spend }
       val dayNet = day.byBags.sumOf { b ->
         val price = b.price ?: 0.0
-        ProfitCalc.netProfit(b.orders.toDouble(), price, b.spend, b.cogs, null)
+        ProfitCalc.netProfit(b.orders.toDouble(), price, b.spend, b.cogs, b.deliveryFee)
       }
 
       Card(
@@ -725,7 +725,7 @@ private fun TimelineList(
 
           day.byBags.take(10).forEach { b ->
             val price = b.price ?: 0.0
-            val net = ProfitCalc.netProfit(b.orders.toDouble(), price, b.spend, b.cogs, null)
+            val net = ProfitCalc.netProfit(b.orders.toDouble(), price, b.spend, b.cogs, b.deliveryFee)
 
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
               BagThumb(b.imagePath)
@@ -775,7 +775,7 @@ private fun DetailsList(
         price = price,
         spend = r.totalSpend,
         cogs = r.cogs,
-        deliveryFee = null
+        deliveryFee = r.deliveryFee
       )
 
       Card(colors = CardDefaults.cardColors(containerColor = SoftGray), modifier = Modifier.fillMaxWidth()) {

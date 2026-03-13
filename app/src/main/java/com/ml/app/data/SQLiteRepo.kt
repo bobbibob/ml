@@ -96,6 +96,7 @@ class SQLiteRepo(private val context: Context) {
         val iSpend = c.getColumnIndexOrThrow("spend")
         val iPrice = c.getColumnIndexOrThrow("price")
         val iCogs = c.getColumnIndexOrThrow("cogs")
+        val iDeliveryFee = c.getColumnIndexOrThrow("delivery_fee")
 
         var curDate: String? = null
         var curTotal = 0
