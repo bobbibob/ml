@@ -403,11 +403,7 @@ Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Дата: ${state.selectedDate}")
               }
 
-              Button(
-                onClick = { vm.syncPackNow() },
-                enabled = !state.loading
-              ) {
-              }
+
             }
           }
 
