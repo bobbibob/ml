@@ -1276,6 +1276,23 @@ class SQLiteRepo(private val context: Context) {
             hypothesis = if (c.isNull(3)) null else c.getString(3)
           )
         } else null
+      } ?: db.rawQuery(
+        """
+        SELECT price, cogs, delivery_fee, hypothesis
+        FROM bag_user
+        WHERE bag_id=?
+        LIMIT 1
+        """.trimIndent(),
+        arrayOf(bagId)
+      ).use { c ->
+        if (c.moveToFirst()) {
+          DailySnapshotRow(
+            price = if (c.isNull(0)) null else c.getDouble(0),
+            cogs = if (c.isNull(1)) null else c.getDouble(1),
+            deliveryFee = if (c.isNull(2)) null else c.getDouble(2),
+            hypothesis = if (c.isNull(3)) null else c.getString(3)
+          )
+        } else null
       }
     }
   }
