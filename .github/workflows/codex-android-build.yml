@@ -1,0 +1,62 @@
+name: codex-android-build
+
+on:
+  push:
+    branches:
+      - 'codex/**'
+  pull_request:
+    branches:
+      - 'codex/**'
+  workflow_dispatch:
+
+jobs:
+  build-debug:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Prepare keystore
+        shell: bash
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "KEYSTORE_B64 secret is missing" >&2
+            exit 1
+          fi
+          echo "$KEYSTORE_B64" | base64 -d > /home/runner/ml-release.keystore
+
+      - name: Make gradlew executable
+        run: chmod +x gradlew
+
+      - name: Build debug APK
+        env:
+          KEYSTORE_PATH: /home/runner/ml-release.keystore
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_ACCESS_KEY: ${{ secrets.R2_ACCESS_KEY }}
+          R2_SECRET_KEY: ${{ secrets.R2_SECRET_KEY }}
+          R2_OBJECT_KEY: ${{ secrets.R2_OBJECT_KEY }}
+          R2_REGION: ${{ secrets.R2_REGION }}
+          UPDATED_BY: ${{ secrets.UPDATED_BY }}
+        run: ./gradlew :app:assembleDebug
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: codex-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error

@@ -1,0 +1,93 @@
+name: codex-manual-deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_ref:
+        description: Git ref to deploy/build from
+        required: true
+        default: codex/sandbox
+      deploy_worker:
+        description: Deploy Cloudflare Worker
+        type: boolean
+        required: true
+        default: false
+      build_android:
+        description: Build Android debug APK
+        type: boolean
+        required: true
+        default: true
+
+jobs:
+  manual:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout selected ref
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_ref }}
+
+      - name: Set up Java 17
+        if: ${{ inputs.build_android }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Setup Node 20
+        if: ${{ inputs.deploy_worker }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Prepare keystore
+        if: ${{ inputs.build_android }}
+        shell: bash
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+        run: |
+          echo "$KEYSTORE_B64" | base64 -d > /home/runner/ml-release.keystore
+
+      - name: Make gradlew executable
+        if: ${{ inputs.build_android }}
+        run: chmod +x gradlew
+
+      - name: Build Android debug APK
+        if: ${{ inputs.build_android }}
+        env:
+          KEYSTORE_PATH: /home/runner/ml-release.keystore
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_ACCESS_KEY: ${{ secrets.R2_ACCESS_KEY }}
+          R2_SECRET_KEY: ${{ secrets.R2_SECRET_KEY }}
+          R2_OBJECT_KEY: ${{ secrets.R2_OBJECT_KEY }}
+          R2_REGION: ${{ secrets.R2_REGION }}
+          UPDATED_BY: ${{ secrets.UPDATED_BY }}
+        run: ./gradlew :app:assembleDebug
+
+      - name: Upload APK artifact
+        if: ${{ inputs.build_android }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: codex-manual-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
+      - name: Install Wrangler
+        if: ${{ inputs.deploy_worker }}
+        working-directory: cloudflare-tasks
+        run: npm init -y && npm install wrangler@^3.114.0
+
+      - name: Deploy Worker
+        if: ${{ inputs.deploy_worker }}
+        working-directory: cloudflare-tasks
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler deploy
