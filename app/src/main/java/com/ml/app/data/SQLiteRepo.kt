@@ -1564,33 +1564,38 @@ class SQLiteRepo(private val context: Context) {
             val colorPrice = entry.price ?: defaultPrice
             val colorCogs = entry.cogs ?: defaultCogs
 
-            db.execSQL(
-              """
-              INSERT INTO svodka(date, period_start, period_end, bag_id, color, hypothesis, price, orders, source, cogs)
-              VALUES(?,?,?,?,?,?,?,?,?,?)
-              ON CONFLICT(date, bag_id, color) DO UPDATE SET
-                period_start=excluded.period_start,
-                period_end=excluded.period_end,
-                hypothesis=excluded.hypothesis,
-                price=excluded.price,
-                orders=excluded.orders,
-                source=excluded.source,
-                cogs=excluded.cogs
-              """.trimIndent(),
-              arrayOf(
-                date, date, date, bagId, entry.color, hypothesis,
-                colorPrice, entry.orders.toDouble(), "remote-sync", colorCogs
+            if (entry.color != "__TOTAL__" && entry.color != "TOTAL") {
+              db.execSQL(
+                """
+                INSERT INTO svodka(date, period_start, period_end, bag_id, color, hypothesis, price, orders, source, cogs)
+                VALUES(?,?,?,?,?,?,?,?,?,?)
+                ON CONFLICT(date, bag_id, color) DO UPDATE SET
+                  period_start=excluded.period_start,
+                  period_end=excluded.period_end,
+                  hypothesis=excluded.hypothesis,
+                  price=excluded.price,
+                  orders=excluded.orders,
+                  source=excluded.source,
+                  cogs=excluded.cogs
+                """.trimIndent(),
+                arrayOf(
+                  date, date, date, bagId, entry.color, hypothesis,
+                  colorPrice, entry.orders.toDouble(), "remote-sync", colorCogs
+                )
               )
-            )
 
-            totalOrders += entry.orders
-            totalRkSpend += if (entry.rk_enabled) (entry.rk_spend ?: 0.0) else 0.0
-            totalRkImpr += if (entry.rk_enabled) (entry.rk_impressions ?: 0L) else 0L
-            totalRkClicks += if (entry.rk_enabled) (entry.rk_clicks ?: 0L) else 0L
-            totalIgSpend += if (entry.ig_enabled) (entry.ig_spend ?: 0.0) else 0.0
-            totalIgImpr += if (entry.ig_enabled) (entry.ig_impressions ?: 0L) else 0L
-            totalIgClicks += if (entry.ig_enabled) (entry.ig_clicks ?: 0L) else 0L
-            if (entry.rk_enabled && entry.rk_stake != null) totalStake = entry.rk_stake
+              totalOrders += entry.orders
+            }
+
+            if (entry.color == "__TOTAL__" || entry.color == "TOTAL") {
+              totalRkSpend = if (entry.rk_enabled) (entry.rk_spend ?: 0.0) else 0.0
+              totalRkImpr = if (entry.rk_enabled) (entry.rk_impressions ?: 0L) else 0L
+              totalRkClicks = if (entry.rk_enabled) (entry.rk_clicks ?: 0L) else 0L
+              totalIgSpend = if (entry.ig_enabled) (entry.ig_spend ?: 0.0) else 0.0
+              totalIgImpr = if (entry.ig_enabled) (entry.ig_impressions ?: 0L) else 0L
+              totalIgClicks = if (entry.ig_enabled) (entry.ig_clicks ?: 0L) else 0L
+              totalStake = if (entry.rk_enabled) entry.rk_stake else null
+            }
           }
 
           db.execSQL(

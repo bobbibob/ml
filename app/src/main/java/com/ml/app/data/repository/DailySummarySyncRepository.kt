@@ -20,7 +20,7 @@ class DailySummarySyncRepository(
         val db = SQLiteRepo(context)
 
         val entries = bags.flatMap { bag ->
-            bag.ordersByColor.map { (color, orders) ->
+            val colorEntries = bag.ordersByColor.map { (color, orders) ->
                 val snap = kotlinx.coroutines.runBlocking {
                     db.getLatestSnapshotForBagColor(bag.bagId, color)
                 }
@@ -28,21 +28,44 @@ class DailySummarySyncRepository(
                     bag_id = bag.bagId,
                     color = color,
                     orders = orders,
-                    rk_enabled = bag.rkEnabled,
-                    rk_spend = bag.rkSpend,
-                    rk_impressions = bag.rkImpressions,
-                    rk_clicks = bag.rkClicks,
-                    rk_stake = bag.rkStake,
-                    ig_enabled = bag.igEnabled,
-                    ig_spend = bag.igSpend,
-                    ig_impressions = bag.igImpressions,
-                    ig_clicks = bag.igClicks,
+                    rk_enabled = false,
+                    rk_spend = null,
+                    rk_impressions = null,
+                    rk_clicks = null,
+                    rk_stake = null,
+                    ig_enabled = false,
+                    ig_spend = null,
+                    ig_impressions = null,
+                    ig_clicks = null,
                     price = snap?.price,
                     cogs = snap?.cogs,
                     delivery_fee = snap?.deliveryFee,
                     hypothesis = snap?.hypothesis
                 )
             }
+
+            val totalSnap = kotlinx.coroutines.runBlocking {
+                db.getLatestSnapshotForBagColor(bag.bagId, "__TOTAL__")
+            }
+
+            colorEntries + DailySummaryUpsertItemDto(
+                bag_id = bag.bagId,
+                color = "__TOTAL__",
+                orders = bag.ordersByColor.sumOf { it.second },
+                rk_enabled = bag.rkEnabled,
+                rk_spend = bag.rkSpend,
+                rk_impressions = bag.rkImpressions,
+                rk_clicks = bag.rkClicks,
+                rk_stake = bag.rkStake,
+                ig_enabled = bag.igEnabled,
+                ig_spend = bag.igSpend,
+                ig_impressions = bag.igImpressions,
+                ig_clicks = bag.igClicks,
+                price = totalSnap?.price,
+                cogs = totalSnap?.cogs,
+                delivery_fee = totalSnap?.deliveryFee,
+                hypothesis = totalSnap?.hypothesis
+            )
         }
 
         return when (val result = safeApiCall {
