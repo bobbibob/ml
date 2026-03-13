@@ -1236,8 +1236,18 @@ class SQLiteRepo(private val context: Context) {
     color: String
   ): DailySnapshotRow? = withContext(Dispatchers.IO) {
     openDbReadOnly().use { db ->
-      kotlin.runCatching { db.execSQL("ALTER TABLE svodka ADD COLUMN delivery_fee REAL") }
-      kotlin.runCatching { db.execSQL("ALTER TABLE svodka ADD COLUMN hypothesis TEXT") }
+      db.rawQuery("PRAGMA table_info(svodka)", null).use { c ->
+        val cols = mutableSetOf<String>()
+        while (c.moveToNext()) cols.add(c.getString(1))
+
+        if (!cols.contains("delivery_fee")) {
+          kotlin.runCatching { db.execSQL("ALTER TABLE svodka ADD COLUMN delivery_fee REAL") }
+        }
+
+        if (!cols.contains("hypothesis")) {
+          kotlin.runCatching { db.execSQL("ALTER TABLE svodka ADD COLUMN hypothesis TEXT") }
+        }
+      }
 
       val row = db.rawQuery(
         """
