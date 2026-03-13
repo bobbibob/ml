@@ -1357,6 +1357,11 @@ class SQLiteRepo(private val context: Context) {
     openDbReadWrite().use { db ->
       db.beginTransaction()
       try {
+        db.execSQL(
+          "DELETE FROM svodka WHERE date=?",
+          arrayOf(date)
+        )
+
         for (bag in bags) {
           val totalOrders = bag.ordersByColor.sumOf { it.second }
 
