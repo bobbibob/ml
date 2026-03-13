@@ -9,6 +9,7 @@ import androidx.compose.material3.AlertDialog
 import android.app.Activity
 
 import android.app.DatePickerDialog
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.LaunchedEffect
 import androidx.core.content.ContextCompat
@@ -123,11 +124,24 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
         Button(
           onClick = {
             scope.launch {
-              kotlin.runCatching {
-                summaryRepo.deleteDailySummaryByDate(dateToDelete)
-                vm.refreshTimeline()
+              val session = PrefsSessionStorage(ctx)
+              val api = ApiModule.createApi(
+                baseUrl = "https://ml-tasks-api.bboobb666.workers.dev/",
+                sessionStorage = session
+              )
+              val syncRepo = DailySummarySyncRepository(api, ctx)
+
+              when (val res = syncRepo.deleteDailySummary(dateToDelete)) {
+                is com.ml.app.core.result.AppResult.Success -> {
+                  summaryRepo.deleteDailySummaryByDate(dateToDelete)
+                  vm.refreshTimeline()
+                  pendingDeleteDate = null
+                }
+                is com.ml.app.core.result.AppResult.Error -> {
+                  pendingDeleteDate = null
+                  Toast.makeText(ctx, "Ошибка удаления: ${res.message}", Toast.LENGTH_LONG).show()
+                }
               }
-              pendingDeleteDate = null
             }
           }
         ) {
@@ -436,6 +450,15 @@ Row(verticalAlignment = Alignment.CenterVertically) {
               }
 
 
+            }
+
+            if (state.status.isNotBlank()) {
+              Spacer(Modifier.height(8.dp))
+              Text(
+                text = state.status,
+                color = Color.Gray,
+                style = MaterialTheme.typography.bodySmall
+              )
             }
           }
 

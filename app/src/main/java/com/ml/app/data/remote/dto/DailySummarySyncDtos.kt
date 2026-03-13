@@ -74,3 +74,10 @@ data class DailySummaryRecentDatesResponse(
     val dates: List<DailySummaryRecentDateDto> = emptyList(),
     val error: String? = null
 )
+
+
+data class DailySummaryDeleteResponse(
+    val ok: Boolean,
+    val summary_date: String? = null,
+    val error: String? = null
+)

@@ -1012,6 +1012,34 @@ class SQLiteRepo(private val context: Context) {
     }
   }
 
+  suspend fun getRemoteSyncedSummaryDates(): List<String> = withContext(Dispatchers.IO) {
+    openDbReadWrite().use { db ->
+      val out = ArrayList<String>()
+      db.rawQuery(
+        """
+        SELECT DISTINCT date
+        FROM svodka
+        WHERE source='remote-sync'
+        ORDER BY date DESC
+        """.trimIndent(),
+        null
+      ).use { c ->
+        while (c.moveToNext()) out.add(c.getString(0))
+      }
+      out
+    }
+  }
+
+  suspend fun deleteRemoteSyncedSummaryByDate(date: String) = withContext(Dispatchers.IO) {
+    openDbReadWrite().use { db ->
+      db.execSQL(
+        "DELETE FROM svodka WHERE date=? AND source='remote-sync'",
+        arrayOf(date)
+      )
+    }
+  }
+
+
 
   suspend fun loadDailySummaryDraft(date: String): DailySummaryDraft = withContext(Dispatchers.IO) {
     openDbReadWrite().use { db ->

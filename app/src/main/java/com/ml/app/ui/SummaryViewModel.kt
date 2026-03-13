@@ -501,6 +501,15 @@ fun refreshTimeline() {
         _state.value = _state.value.copy(
           status = "RECENT dates=${recent.data.joinToString(limit = 5)}"
         )
+
+        val serverDates = recent.data.toSet()
+        val localRemoteDates = repo.getRemoteSyncedSummaryDates()
+        for (localDate in localRemoteDates) {
+          if (!serverDates.contains(localDate)) {
+            repo.deleteRemoteSyncedSummaryByDate(localDate)
+          }
+        }
+
         for (date in recent.data) {
           when (val byDate = syncRepo.getDailySummaryByDate(date)) {
             is com.ml.app.core.result.AppResult.Success -> {

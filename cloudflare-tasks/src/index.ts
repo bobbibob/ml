@@ -757,6 +757,44 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
         })
       }
 
+      if (path === "/daily_summary_delete" && request.method === "POST") {
+        const user = await getCurrentUser(request, env)
+        if (!user) return json({ ok: false, error: "unauthorized" }, 401)
+        if (user.role !== "admin") return json({ ok: false, error: "forbidden" }, 403)
+
+        const contentType = request.headers.get("content-type") || ""
+        let summaryDate = ""
+
+        if (contentType.includes("application/x-www-form-urlencoded")) {
+          const form = await request.formData()
+          summaryDate = String(form.get("summary_date") || "").trim()
+        } else {
+          const body = await request.json().catch(() => ({} as any))
+          summaryDate = String(body?.summary_date || "").trim()
+        }
+
+        if (!summaryDate) return json({ ok: false, error: "summary_date_required" }, 400)
+
+        await ensureDailySummaryTable(env)
+
+        await env.DB.prepare(`
+          UPDATE daily_summary_entries
+          SET deleted_at = ?, updated_at = ?, updated_by_user_id = ?
+          WHERE summary_date = ? AND deleted_at IS NULL
+        `).bind(
+          new Date().toISOString(),
+          new Date().toISOString(),
+          user.user_id,
+          summaryDate
+        ).run()
+
+        await logAction(env, "daily_summary", summaryDate, "daily_summary_delete", user.user_id, {
+          summary_date: summaryDate
+        })
+
+        return json({ ok: true, summary_date: summaryDate })
+      }
+
       if (path === "/daily_summary_by_date" && request.method === "GET") {
         const user = await getCurrentUser(request, env)
         if (!user) return json({ ok: false, error: "unauthorized" }, 401)

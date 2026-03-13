@@ -71,6 +71,17 @@ class DailySummarySyncRepository(
         }
     }
 
+    suspend fun deleteDailySummary(date: String): AppResult<Unit> {
+        return when (val result = safeApiCall { api.deleteDailySummary(date) }) {
+            is AppResult.Error -> result
+            is AppResult.Success -> {
+                if (result.data.ok) AppResult.Success(Unit)
+                else AppResult.Error(result.data.error ?: "Failed to delete daily summary")
+            }
+        }
+    }
+
+
     suspend fun getRecentSummaryDates(limit: Int = 30): AppResult<List<String>> {
         return when (val result = safeApiCall { api.getDailySummaryRecentDates(limit) }) {
             is AppResult.Error -> result
