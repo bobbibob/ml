@@ -46,7 +46,10 @@ class TasksRepository(
                     CreateTaskRequest(
                         title = title,
                         description = description,
-                        assignee_user_id = assigneeUserId
+                        assignee_user_id = assigneeUserId,
+                        reminder_type = reminderType,
+                        reminder_interval_minutes = reminderIntervalMinutes,
+                        reminder_time_of_day = reminderTimeOfDay
                     )
                 )
             }

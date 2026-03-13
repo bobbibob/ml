@@ -324,6 +324,7 @@ private fun CreateTaskWizard(
             description = taskDescription,
             error = state.error,
             info = state.info,
+            loading = state.loading,
             onTitleChange = { taskTitle = it },
             onDescriptionChange = { taskDescription = it },
             onCancel = onCancel,
@@ -566,6 +567,7 @@ private fun CreateTaskDetailsStep(
     description: String,
     error: String?,
     info: String?,
+    loading: Boolean,
     onTitleChange: (String) -> Unit,
     onDescriptionChange: (String) -> Unit,
     onCancel: () -> Unit,
@@ -626,9 +628,9 @@ private fun CreateTaskDetailsStep(
             onClick = onDone,
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(24.dp),
-            enabled = title.isNotBlank()
+            enabled = title.isNotBlank() && !loading
         ) {
-            Text("Готово")
+            Text(if (loading) "Создаём..." else "Готово")
         }
     }
 }
