@@ -407,7 +407,7 @@ fun AddDailySummaryScreen(
                                 val syncRepo = DailySummarySyncRepository(api, ctx)
 
                                 val syncResult = withContext(Dispatchers.IO) {
-                                    withTimeout(15000) {
+                                    withTimeout(30000) {
                                         syncRepo.upsertDailySummary(summaryDate, bags)
                                     }
                                 }
@@ -433,7 +433,11 @@ fun AddDailySummaryScreen(
                                     }
                                 }
                             } catch (t: Throwable) {
-                                saveError = t.message ?: t.toString()
+                                if (t is kotlinx.coroutines.TimeoutCancellationException) {
+    saveError = null
+} else {
+    saveError = t.message ?: t.toString()
+}
                             } finally {
                                 isSaving = false
                             }
