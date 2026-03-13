@@ -709,6 +709,48 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
         return json({ ok: true, dates: rows.results || [] })
       }
 
+      if (path === "/daily_summary_by_date_debug" && request.method === "GET") {
+        const date = (url.searchParams.get("date") || "").trim()
+        if (!date) return json({ ok: false, error: "date_required" }, 400)
+
+        const rows = await env.DB.prepare(`
+          SELECT
+            entry_id,
+            summary_date,
+            bag_id,
+            color,
+            orders,
+            rk_enabled,
+            rk_spend,
+            rk_impressions,
+            rk_clicks,
+            rk_stake,
+            ig_enabled,
+            ig_spend,
+            ig_impressions,
+            ig_clicks,
+            price,
+            cogs,
+            delivery_fee,
+            hypothesis,
+            created_by_user_id,
+            updated_by_user_id,
+            created_at,
+            updated_at
+          FROM daily_summary_entries
+          WHERE summary_date = ?
+            AND deleted_at IS NULL
+          ORDER BY bag_id, color
+        `).bind(date).all()
+
+        return json({
+          ok: true,
+          summary_date: date,
+          count: (rows.results || []).length,
+          entries: rows.results || []
+        })
+      }
+
       if (path === "/daily_summary_by_date" && request.method === "GET") {
         const user = await getCurrentUser(request, env)
         if (!user) return json({ ok: false, error: "unauthorized" }, 401)
