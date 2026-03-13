@@ -182,6 +182,15 @@ fun AddDailySummaryScreen(
             Text("Дата: $selectedDate")
         }
 
+        Spacer(modifier = Modifier.height(8.dp))
+
+        OutlinedButton(
+            onClick = { onBack() },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Отмена")
+        }
+
         Spacer(modifier = Modifier.height(12.dp))
 
         saveError?.let {
