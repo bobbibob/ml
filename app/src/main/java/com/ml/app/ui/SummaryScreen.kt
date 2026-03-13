@@ -55,6 +55,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.ml.app.domain.*
 import com.ml.app.auth.GoogleAuthManager
+import com.ml.app.data.SQLiteRepo
 import java.io.File
 import java.time.LocalDate
 import kotlinx.coroutines.launch
@@ -90,6 +91,8 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
   val scope = rememberCoroutineScope()
   var showExitAppDialog by remember { mutableStateOf(false) }
   val ctx = LocalContext.current
+  val summaryRepo = remember { SQLiteRepo(ctx) }
+  var pendingDeleteDate by remember { mutableStateOf<String?>(null) }
 
   LaunchedEffect(Unit) {
     tasksVm.init()
@@ -108,6 +111,35 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
       vm.init()
       vm.syncServerSummaries()
     }
+  }
+
+
+  pendingDeleteDate?.let { dateToDelete ->
+    AlertDialog(
+      onDismissRequest = { pendingDeleteDate = null },
+      title = { Text("Удалить сводку") },
+      text = { Text("Удалить сводку за $dateToDelete?") },
+      confirmButton = {
+        Button(
+          onClick = {
+            scope.launch {
+              kotlin.runCatching {
+                summaryRepo.deleteDailySummaryByDate(dateToDelete)
+                vm.refreshTimeline()
+              }
+              pendingDeleteDate = null
+            }
+          }
+        ) {
+          Text("Удалить")
+        }
+      },
+      dismissButton = {
+        OutlinedButton(onClick = { pendingDeleteDate = null }) {
+          Text("Отмена")
+        }
+      }
+    )
   }
 
   if (tasksVm.state.currentUser == null) {
@@ -412,7 +444,9 @@ Row(verticalAlignment = Alignment.CenterVertically) {
               items = state.timeline,
               cardTypes = state.cardTypes,
               onOpen = { vm.openDetails(LocalDate.parse(it.date)) },
-              onEditDay = { vm.openDetails(LocalDate.parse(it.date)) }
+              onEditDay = { vm.openDetails(LocalDate.parse(it.date)) },
+              canDelete = tasksVm.state.currentUser?.role == "admin",
+              onDeleteDay = { pendingDeleteDate = it.date }
             )
 
             is ScreenMode.Details -> DetailsList(
@@ -581,7 +615,9 @@ private fun TimelineList(
   items: List<DaySummary>,
   cardTypes: Map<String, CardType>,
   onOpen: (DaySummary) -> Unit,
-  onEditDay: (DaySummary) -> Unit
+  onEditDay: (DaySummary) -> Unit,
+  canDelete: Boolean,
+  onDeleteDay: (DaySummary) -> Unit
 ) {
   LazyColumn(
     modifier = Modifier.fillMaxSize(),
@@ -643,15 +679,18 @@ private fun TimelineList(
                 }
             )
 
-            Icon(
-              imageVector = Icons.Default.Close,
-              contentDescription = "delete",
-              tint = Color.Red,
-              modifier = Modifier
-                .size(20.dp)
-                .clickable {
-                }
-            )
+            if (canDelete) {
+              Icon(
+                imageVector = Icons.Default.Close,
+                contentDescription = "delete",
+                tint = Color.Red,
+                modifier = Modifier
+                  .size(20.dp)
+                  .clickable {
+                    onDeleteDay(day)
+                  }
+              )
+            }
           }
 
           Spacer(Modifier.height(10.dp))

@@ -987,6 +987,18 @@ class SQLiteRepo(private val context: Context) {
     val igClicks: Map<String, String>
   )
 
+  
+
+  suspend fun deleteDailySummaryByDate(date: String) = withContext(Dispatchers.IO) {
+    openDbReadWrite().use { db ->
+      db.execSQL(
+        "DELETE FROM svodka WHERE date=?",
+        arrayOf(date)
+      )
+    }
+  }
+
+
   suspend fun loadDailySummaryDraft(date: String): DailySummaryDraft = withContext(Dispatchers.IO) {
     openDbReadWrite().use { db ->
       val orders = linkedMapOf<String, Int>()
