@@ -377,6 +377,19 @@ fun refreshTimeline() {
     }
   }
 
+  private suspend fun syncPackIfRemoteChanged() {
+    kotlin.runCatching {
+      val remote = r2.headPack()
+      val saved = prefsPack.getString("pack_etag", null)
+
+      if (saved == null || saved != remote.etag) {
+        downloadAndInstallPack("Updating pack…")
+        prefsPack.edit().putString("pack_etag", remote.etag).apply()
+      }
+    }
+  }
+
+
   fun setDateFromPicker(date: LocalDate) {
     openDetails(date)
   }
@@ -389,7 +402,10 @@ fun refreshTimeline() {
           loading = true,
           status = "Syncing summaries…"
         )
+
+        syncPackIfRemoteChanged()
         pullRecentDailySummaries()
+
         if (_state.value.mode is ScreenMode.Details) {
           kotlin.runCatching { syncSelectedDateFromServer() }
         }
