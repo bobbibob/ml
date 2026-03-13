@@ -1391,11 +1391,9 @@ class SQLiteRepo(private val context: Context) {
             }
           }
 
-          val totalEntry = bagEntries.firstOrNull { it.color == "__TOTAL__" || it.color == "TOTAL" }
-
-          val hypothesis = totalEntry?.hypothesis ?: bagSnapshot.first
-          val defaultPrice = totalEntry?.price ?: bagSnapshot.second
-          val defaultCogs = totalEntry?.cogs ?: bagSnapshot.third
+          val hypothesis = bagSnapshot.first
+          val defaultPrice = bagSnapshot.second
+          val defaultCogs = bagSnapshot.third
 
           var weightedPriceSum = 0.0
           var weightedCogsSum = 0.0
@@ -1553,9 +1551,11 @@ class SQLiteRepo(private val context: Context) {
             }
           }
 
-          val hypothesis = bagSnapshot.first
-          val defaultPrice = bagSnapshot.second
-          val defaultCogs = bagSnapshot.third
+          val totalEntry = bagEntries.firstOrNull { it.color == "__TOTAL__" || it.color == "TOTAL" }
+
+          val hypothesis = totalEntry?.hypothesis ?: bagSnapshot.first
+          val defaultPrice = totalEntry?.price ?: bagSnapshot.second
+          val defaultCogs = totalEntry?.cogs ?: bagSnapshot.third
 
           var totalOrders = 0
           var totalRkSpend = 0.0
