@@ -392,7 +392,17 @@ fun refreshTimeline() {
         if (_state.value.mode is ScreenMode.Details) {
           kotlin.runCatching { syncSelectedDateFromServer() }
         }
-        refreshTimeline()
+
+        val syncStatus = _state.value.status
+        val timeline = repo.timeline(limitDays = 60)
+        val types = typeStore.all()
+
+        _state.value = _state.value.copy(
+          timeline = timeline,
+          cardTypes = types,
+          loading = false,
+          status = syncStatus
+        )
       } catch (t: Throwable) {
         _state.value = _state.value.copy(
           loading = false,
