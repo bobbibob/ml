@@ -2,6 +2,7 @@ package com.ml.app.ui
 
 import android.app.Application
 import android.content.Context
+import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ml.app.data.CardTypeStore
@@ -399,11 +400,19 @@ fun refreshTimeline() {
           loading = false,
           status = syncStatus
         )
+
+        viewModelScope.launch(Dispatchers.Main) {
+          Toast.makeText(ctx, syncStatus, Toast.LENGTH_LONG).show()
+        }
       } catch (t: Throwable) {
+        val msg = "SYNC ERROR: ${t.message}"
         _state.value = _state.value.copy(
           loading = false,
-          status = "SYNC ERROR: ${t.message}"
+          status = msg
         )
+        viewModelScope.launch(Dispatchers.Main) {
+          Toast.makeText(ctx, msg, Toast.LENGTH_LONG).show()
+        }
       }
     }
   }
