@@ -57,6 +57,10 @@ import coil.compose.AsyncImage
 import com.ml.app.domain.*
 import com.ml.app.auth.GoogleAuthManager
 import com.ml.app.data.SQLiteRepo
+import com.ml.app.core.result.AppResult
+import com.ml.app.data.repository.DailySummarySyncRepository
+import com.ml.app.data.session.PrefsSessionStorage
+import com.ml.app.core.network.ApiModule
 import java.io.File
 import java.time.LocalDate
 import kotlinx.coroutines.launch
@@ -132,12 +136,12 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
               val syncRepo = DailySummarySyncRepository(api, ctx)
 
               when (val res = syncRepo.deleteDailySummary(dateToDelete)) {
-                is com.ml.app.core.result.AppResult.Success -> {
+                is AppResult.Success -> {
                   summaryRepo.deleteDailySummaryByDate(dateToDelete)
                   vm.refreshTimeline()
                   pendingDeleteDate = null
                 }
-                is com.ml.app.core.result.AppResult.Error -> {
+                is AppResult.Error -> {
                   pendingDeleteDate = null
                   Toast.makeText(ctx, "Ошибка удаления: ${res.message}", Toast.LENGTH_LONG).show()
                 }
