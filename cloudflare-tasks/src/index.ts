@@ -743,11 +743,17 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
           ORDER BY bag_id, color
         `).bind(date).all()
 
+        const entries = ((rows.results || []) as any[]).map((row) => ({
+          ...row,
+          rk_enabled: !!row.rk_enabled,
+          ig_enabled: !!row.ig_enabled,
+        }))
+
         return json({
           ok: true,
           summary_date: date,
-          count: (rows.results || []).length,
-          entries: rows.results || []
+          count: entries.length,
+          entries
         })
       }
 
@@ -769,7 +775,13 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
           ORDER BY bag_id, color
         `).bind(summaryDate).all()
 
-        return json({ ok: true, summary_date: summaryDate, entries: rows.results || [] })
+        const entries = ((rows.results || []) as any[]).map((row) => ({
+          ...row,
+          rk_enabled: !!row.rk_enabled,
+          ig_enabled: !!row.ig_enabled,
+        }))
+
+        return json({ ok: true, summary_date: summaryDate, entries })
       }
 
       if (path === "/pack_meta" && request.method === "GET") {
