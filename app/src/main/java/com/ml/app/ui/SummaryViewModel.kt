@@ -394,12 +394,8 @@ fun refreshTimeline() {
         }
 
         val syncStatus = _state.value.status
-        val timeline = repo.timeline(limitDays = 60)
-        val types = typeStore.all()
-
+        refreshTimeline()
         _state.value = _state.value.copy(
-          timeline = timeline,
-          cardTypes = types,
           loading = false,
           status = syncStatus
         )
