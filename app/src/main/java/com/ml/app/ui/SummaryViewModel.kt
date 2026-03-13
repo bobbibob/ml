@@ -423,7 +423,6 @@ fun refreshTimeline() {
           status = "Syncing summaries…"
         )
 
-        syncPackIfRemoteChanged()
         pullRecentDailySummaries()
 
         if (_state.value.mode is ScreenMode.Details) {
@@ -436,6 +435,14 @@ fun refreshTimeline() {
           loading = false,
           status = syncStatus
         )
+
+        viewModelScope.launch(Dispatchers.IO) {
+          kotlin.runCatching {
+            kotlinx.coroutines.withTimeout(5000) {
+              syncPackIfRemoteChanged()
+            }
+          }
+        }
 
         viewModelScope.launch(Dispatchers.Main) {
           Toast.makeText(ctx, syncStatus, Toast.LENGTH_LONG).show()

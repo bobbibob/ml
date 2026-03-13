@@ -118,7 +118,6 @@ fun SummaryScreen(
   LaunchedEffect(tasksVm.state.currentUser?.user_id) {
     if (tasksVm.state.currentUser != null) {
       vm.init()
-      vm.syncServerSummaries()
     }
   }
 
