@@ -42,11 +42,10 @@ import com.ml.app.data.SQLiteRepo
 import com.ml.app.data.repository.DailySummarySyncRepository
 import com.ml.app.data.session.PrefsSessionStorage
 import java.time.LocalDate
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withContext
 
 private data class DailySummaryBagUi(
     val bagId: String,
@@ -395,29 +394,38 @@ fun AddDailySummaryScreen(
                                 val isNewDay = repo.loadForDate(summaryDate).isEmpty()
 
                                 repo.saveDailySummary(summaryDate, bags)
-                                                                saveError = null
-                                onBack()
 
-                                CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
-                                    val session = PrefsSessionStorage(ctx)
-                                    val api = ApiModule.createApi(
-                                        baseUrl = "https://ml-tasks-api.bboobb666.workers.dev/",
-                                        sessionStorage = session
-                                    )
-                                    val syncRepo = DailySummarySyncRepository(api, ctx)
+                                val session = PrefsSessionStorage(ctx)
+                                val api = ApiModule.createApi(
+                                    baseUrl = "https://ml-tasks-api.bboobb666.workers.dev/",
+                                    sessionStorage = session
+                                )
+                                val syncRepo = DailySummarySyncRepository(api, ctx)
 
-                                    kotlin.runCatching {
-                                        withTimeout(15000) {
-                                            syncRepo.upsertDailySummary(summaryDate, bags)
-                                        }
+                                val syncResult = withContext(Dispatchers.IO) {
+                                    withTimeout(15000) {
+                                        syncRepo.upsertDailySummary(summaryDate, bags)
                                     }
+                                }
 
-                                    if (isNewDay) {
-                                        kotlin.runCatching {
-                                            withTimeout(10000) {
-                                                api.notifyNewSummary(mapOf("date" to summaryDate))
+                                when (syncResult) {
+                                    is com.ml.app.core.result.AppResult.Success -> {
+                                        saveError = null
+
+                                        if (isNewDay) {
+                                            kotlin.runCatching {
+                                                withContext(Dispatchers.IO) {
+                                                    withTimeout(10000) {
+                                                        api.notifyNewSummary(mapOf("date" to summaryDate))
+                                                    }
+                                                }
                                             }
                                         }
+
+                                        onBack()
+                                    }
+                                    is com.ml.app.core.result.AppResult.Error -> {
+                                        saveError = "Ошибка синхронизации: ${syncResult.message}"
                                     }
                                 }
                             } catch (t: Throwable) {
