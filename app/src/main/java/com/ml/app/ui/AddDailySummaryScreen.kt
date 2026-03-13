@@ -63,6 +63,7 @@ fun AddDailySummaryScreen(
     val repo = remember { SQLiteRepo(ctx) }
     val scope = rememberCoroutineScope()
     var saveError by remember { mutableStateOf<String?>(null) }
+    var isSaving by remember { mutableStateOf(false) }
 
     var selectedDate by remember(initialDate) { mutableStateOf(initialDate) }
     val items = remember { mutableStateListOf<DailySummaryBagUi>() }
@@ -370,7 +371,10 @@ fun AddDailySummaryScreen(
             item {
                 Button(
                     onClick = {
+                        if (isSaving) return@Button
                         scope.launch {
+                            isSaving = true
+                            saveError = null
                             val bags = items.map { bag ->
                                 com.ml.app.data.SQLiteRepo.DailySummaryBagSave(
                                     bagId = bag.bagId,
@@ -430,12 +434,15 @@ fun AddDailySummaryScreen(
                                 }
                             } catch (t: Throwable) {
                                 saveError = t.message ?: t.toString()
+                            } finally {
+                                isSaving = false
                             }
                         }
                     },
+                    enabled = !isSaving,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Сохранить сводку")
+                    Text(if (isSaving) "Сохраняем…" else "Сохранить сводку")
                 }
             }
         }

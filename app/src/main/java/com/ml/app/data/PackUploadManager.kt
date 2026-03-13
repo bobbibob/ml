@@ -76,6 +76,14 @@ object PackUploadManager {
 
     r2.uploadPackZip(zipFile)
 
+    kotlin.runCatching {
+      val remote = r2.headPack()
+      context.getSharedPreferences("ml_pack", Context.MODE_PRIVATE)
+        .edit()
+        .putString("pack_etag", remote.etag)
+        .apply()
+    }
+
     PackDbSync.refreshMergedDb(context)
   }
 
