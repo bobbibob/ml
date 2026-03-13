@@ -172,7 +172,9 @@ private fun SelectedAssigneeHeader(
 @Composable
 fun TasksScreen(
     onBack: () -> Unit,
-    vm: TasksViewModel = viewModel()
+    vm: TasksViewModel = viewModel(),
+    initialOpenTaskId: String? = null,
+    openSignal: Int = 0
 ) {
     LaunchedEffect(Unit) {
         vm.init()
@@ -233,6 +235,14 @@ fun TasksScreen(
         }
     }
 
+    LaunchedEffect(openSignal, initialOpenTaskId, state.currentUser.user_id) {
+        if (!initialOpenTaskId.isNullOrBlank()) {
+            vm.selectTab("my")
+            vm.loadUsers()
+            vm.loadMyTasks()
+        }
+    }
+
     when (state.selectedTab) {
         "create" -> CreateTaskWizard(
             vm = vm,
@@ -253,7 +263,9 @@ fun TasksScreen(
             },
             onDelete = { vm.deleteTask(it) },
             users = state.users,
-            state = state
+            state = state,
+            initialOpenTaskId = if (state.selectedTab == "my") initialOpenTaskId else null,
+            openSignal = openSignal
         )
 
         else -> TasksListTab(
@@ -270,7 +282,9 @@ fun TasksScreen(
             },
             onDelete = { vm.deleteTask(it) },
             users = state.users,
-            state = state
+            state = state,
+            initialOpenTaskId = initialOpenTaskId,
+            openSignal = openSignal
         )
     }
 }
@@ -648,11 +662,24 @@ private fun TasksListTab(
     onSaveEdit: (String, String, String, String, String?, Int?, String?) -> Unit,
     onDelete: (String) -> Unit,
     users: List<UserDto>,
-    state: TasksUiState
+    state: TasksUiState,
+    initialOpenTaskId: String? = null,
+    openSignal: Int = 0
 ) {
     var editTask by remember { mutableStateOf<TaskDto?>(null) }
     var deleteTask by remember { mutableStateOf<TaskDto?>(null) }
     var showEditWizard by remember { mutableStateOf(false) }
+
+    LaunchedEffect(openSignal, initialOpenTaskId, tasks) {
+        if (!initialOpenTaskId.isNullOrBlank()) {
+            val target = tasks.firstOrNull { it.task_id == initialOpenTaskId }
+            if (target != null) {
+                onEdit()
+                editTask = target
+                showEditWizard = true
+            }
+        }
+    }
 
     Column(
         modifier = Modifier

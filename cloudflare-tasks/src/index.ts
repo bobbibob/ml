@@ -273,7 +273,8 @@ async function sendPushToToken(
   env: Env,
   token: string,
   title: string,
-  body: string
+  body: string,
+  extraData: Record<string, string> = {}
 ) {
   if (!token) return
 
@@ -293,6 +294,7 @@ async function sendPushToToken(
           data: {
             title,
             body,
+            ...extraData,
           },
           android: {
             priority: "high",
@@ -1054,11 +1056,19 @@ if (path === "/create_task" && request.method === "POST") {
 
         if (assignee?.fcm_token) {
           try {
+            const authorName = String(user.display_name || user.email || "Автор").trim() || "Автор"
             await sendPushToToken(
               env,
               assignee.fcm_token,
               "Новая задача",
-              title
+              `Задача "${title}" от ${authorName}`,
+              {
+                type: "task_created",
+                task_id: taskId,
+                open_tasks: "true",
+                task_title: title,
+                author_name: authorName
+              }
             )
             console.log("push_send_ok", assigneeUserId)
           } catch (e) {

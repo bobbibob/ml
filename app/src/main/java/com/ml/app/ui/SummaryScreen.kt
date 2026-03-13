@@ -81,7 +81,11 @@ private fun fmtPct(v01: Double): String = String.format("%.2f%%", v01 * 100.0)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
+fun SummaryScreen(
+  vm: SummaryViewModel = viewModel(),
+  openTasksSignal: Int = 0,
+  initialTaskId: String? = null
+) {
   val tasksVm: TasksViewModel = viewModel()
   val showTasks = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
   var accountMenuExpanded by remember { mutableStateOf(false) }
@@ -115,6 +119,15 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
     if (tasksVm.state.currentUser != null) {
       vm.init()
       vm.syncServerSummaries()
+    }
+  }
+
+  LaunchedEffect(openTasksSignal, initialTaskId, tasksVm.state.currentUser?.user_id) {
+    if (openTasksSignal > 0 && tasksVm.state.currentUser != null) {
+      showTasks.value = true
+      tasksVm.selectTab("my")
+      tasksVm.loadUsers()
+      tasksVm.loadMyTasks()
     }
   }
 
@@ -424,7 +437,12 @@ Row(verticalAlignment = Alignment.CenterVertically) {
               onSendPush = { userId, title, body -> tasksVm.sendPush(userId, title, body) }
             )
         } else if (showTasks.value) {
-          TasksScreen(onBack = { showTasks.value = false }, vm = tasksVm)
+          TasksScreen(
+              onBack = { showTasks.value = false },
+              vm = tasksVm,
+              initialOpenTaskId = initialTaskId,
+              openSignal = openTasksSignal
+          )
         } else if (!state.hasPack) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
           Column(horizontalAlignment = Alignment.CenterHorizontally) {
