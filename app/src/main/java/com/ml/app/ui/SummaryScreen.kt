@@ -131,6 +131,15 @@ fun SummaryScreen(
     }
   }
 
+  LaunchedEffect(openTasksSignal, initialTaskId, tasksVm.state.currentUser?.user_id) {
+    if (openTasksSignal > 0 && tasksVm.state.currentUser != null) {
+      showTasks.value = true
+      tasksVm.selectTab("my")
+      tasksVm.loadUsers()
+      tasksVm.loadMyTasks()
+    }
+  }
+
 
   pendingDeleteDate?.let { dateToDelete ->
     AlertDialog(

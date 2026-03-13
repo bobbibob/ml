@@ -1194,7 +1194,7 @@ if (path === "/create_task" && request.method === "POST") {
 
       if (path === "/delete_task" && request.method === "POST") {
         const user = await getCurrentUser(request, env)
-        if (!user) console.log("DEBUG: bypass auth for send_push")
+        if (!user) return json({ ok: false, error: "unauthorized" }, 401)
 
         const body = await request.json<{ task_id?: string }>().catch(() => null)
         const taskId = String(body?.task_id || "").trim()

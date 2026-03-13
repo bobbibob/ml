@@ -243,6 +243,14 @@ fun TasksScreen(
         }
     }
 
+    LaunchedEffect(openSignal, initialOpenTaskId, state.currentUser.user_id) {
+        if (!initialOpenTaskId.isNullOrBlank()) {
+            vm.selectTab("my")
+            vm.loadUsers()
+            vm.loadMyTasks()
+        }
+    }
+
     when (state.selectedTab) {
         "create" -> CreateTaskWizard(
             vm = vm,
@@ -669,6 +677,17 @@ private fun TasksListTab(
     var editTask by remember { mutableStateOf<TaskDto?>(null) }
     var deleteTask by remember { mutableStateOf<TaskDto?>(null) }
     var showEditWizard by remember { mutableStateOf(false) }
+
+    LaunchedEffect(openSignal, initialOpenTaskId, tasks) {
+        if (!initialOpenTaskId.isNullOrBlank()) {
+            val target = tasks.firstOrNull { it.task_id == initialOpenTaskId }
+            if (target != null) {
+                onEdit()
+                editTask = target
+                showEditWizard = true
+            }
+        }
+    }
 
     LaunchedEffect(openSignal, initialOpenTaskId, tasks) {
         if (!initialOpenTaskId.isNullOrBlank()) {
