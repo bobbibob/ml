@@ -88,7 +88,6 @@ private fun cleanTaskDescriptionForEdit(value: String?): String {
     if (value.isNullOrBlank()) return ""
     return value
         .lines()
-        .filterNot { it.trim().startsWith("Напоминание:", ignoreCase = true) }
         .joinToString("\n")
         .trim()
 }
@@ -390,7 +389,6 @@ private fun TaskDetailsDialog(
                     Text(task.description)
                 }
 
-                Text("Исполнитель: ${task.assignee_name}")
                 Text("Создал: ${task.created_by_name}")
                 Text("Статус: ${if (task.status == "open") "Открыта" else "Выполнена"}")
 
@@ -513,7 +511,6 @@ private fun CreateTaskWizard(
                     append(taskDescription.trim())
                     if (reminderText.isNotBlank()) {
                         if (isNotBlank()) append("\n\n")
-                        append("Напоминание: ")
                         append(reminderText)
                     }
                 }
@@ -925,7 +922,6 @@ private fun TasksListTab(
                             )
 
                             Text(
-                                text = "Исполнитель: ${task.assignee_name}",
                                 color = TextBlack
                             )
 
