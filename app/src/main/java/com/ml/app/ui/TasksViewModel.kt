@@ -164,7 +164,7 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun selectTab(tab: String) {
-        state = state.copy(selectedTab = tab, error = null, info = null)
+        state = state.copy(selectedTab = tab, error = null, info = null, creatingTask = false)
         val user = state.currentUser
         when (tab) {
             "my" -> loadMyTasks()
@@ -402,36 +402,56 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
         reminderTimeOfDay: String? = null
     ) {
         if (title.isBlank() || assigneeUserId.isBlank()) {
-            state = state.copy(error = "Заполни название и исполнителя")
+            state = state.copy(error = "Заполни название и исполнителя", creatingTask = false)
             return
         }
 
         viewModelScope.launch {
             state = state.copy(creatingTask = true, error = null, info = null)
-            when (
-                val res = tasksRepo.createTask(
-                    title,
-                    description,
-                    assigneeUserId,
-                    reminderType,
-                    reminderIntervalMinutes,
-                    reminderTimeOfDay
+            try {
+                val res = withTimeout(15000) {
+                    tasksRepo.createTask(
+                        title,
+                        description,
+                        assigneeUserId,
+                        reminderType,
+                        reminderIntervalMinutes,
+                        reminderTimeOfDay
+                    )
+                }
+
+                when (res) {
+                    is AppResult.Success -> {
+                        state = state.copy(
+                            creatingTask = false,
+                            info = "Задача создана",
+                            error = null,
+                            selectedTab = "my"
+                        )
+                        refreshAll()
+                    }
+                    is AppResult.Error -> {
+                        val msg = res.message.lowercase()
+                        if ("timeout" in msg) {
+                            state = state.copy(
+                                creatingTask = false,
+                                error = null,
+                                info = "Создание в ожидании ответа"
+                            )
+                        } else {
+                            state = state.copy(
+                                creatingTask = false,
+                                error = res.message
+                            )
+                        }
+                    }
+                }
+            } catch (_: Exception) {
+                state = state.copy(
+                    creatingTask = false,
+                    error = null,
+                    info = "Создание в ожидании ответа"
                 )
-            ) {
-                is AppResult.Success -> {
-                    state = state.copy(
-                        creatingTask = false,
-                        info = "Задача создана",
-                        selectedTab = "my"
-                    )
-                    refreshAll()
-                }
-                is AppResult.Error -> {
-                    state = state.copy(
-                        loading = false,
-                        error = res.message
-                    )
-                }
             }
         }
     }
