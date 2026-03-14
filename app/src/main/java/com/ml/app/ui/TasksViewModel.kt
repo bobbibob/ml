@@ -20,6 +20,9 @@ import kotlinx.coroutines.withTimeout
 
 data class TasksUiState(
     val loading: Boolean = false,
+    val loadingTasks: Boolean = false,
+    val loadingUsers: Boolean = false,
+    val creatingTask: Boolean = false,
     val currentUser: UserDto? = null,
     val error: String? = null,
     val info: String? = null,
@@ -92,7 +95,7 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 is AppResult.Error -> {
                     state = state.copy(
-                        loading = false,
+                        creatingTask = false,
                         error = res.message
                     )
                 }
@@ -146,12 +149,12 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
 
     fun loadMyTasks() {
         viewModelScope.launch {
-            state = state.copy(loading = true, error = null, info = null)
+            state = state.copy(loadingTasks = true, error = null, info = null)
             try {
                 val res = withTimeout(30000) { tasksRepo.getMyTasks() }
                 when (res) {
                     is AppResult.Success -> state = state.copy(
-                        loading = false,
+                        loadingTasks = false,
                         myTasks = res.data,
                         error = null,
                         info = null
@@ -160,13 +163,13 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
                         val msg = res.message.lowercase()
                         if ("timeout" in msg) {
                             state = state.copy(
-                                loading = false,
+                                loadingTasks = false,
                                 error = null,
                                 info = "Загрузка в ожидании данных"
                             )
                         } else {
                             state = state.copy(
-                                loading = false,
+                                loadingTasks = false,
                                 error = res.message
                             )
                         }
@@ -174,7 +177,7 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
                 }
             } catch (_: Exception) {
                 state = state.copy(
-                    loading = false,
+                    loadingTasks = false,
                     error = null,
                     info = "Загрузка в ожидании данных"
                 )
@@ -184,12 +187,12 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
 
     fun loadAllTasks() {
         viewModelScope.launch {
-            state = state.copy(loading = true, error = null, info = null)
+            state = state.copy(loadingTasks = true, error = null, info = null)
             try {
                 val res = withTimeout(30000) { tasksRepo.getAllTasks() }
                 when (res) {
                     is AppResult.Success -> state = state.copy(
-                        loading = false,
+                        loadingTasks = false,
                         allTasks = res.data,
                         error = null,
                         info = null
@@ -198,13 +201,13 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
                         val msg = res.message.lowercase()
                         if ("timeout" in msg) {
                             state = state.copy(
-                                loading = false,
+                                loadingTasks = false,
                                 error = null,
                                 info = "Загрузка в ожидании данных"
                             )
                         } else {
                             state = state.copy(
-                                loading = false,
+                                loadingTasks = false,
                                 error = res.message
                             )
                         }
@@ -212,7 +215,7 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
                 }
             } catch (_: Exception) {
                 state = state.copy(
-                    loading = false,
+                    loadingTasks = false,
                     error = null,
                     info = "Загрузка в ожидании данных"
                 )
@@ -222,12 +225,12 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
 
     fun loadUsers() {
         viewModelScope.launch {
-            state = state.copy(loading = true, error = null, info = null)
+            state = state.copy(loadingUsers = true, error = null, info = null)
             try {
                 val res = withTimeout(30000) { tasksRepo.getUsers() }
                 when (res) {
                     is AppResult.Success -> state = state.copy(
-                        loading = false,
+                        loadingUsers = false,
                         users = res.data,
                         error = null,
                         info = null
@@ -236,13 +239,13 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
                         val msg = res.message.lowercase()
                         if ("timeout" in msg) {
                             state = state.copy(
-                                loading = false,
+                                loadingUsers = false,
                                 error = null,
                                 info = "Загрузка в ожидании данных"
                             )
                         } else {
                             state = state.copy(
-                                loading = false,
+                                loadingUsers = false,
                                 error = res.message
                             )
                         }
@@ -250,7 +253,7 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
                 }
             } catch (_: Exception) {
                 state = state.copy(
-                    loading = false,
+                    loadingUsers = false,
                     error = null,
                     info = "Загрузка в ожидании данных"
                 )
@@ -367,7 +370,7 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
         }
 
         viewModelScope.launch {
-            state = state.copy(loading = true, error = null, info = null)
+            state = state.copy(creatingTask = true, error = null, info = null)
             when (
                 val res = tasksRepo.createTask(
                     title,
@@ -380,7 +383,7 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
             ) {
                 is AppResult.Success -> {
                     state = state.copy(
-                        loading = false,
+                        creatingTask = false,
                         info = "Задача создана",
                         selectedTab = "my"
                     )
