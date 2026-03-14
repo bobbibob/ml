@@ -82,6 +82,46 @@ class TasksRepository(
         }
     }
 
+
+    suspend fun getTaskById(taskId: String): AppResult<TaskDto> {
+        return try {
+            val raw = api.getTaskByIdRaw(taskId)
+            val json = JSONObject(raw.string())
+            if (!json.optBoolean("ok")) {
+                return AppResult.Error(json.optString("error", "Не удалось загрузить задачу"))
+            }
+
+            val t = json.optJSONObject("task")
+                ?: return AppResult.Error("Задача не найдена")
+
+            val task = TaskDto(
+                task_id = t.optString("task_id"),
+                title = t.optString("title"),
+                description = t.optString("description").takeIf { it.isNotBlank() },
+                status = t.optString("status"),
+                created_at = t.optString("created_at"),
+                updated_at = t.optString("updated_at"),
+                created_by_user_id = t.optString("created_by_user_id"),
+                assignee_user_id = t.optString("assignee_user_id"),
+                completed_by_user_id = t.optString("completed_by_user_id").takeIf { it.isNotBlank() },
+                completed_at = t.optString("completed_at").takeIf { it.isNotBlank() },
+                cancelled_by_user_id = t.optString("cancelled_by_user_id").takeIf { it.isNotBlank() },
+                cancelled_at = t.optString("cancelled_at").takeIf { it.isNotBlank() },
+                created_by_name = t.optString("created_by_name"),
+                assignee_name = t.optString("assignee_name"),
+                completed_by_name = t.optString("completed_by_name").takeIf { it.isNotBlank() },
+                cancelled_by_name = t.optString("cancelled_by_name").takeIf { it.isNotBlank() },
+                reminder_type = t.optString("reminder_type").takeIf { it.isNotBlank() },
+                reminder_interval_minutes = if (t.has("reminder_interval_minutes") && !t.isNull("reminder_interval_minutes")) t.optInt("reminder_interval_minutes") else null,
+                reminder_time_of_day = t.optString("reminder_time_of_day").takeIf { it.isNotBlank() }
+            )
+
+            AppResult.Success(task)
+        } catch (t: Throwable) {
+            AppResult.Error(t.message ?: "Не удалось загрузить задачу")
+        }
+    }
+
     suspend fun getAllTasks(): AppResult<List<TaskDto>> {
         return when (val result = safeApiCall { api.getAllTasks() }) {
             is AppResult.Error -> result

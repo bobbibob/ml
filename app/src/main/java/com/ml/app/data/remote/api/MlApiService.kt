@@ -57,6 +57,11 @@ interface MlApiService {
     @POST("create_task")
     suspend fun createTask(@Body request: CreateTaskRequest): CreateTaskResponse
 
+    @GET("task_by_id")
+    suspend fun getTaskByIdRaw(
+        @retrofit2.http.Query("task_id") taskId: String
+    ): ResponseBody
+
     @GET("my_tasks")
     suspend fun getMyTasks(): TasksResponse
 

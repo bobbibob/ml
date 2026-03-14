@@ -1080,6 +1080,59 @@ if (path === "/create_task" && request.method === "POST") {
         return json({ ok: true, task_id: taskId })
       }
 
+      if (path === "/task_by_id" && request.method === "GET") {
+        const user = await getCurrentUser(request, env)
+        if (!user) return json({ ok: false, error: "unauthorized" }, 401)
+
+        const url = new URL(request.url)
+        const taskId = String(url.searchParams.get("task_id") || "").trim()
+        if (!taskId) return json({ ok: false, error: "task_id_required" }, 400)
+
+        const task = await env.DB.prepare(`
+          SELECT
+            t.task_id,
+            t.title,
+            t.description,
+            t.status,
+            t.created_at,
+            t.updated_at,
+            t.created_by_user_id,
+            t.assignee_user_id,
+            t.completed_by_user_id,
+            t.completed_at,
+            t.cancelled_by_user_id,
+            t.cancelled_at,
+            cu.display_name AS created_by_name,
+            au.display_name AS assignee_name,
+            compu.display_name AS completed_by_name,
+            cancelu.display_name AS cancelled_by_name,
+            t.reminder_type,
+            t.reminder_interval_minutes,
+            t.reminder_time_of_day
+          FROM tasks t
+          LEFT JOIN users cu ON cu.user_id = t.created_by_user_id
+          LEFT JOIN users au ON au.user_id = t.assignee_user_id
+          LEFT JOIN users compu ON compu.user_id = t.completed_by_user_id
+          LEFT JOIN users cancelu ON cancelu.user_id = t.cancelled_by_user_id
+          WHERE t.task_id = ?
+          LIMIT 1
+        `).bind(taskId).first<any>()
+
+        if (!task) {
+          return json({ ok: false, error: "task_not_found" }, 404)
+        }
+
+        const isAdmin = user.role === "admin"
+        const isAuthor = task.created_by_user_id === user.user_id
+        const isAssignee = task.assignee_user_id === user.user_id
+
+        if (!isAdmin && !isAuthor && !isAssignee) {
+          return json({ ok: false, error: "forbidden" }, 403)
+        }
+
+        return json({ ok: true, task })
+      }
+
       if (path === "/my_tasks" && request.method === "GET") {
         const user = await getCurrentUser(request, env)
         if (!user) console.log("DEBUG: bypass auth for send_push")

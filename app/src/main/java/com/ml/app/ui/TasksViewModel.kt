@@ -27,7 +27,8 @@ data class TasksUiState(
     val allTasks: List<TaskDto> = emptyList(),
     val users: List<UserDto> = emptyList(),
     val history: List<HistoryItemDto> = emptyList(),
-    val selectedTab: String = "my"
+    val selectedTab: String = "my",
+    val openedTaskFromPush: TaskDto? = null
 )
 
 class TasksViewModel(app: Application) : AndroidViewModel(app) {
@@ -288,6 +289,30 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
         }
+    }
+
+
+    fun loadOpenedTaskFromPush(taskId: String) {
+        viewModelScope.launch {
+            when (val res = tasksRepo.getTaskById(taskId)) {
+                is AppResult.Success -> {
+                    state = state.copy(
+                        openedTaskFromPush = res.data,
+                        error = null
+                    )
+                }
+                is AppResult.Error -> {
+                    state = state.copy(
+                        openedTaskFromPush = null,
+                        error = res.message
+                    )
+                }
+            }
+        }
+    }
+
+    fun clearOpenedTaskFromPush() {
+        state = state.copy(openedTaskFromPush = null)
     }
 
     fun loadHistory() {

@@ -240,6 +240,7 @@ fun TasksScreen(
             vm.selectTab("my")
             vm.loadUsers()
             vm.loadMyTasks()
+            vm.loadOpenedTaskFromPush(initialOpenTaskId)
         }
     }
 
@@ -763,13 +764,14 @@ private fun TasksListTab(
     var showTaskDetails by remember { mutableStateOf(false) }
 
     LaunchedEffect(openSignal, initialOpenTaskId, tasks) {
-        if (!initialOpenTaskId.isNullOrBlank()) {
-            val target = tasks.firstOrNull { it.task_id == initialOpenTaskId }
-            if (target != null) {
-                openedTask = target
-                showTaskDetails = true
-            }
-        }
+        // Открытие по push теперь идёт через загрузку задачи по task_id с сервера.
+    }
+
+    LaunchedEffect(state.openedTaskFromPush?.task_id) {
+        val target = state.openedTaskFromPush ?: return@LaunchedEffect
+        openedTask = target
+        showTaskDetails = true
+        vm.clearOpenedTaskFromPush()
     }
 
 
