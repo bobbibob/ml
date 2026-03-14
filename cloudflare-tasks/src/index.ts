@@ -1089,42 +1089,62 @@ if (path === "/create_task" && request.method === "POST") {
         })
 
         const assignee = await env.DB.prepare(`
-          SELECT display_name, fcm_token
+          SELECT display_name
           FROM users
           WHERE user_id = ?
           LIMIT 1
         `).bind(assigneeUserId).first<any>()
 
+        const assigneeDevices = await env.DB.prepare(`
+          SELECT fcm_token
+          FROM user_devices
+          WHERE user_id = ?
+          ORDER BY updated_at DESC
+        `).bind(assigneeUserId).all<{ fcm_token: string | null }>()
+
+        const assigneeTokens = Array.from(new Set((assigneeDevices.results || [])
+          .map(x => String(x.fcm_token || "").trim())
+          .filter(Boolean)))
+
         console.log("push_debug", JSON.stringify({
           assignee_user_id: assigneeUserId,
-          has_token: !!assignee?.fcm_token,
+          token_count: assigneeTokens.length,
           title
         }))
 
-        if (assignee?.fcm_token) {
+        if (assigneeTokens.length > 0) {
           const authorName = String(user.display_name || user.email || "Автор").trim() || "Автор"
           ctx.waitUntil((async () => {
-            try {
-              const pushBody = description
-                ? `От: ${authorName}\nЗадача: ${title}\nОписание: ${description}`
-                : `От: ${authorName}\nЗадача: ${title}`
+            const pushBody = description
+              ? `От: ${authorName}\nЗадача: ${title}\nОписание: ${description}`
+              : `От: ${authorName}\nЗадача: ${title}`
 
-              await sendPushToToken(
-                env,
-                assignee.fcm_token,
-                "Новая задача",
-                pushBody,
-                {
-                  type: "task_created",
-                  task_id: taskId,
-                  open_tasks: "true",
-                  task_title: title,
-                  author_name: authorName
-                }
-              )
-              console.log("push_send_ok", assigneeUserId)
-            } catch (e) {
-              console.log("push_send_error", String(e))
+            let sent = 0
+            for (const token of assigneeTokens) {
+              try {
+                await sendPushToToken(
+                  env,
+                  token,
+                  "Новая задача",
+                  pushBody,
+                  {
+                    type: "task_created",
+                    task_id: taskId,
+                    open_tasks: "true",
+                    task_title: title,
+                    author_name: authorName
+                  }
+                )
+                sent++
+              } catch (e) {
+                console.log("push_send_error", assigneeUserId, String(e))
+              }
+            }
+
+            if (sent > 0) {
+              console.log("push_send_ok", assigneeUserId, sent)
+            } else {
+              console.log("push_send_skipped_no_valid_token", assigneeUserId)
             }
           })())
         } else {
@@ -1397,33 +1417,52 @@ if (path === "/task_reminder" && request.method
         return json({ ok: false, error: "forbidden" }, 403)
         }
 
-        if (!task.assignee_user_id || !task.assignee_fcm_token) {
+        const assigneeDevices = await env.DB.prepare(`
+          SELECT fcm_token
+          FROM user_devices
+          WHERE user_id = ?
+          ORDER BY updated_at DESC
+        `).bind(task.assignee_user_id).all<{ fcm_token: string | null }>()
+
+        const assigneeTokens = Array.from(new Set((assigneeDevices.results || [])
+          .map(x => String(x.fcm_token || "").trim())
+          .filter(Boolean)))
+
+        if (assigneeTokens.length === 0) {
 
         return json({ ok: false, error: "assignee_has_no_push_token" }, 400)
         }
 
         const authorName = String(user.display_name || user.email || "Автор").trim() || "Автор"
 
-        try {
-          await sendPushToToken(
-            env,
-            task.assignee_fcm_token,
-            "Напоминание",
-            `Напоминание по задаче "${task.title}" от ${authorName}`,
-            {
-              type: "task_reminder",
-              task_id: taskId,
-              open_tasks: "true",
-              task_title: String(task.title || ""),
-              author_name: authorName
-            }
-          )
-          console.log("task_reminder_push_ok", taskId, task.assignee_user_id)
-        } catch (e) {
-          console.log("task_reminder_push_error", taskId, String(e))
+        let sent = 0
+        for (const token of assigneeTokens) {
+          try {
+            await sendPushToToken(
+              env,
+              token,
+              "Напоминание",
+              `Напоминание по задаче "${task.title}" от ${authorName}`,
+              {
+                type: "task_reminder",
+                task_id: taskId,
+                open_tasks: "true",
+                task_title: String(task.title || ""),
+                author_name: authorName
+              }
+            )
+            sent++
+          } catch (e) {
+            console.log("task_reminder_push_error", taskId, String(e))
+          }
+        }
+
+        if (sent <= 0) {
 
         return json({ ok: false, error: "push_send_failed" }, 500)
         }
+
+        console.log("task_reminder_push_ok", taskId, task.assignee_user_id, sent)
 
         await logAction(env, "task", taskId, "task_reminder", user.user_id, {
           assignee_user_id: task.assignee_user_id
