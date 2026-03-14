@@ -1,7 +1,6 @@
 package com.ml.app.ui
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.clickable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -240,8 +239,6 @@ fun TasksScreen(
     LaunchedEffect(openSignal, initialOpenTaskId, state.currentUser.user_id) {
         if (!initialOpenTaskId.isNullOrBlank()) {
             vm.selectTab("my")
-            vm.loadUsers()
-            vm.loadMyTasks()
             vm.loadOpenedTaskFromPush(initialOpenTaskId)
         }
     }
@@ -847,12 +844,7 @@ private fun TasksListTab(
                     val canRemind = currentUserRole == "admin" || task.created_by_user_id == currentUserId
 
                     Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                openedTask = task
-                                showTaskDetails = true
-                            },
+                        modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(28.dp),
                         colors = CardDefaults.cardColors(containerColor = Color.White),
                         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
