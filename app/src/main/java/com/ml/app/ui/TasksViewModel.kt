@@ -102,7 +102,7 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
                 is AppResult.Success -> {
                     state = state.copy(currentUser = res.data, error = null)
                     syncFcmToken()
-                    refreshAll()
+                    refreshAllInBackground()
                     loadUsers(force = false)
                 }
                 is AppResult.Error -> {
@@ -124,7 +124,7 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
                         info = "Вход выполнен"
                     )
                     syncFcmToken()
-                    refreshAll()
+                    refreshAllInBackground()
                     loadUsers(force = false)
                 }
                 is AppResult.Error -> {
@@ -172,12 +172,18 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun refreshAll() {
+    fun refreshAllInBackground() {
         val user = state.currentUser ?: return
         state = state.copy(error = null)
         when (state.selectedTab) {
             "all" -> if (user.role == "plus" || user.role == "admin") loadAllTasks() else loadMyTasks()
             else -> loadMyTasks()
+        }
+    }
+
+    private fun refreshAllInBackground() {
+        viewModelScope.launch {
+            kotlin.runCatching { refreshAllInBackground() }
         }
     }
 
@@ -309,7 +315,7 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
                         error = null,
                         info = res.data
                     )
-                    refreshAll()
+                    refreshAllInBackground()
                 }
                 is AppResult.Error -> {
                     val msg = res.message.lowercase()
@@ -319,7 +325,7 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
                             error = null,
                             info = "Напоминание отправляется"
                         )
-                        refreshAll()
+                        refreshAllInBackground()
                     } else {
                         state = state.copy(
                             loading = false,
@@ -433,7 +439,7 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
                         error = null,
                         selectedTab = "my"
                     )
-                    refreshAll()
+                    refreshAllInBackground()
                 }
                 is AppResult.Error -> {
                     state = state.copy(
@@ -452,11 +458,11 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
             when (val res = tasksRepo.completeTask(taskId)) {
                 is AppResult.Success -> {
                     state = state.copy(info = "Задача выполнена", error = null)
-                    refreshAll()
+                    refreshAllInBackground()
                 }
                 is AppResult.Error -> {
                     state = state.copy(error = res.message)
-                    refreshAll()
+                    refreshAllInBackground()
                 }
             }
         }
@@ -481,7 +487,7 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
             when (val res = tasksRepo.updateTask(taskId, title, description, assigneeUserId, reminderType, reminderIntervalMinutes, reminderTimeOfDay)) {
                 is AppResult.Success -> {
                     state = state.copy(loading = false, info = "Задача обновлена")
-                    refreshAll()
+                    refreshAllInBackground()
                 }
                 is AppResult.Error -> {
                     state = state.copy(loading = false, error = res.message)
@@ -502,7 +508,7 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
                         error = null,
                         info = "Задача удалена"
                     )
-                    refreshAll()
+                    refreshAllInBackground()
                 }
                 is AppResult.Error -> {
                     val msg = res.message.lowercase()
@@ -512,13 +518,13 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
                             error = null,
                             info = "Удаление выполняется"
                         )
-                        refreshAll()
+                        refreshAllInBackground()
                     } else {
                         state = state.copy(
                             loading = false,
                             error = res.message
                         )
-                        refreshAll()
+                        refreshAllInBackground()
                     }
                 }
             }
