@@ -180,7 +180,6 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
             else -> loadMyTasks()
         }
     }
-    }
 
     fun loadMyTasks() {
         viewModelScope.launch {
