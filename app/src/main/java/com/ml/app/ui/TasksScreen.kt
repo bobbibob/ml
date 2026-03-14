@@ -272,7 +272,7 @@ fun TasksScreen(
         }
     }
 
-    if (showPushedTaskDetails && pushedTask != null && state.currentUser != null) {
+        if (showPushedTaskDetails && pushedTask != null && state.currentUser != null) {
         val task = pushedTask!!
 
         AlertDialog(
