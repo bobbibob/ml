@@ -126,7 +126,7 @@ class TasksRepository(
             is AppResult.Success<*> -> {
                 val body = result.data as com.ml.app.data.remote.response.BasicOkResponse
                 if (body.ok) {
-                    AppResult.Success(body.message ?: "Напоминание отправлено")
+                    AppResult.Success("Напоминание отправлено")
                 } else {
                     AppResult.Error(body.error ?: "Не удалось отправить напоминание")
                 }
