@@ -71,6 +71,7 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
                     state = state.copy(currentUser = res.data, error = null)
                     syncFcmToken()
                     refreshAll()
+                    loadUsers(force = false)
                 }
                 is AppResult.Error -> {
                     authRepo.logout()
@@ -92,6 +93,7 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
                     )
                     syncFcmToken()
                     refreshAll()
+                    loadUsers(force = false)
                 }
                 is AppResult.Error -> {
                     state = state.copy(
@@ -223,7 +225,10 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun loadUsers() {
+    fun loadUsers(force: Boolean = false) {
+        if (state.loadingUsers) return
+        if (!force && state.users.isNotEmpty()) return
+
         viewModelScope.launch {
             state = state.copy(loadingUsers = true, error = null, info = null)
             try {
@@ -241,7 +246,7 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
                             state = state.copy(
                                 loadingUsers = false,
                                 error = null,
-                                info = "Загрузка в ожидании данных"
+                                info = "Загрузка исполнителей…"
                             )
                         } else {
                             state = state.copy(
@@ -255,7 +260,7 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
                 state = state.copy(
                     loadingUsers = false,
                     error = null,
-                    info = "Загрузка в ожидании данных"
+                    info = "Загрузка исполнителей…"
                 )
             }
         }
