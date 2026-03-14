@@ -13,6 +13,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.mutableStateOf
 import com.ml.app.ui.SummaryScreen
+import com.google.android.gms.tasks.Tasks
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -35,15 +36,14 @@ class MainActivity : ComponentActivity() {
         )
         val authRepo = com.ml.app.data.repository.AuthRepository(api, session)
 
-        com.google.firebase.messaging.FirebaseMessaging.getInstance().token
-            .addOnCompleteListener { task ->
-                if (!task.isSuccessful) return@addOnCompleteListener
-                val token = task.result ?: return@addOnCompleteListener
-
-                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
-                    kotlin.runCatching { authRepo.saveFcmToken(token) }
-                }
+        CoroutineScope(Dispatchers.IO).launch {
+            kotlin.runCatching {
+                val fm = com.google.firebase.messaging.FirebaseMessaging.getInstance()
+                fm.deleteToken()
+                val token = Tasks.await(fm.token)
+                authRepo.saveFcmToken(token)
             }
+        }
     }
 
 
@@ -54,6 +54,10 @@ class MainActivity : ComponentActivity() {
         if (openTasks) {
             openTaskIdState.value = taskId
             openTasksSignalState.value = openTasksSignalState.value + 1
+            intent?.removeExtra("open_tasks")
+            intent?.removeExtra("task_id")
+        } else {
+            openTaskIdState.value = null
         }
     }
 
