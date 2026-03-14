@@ -506,19 +506,11 @@ private fun CreateTaskWizard(
             onDescriptionChange = { taskDescription = it },
             onCancel = onCancel,
             onDone = {
-                val reminderText = selectedReminder?.title ?: ""
-                val finalDescription = buildString {
-                    append(taskDescription.trim())
-                    if (reminderText.isNotBlank()) {
-                        if (isNotBlank()) append("\n\n")
-                        append(reminderText)
-                    }
-                }
                 val payload = reminderPayload(selectedReminder)
 
                 vm.createTask(
                     title = taskTitle.trim(),
-                    description = finalDescription,
+                    description = taskDescription.trim(),
                     assigneeUserId = selectedAssigneeId,
                     reminderType = payload.first,
                     reminderIntervalMinutes = payload.second,
