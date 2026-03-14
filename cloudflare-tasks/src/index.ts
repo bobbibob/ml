@@ -1106,9 +1106,9 @@ if (path === "/create_task" && request.method === "POST") {
             au.display_name AS assignee_name,
             compu.display_name AS completed_by_name,
             cancelu.display_name AS cancelled_by_name,
-            t.reminder_type,
-            t.reminder_interval_minutes,
-            t.reminder_time_of_day
+            NULL AS reminder_type,
+            NULL AS reminder_interval_minutes,
+            NULL AS reminder_time_of_day
           FROM tasks t
           LEFT JOIN users cu ON cu.user_id = t.created_by_user_id
           LEFT JOIN users au ON au.user_id = t.assignee_user_id
