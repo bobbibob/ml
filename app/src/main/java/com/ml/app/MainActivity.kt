@@ -22,6 +22,28 @@ class MainActivity : ComponentActivity() {
     private val openTasksSignalState = mutableStateOf(0)
     private val openTaskIdState = mutableStateOf<String?>(null)
 
+    private fun syncFcmTokenNow() {
+        val session = com.ml.app.data.session.PrefsSessionStorage(applicationContext)
+        if (session.getToken().isNullOrBlank()) return
+
+        val api = com.ml.app.core.network.ApiModule.createApi(
+            baseUrl = "https://ml-tasks-api.bboobb666.workers.dev/",
+            sessionStorage = session
+        )
+        val authRepo = com.ml.app.data.repository.AuthRepository(api, session)
+
+        com.google.firebase.messaging.FirebaseMessaging.getInstance().token
+            .addOnCompleteListener { task ->
+                if (!task.isSuccessful) return@addOnCompleteListener
+                val token = task.result ?: return@addOnCompleteListener
+
+                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                    kotlin.runCatching { authRepo.saveFcmToken(token) }
+                }
+            }
+    }
+
+
     private fun applyLaunchIntent() {
         val openTasks = intent?.getBooleanExtra("open_tasks", false) == true
         val taskId = intent?.getStringExtra("task_id")?.trim()
@@ -36,11 +58,13 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        syncFcmTokenNow()
         applyLaunchIntent()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        syncFcmTokenNow()
         applyLaunchIntent()
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
