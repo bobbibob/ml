@@ -1263,14 +1263,14 @@ if (path === "/create_task" && request.method === "POST") {
         const canDelete = user.role === "admin" || task.created_by_user_id === user.user_id
         if (!canDelete) return json({ ok: false, error: "permission denied" }, 403)
 
+        await logAction(env, "task", taskId, "task_deleted", user.user_id, {
+          title: task.title || ""
+        })
+
         await env.DB.prepare(`
           DELETE FROM tasks
           WHERE task_id = ?
         `).bind(taskId).run()
-
-        await logAction(env, "task", taskId, "task_deleted", user.user_id, {
-          title: task.title || ""
-        })
 
         return json({ ok: true, task_id: taskId })
       }
