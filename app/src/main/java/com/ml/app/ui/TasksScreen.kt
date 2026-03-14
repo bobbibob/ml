@@ -921,9 +921,6 @@ private fun TasksListTab(
                                 color = TextBlack
                             )
 
-                            Text(
-                                color = TextBlack
-                            )
 
                             Text(
                                 text = "Создал: ${task.created_by_name}",
