@@ -15,6 +15,7 @@ import com.ml.app.data.remote.dto.UserDto
 import com.ml.app.data.repository.AuthRepository
 import com.ml.app.data.repository.TasksRepository
 import com.ml.app.data.session.PrefsSessionStorage
+import com.ml.app.notifications.UrgentTaskNotifier
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 
@@ -181,18 +182,27 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+
+    private fun syncUrgentNotifications(tasks: List<TaskDto>) {
+        val ctx = getApplication<Application>().applicationContext
+        UrgentTaskNotifier.syncForTasks(ctx, tasks)
+    }
+
     fun loadMyTasks() {
         viewModelScope.launch {
             state = state.copy(loadingTasks = true, error = null, info = null)
             try {
                 val res = withTimeout(30000) { tasksRepo.getMyTasks() }
                 when (res) {
-                    is AppResult.Success -> state = state.copy(
-                        loadingTasks = false,
-                        myTasks = res.data,
-                        error = null,
-                        info = null
-                    )
+                    is AppResult.Success -> {
+                        state = state.copy(
+                            loadingTasks = false,
+                            myTasks = res.data,
+                            error = null,
+                            info = null
+                        )
+                        syncUrgentNotifications(res.data)
+                    }
                     is AppResult.Error -> {
                         val msg = res.message.lowercase()
                         if ("timeout" in msg) {
@@ -340,6 +350,10 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
                         openedTaskFromPush = res.data,
                         error = null
                     )
+                    val me = state.currentUser?.user_id
+                    if (res.data.is_urgent == 1 && res.data.assignee_user_id == me && res.data.status == "open") {
+                        UrgentTaskNotifier.show(getApplication<Application>().applicationContext, res.data)
+                    }
                 }
                 is AppResult.Error -> {
                     state = state.copy(
@@ -399,7 +413,8 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
         assigneeUserId: String,
         reminderType: String? = null,
         reminderIntervalMinutes: Int? = null,
-        reminderTimeOfDay: String? = null
+        reminderTimeOfDay: String? = null,
+        isUrgent: Boolean = false
     ) {
         if (title.isBlank() || assigneeUserId.isBlank()) {
             state = state.copy(
@@ -447,6 +462,7 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
 
     fun completeTask(taskId: String) {
         markTaskCompletedLocally(taskId)
+        UrgentTaskNotifier.cancel(getApplication<Application>().applicationContext, taskId)
 
         viewModelScope.launch {
             when (val res = tasksRepo.completeTask(taskId)) {
@@ -469,7 +485,8 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
         assigneeUserId: String,
         reminderType: String? = null,
         reminderIntervalMinutes: Int? = null,
-        reminderTimeOfDay: String? = null
+        reminderTimeOfDay: String? = null,
+        isUrgent: Boolean = false
     ) {
         if (title.isBlank() || assigneeUserId.isBlank()) {
             state = state.copy(error = "Заполни название и исполнителя")
@@ -478,7 +495,7 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
 
         viewModelScope.launch {
             state = state.copy(loading = true, error = null, info = null)
-            when (val res = tasksRepo.updateTask(taskId, title, description, assigneeUserId, reminderType, reminderIntervalMinutes, reminderTimeOfDay)) {
+            when (val res = tasksRepo.updateTask(taskId, title, description, assigneeUserId, reminderType, reminderIntervalMinutes, reminderTimeOfDay, isUrgent)) {
                 is AppResult.Success -> {
                     state = state.copy(loading = false, info = "Задача обновлена")
                     refreshAllInBackground()

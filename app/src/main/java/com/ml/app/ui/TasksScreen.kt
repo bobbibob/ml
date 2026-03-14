@@ -333,8 +333,8 @@ fun TasksScreen(
             onComplete = { vm.completeTask(it) },
             onRemind = { vm.remindTask(it) },
             onEdit = { vm.loadUsers() },
-            onSaveEdit = { taskId, title, description, assigneeUserId, reminderType, reminderIntervalMinutes, reminderTimeOfDay ->
-                vm.updateTask(taskId, title, description, assigneeUserId, reminderType, reminderIntervalMinutes, reminderTimeOfDay)
+            onSaveEdit = { taskId, title, description, assigneeUserId, reminderType, reminderIntervalMinutes, reminderTimeOfDay, isUrgent ->
+                vm.updateTask(taskId, title, description, assigneeUserId, reminderType, reminderIntervalMinutes, reminderTimeOfDay, isUrgent)
             },
             onDelete = { vm.deleteTask(it) },
             users = state.users,
@@ -354,8 +354,8 @@ fun TasksScreen(
             onComplete = { vm.completeTask(it) },
             onRemind = { vm.remindTask(it) },
             onEdit = { vm.loadUsers() },
-            onSaveEdit = { taskId, title, description, assigneeUserId, reminderType, reminderIntervalMinutes, reminderTimeOfDay ->
-                vm.updateTask(taskId, title, description, assigneeUserId, reminderType, reminderIntervalMinutes, reminderTimeOfDay)
+            onSaveEdit = { taskId, title, description, assigneeUserId, reminderType, reminderIntervalMinutes, reminderTimeOfDay, isUrgent ->
+                vm.updateTask(taskId, title, description, assigneeUserId, reminderType, reminderIntervalMinutes, reminderTimeOfDay, isUrgent)
             },
             onDelete = { vm.deleteTask(it) },
             users = state.users,
@@ -822,7 +822,7 @@ private fun TasksListTab(
     onComplete: (String) -> Unit,
     onRemind: (String) -> Unit,
     onEdit: () -> Unit,
-    onSaveEdit: (String, String, String, String, String?, Int?, String?) -> Unit,
+    onSaveEdit: (String, String, String, String, String?, Int?, String?, Boolean) -> Unit,
     onDelete: (String) -> Unit,
     users: List<UserDto>,
     uiState: TasksUiState,
@@ -895,12 +895,34 @@ private fun TasksListTab(
                                 .fillMaxWidth()
                                 .padding(18.dp)
                         ) {
-                            Text(
-                                text = task.title,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = TextBlack
-                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = task.title,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextBlack,
+                                    modifier = Modifier.weight(1f, fill = false)
+                                )
+
+                                if (task.is_urgent == 1) {
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = Color(0xFFFFE3E3)
+                                    ) {
+                                        Text(
+                                            text = "СРОЧНО",
+                                            color = Color(0xFFB3261E),
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                            fontWeight = FontWeight.Bold,
+                                            style = MaterialTheme.typography.labelMedium
+                                        )
+                                    }
+                                }
+                            }
 
                             if (!task.description.isNullOrBlank()) {
                                 Text(
@@ -921,6 +943,11 @@ private fun TasksListTab(
                                 color = TextBlack
                             )
 
+
+                            Text(
+                                text = "Исполнитель: ${task.assignee_name}",
+                                color = TextBlack
+                            )
 
                             Text(
                                 text = "Создал: ${task.created_by_name}",
@@ -1098,7 +1125,7 @@ private fun EditTaskWizard(
     error: String?,
     info: String?,
     onCancel: () -> Unit,
-    onSave: (String, String, String, String, String?, Int?, String?) -> Unit
+    onSave: (String, String, String, String, String?, Int?, String?, Boolean) -> Unit
 ) {
     var step by remember(task.task_id) { mutableStateOf(1) }
     var assigneeUserId by remember(task.task_id) { mutableStateOf(task.assignee_user_id) }
@@ -1118,6 +1145,7 @@ private fun EditTaskWizard(
     }
     var title by remember(task.task_id) { mutableStateOf(task.title) }
     var description by remember(task.task_id) { mutableStateOf(cleanTaskDescriptionForEdit(task.description)) }
+    var isUrgent by remember(task.task_id) { mutableStateOf(task.is_urgent == 1) }
 
     val selectedUser = users.firstOrNull { it.user_id == assigneeUserId }
 
