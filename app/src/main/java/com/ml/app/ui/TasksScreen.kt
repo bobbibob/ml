@@ -297,6 +297,7 @@ private fun TaskDetailsDialog(
     task: TaskDto,
     canEdit: Boolean,
     canDelete: Boolean,
+    canRemind: Boolean,
     onDismiss: () -> Unit,
     onComplete: (String) -> Unit,
     onRemind: (String) -> Unit,
@@ -350,7 +351,7 @@ private fun TaskDetailsDialog(
                         modifier = Modifier.weight(1f),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        if (task.status == "open") {
+                        if (task.status == "open" && canRemind) {
                             OutlinedButton(
                                 onClick = { onRemind(task.task_id) },
                                 modifier = Modifier.fillMaxWidth(),
@@ -804,6 +805,7 @@ private fun TasksListTab(
                 items(tasks) { task ->
                     val canDelete = currentUserRole == "admin" || task.created_by_user_id == currentUserId
                     val canEdit = canDelete && task.status == "open"
+                    val canRemind = currentUserRole == "admin" || task.created_by_user_id == currentUserId
 
                     Card(
                         modifier = Modifier
@@ -923,7 +925,7 @@ private fun TasksListTab(
                                     modifier = Modifier.weight(1f),
                                     verticalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    if (task.status == "open") {
+                                    if (task.status == "open" && canRemind) {
                                         OutlinedButton(
                                             onClick = { onRemind(task.task_id) },
                                             shape = RoundedCornerShape(20.dp),
@@ -955,6 +957,7 @@ private fun TasksListTab(
           val task = openedTask!!
           val canDelete = currentUserRole == "admin" || task.created_by_user_id == currentUserId
           val canEdit = canDelete && task.status == "open"
+          val canRemind = currentUserRole == "admin" || task.created_by_user_id == currentUserId
 
           TaskDetailsDialog(
               task = task,
@@ -969,6 +972,7 @@ private fun TasksListTab(
                   onComplete(it)
               },
               onRemind = { onRemind(it) },
+              canRemind = canRemind,
               onEdit = {
                   showTaskDetails = false
                   onEdit()
