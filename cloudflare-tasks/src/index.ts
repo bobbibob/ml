@@ -1116,8 +1116,8 @@ if (path === "/create_task" && request.method === "POST") {
           const authorName = String(user.display_name || user.email || "Автор").trim() || "Автор"
           ctx.waitUntil((async () => {
             const pushBody = description
-              ? `От: ${authorName}\nЗадача: ${title}\nОписание: ${description}`
-              : `От: ${authorName}\nЗадача: ${title}`
+              ? `От: ${authorName}\n${description}`
+              : `От: ${authorName}`
 
             let sent = 0
             for (const token of assigneeTokens) {
