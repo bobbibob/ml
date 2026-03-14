@@ -253,30 +253,44 @@ fun TasksScreen(
 
     if (showPushedTaskDetails && pushedTask != null && state.currentUser != null) {
         val task = pushedTask!!
-        val canDelete = state.currentUser.role == "admin" || task.created_by_user_id == state.currentUser.user_id
-        val canRemind = state.currentUser.role == "admin" || task.created_by_user_id == state.currentUser.user_id
 
-        TaskDetailsDialog(
-            task = task,
-            canEdit = false,
-            canDelete = canDelete,
-            canRemind = canRemind,
-            onDismiss = {
+        AlertDialog(
+            onDismissRequest = {
                 showPushedTaskDetails = false
                 pushedTask = null
+                vm.selectTab("my")
             },
-            onComplete = {
-                showPushedTaskDetails = false
-                pushedTask = null
-                vm.completeTask(it)
+            title = {
+                Text(task.title)
             },
-            onRemind = { vm.remindTask(it) },
-            onEdit = {},
-            onDelete = {
-                showPushedTaskDetails = false
-                pushedTask = null
-                vm.deleteTask(it.task_id)
-            }
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (!task.description.isNullOrBlank()) {
+                        Text(task.description)
+                    }
+                    Text("Исполнитель: ${task.assignee_name}")
+                    Text("Создал: ${task.created_by_name}")
+                    Text("Статус: ${if (task.status == "open") "Открыта" else "Выполнена"}")
+                }
+            },
+            confirmButton = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Button(
+                        onClick = {
+                            showPushedTaskDetails = false
+                            pushedTask = null
+                            vm.selectTab("my")
+                        },
+                        shape = RoundedCornerShape(20.dp)
+                    ) {
+                        Text("OK")
+                    }
+                }
+            },
+            dismissButton = {}
         )
     }
 
