@@ -1105,11 +1105,15 @@ if (path === "/create_task" && request.method === "POST") {
           const authorName = String(user.display_name || user.email || "Автор").trim() || "Автор"
           ctx.waitUntil((async () => {
             try {
+              const pushBody = description
+                ? `От: ${authorName}\nЗадача: ${title}\nОписание: ${description}`
+                : `От: ${authorName}\nЗадача: ${title}`
+
               await sendPushToToken(
                 env,
                 assignee.fcm_token,
                 "Новая задача",
-                `Задача "${title}" от ${authorName}`,
+                pushBody,
                 {
                   type: "task_created",
                   task_id: taskId,

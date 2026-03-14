@@ -47,6 +47,38 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
     var state by mutableStateOf(TasksUiState())
         private set
 
+    private fun markTaskCompletedLocally(taskId: String) {
+        val now = java.time.OffsetDateTime.now().toString()
+
+        fun patch(list: List<TaskDto>): List<TaskDto> {
+            return list.map { task ->
+                if (task.task_id == taskId) {
+                    task.copy(
+                        status = "done",
+                        completed_by_user_id = state.currentUser?.user_id,
+                        completed_at = now,
+                        updated_at = now
+                    )
+                } else {
+                    task
+                }
+            }
+        }
+
+        state = state.copy(
+            myTasks = patch(state.myTasks),
+            allTasks = patch(state.allTasks)
+        )
+    }
+
+    private fun removeTaskLocally(taskId: String) {
+        state = state.copy(
+            myTasks = state.myTasks.filterNot { it.task_id == taskId },
+            allTasks = state.allTasks.filterNot { it.task_id == taskId }
+        )
+    }
+
+
     private fun syncFcmToken() {
         FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
             if (!task.isSuccessful) return@addOnCompleteListener
@@ -405,13 +437,18 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun completeTask(taskId: String) {
+        markTaskCompletedLocally(taskId)
+
         viewModelScope.launch {
             when (val res = tasksRepo.completeTask(taskId)) {
                 is AppResult.Success -> {
                     state = state.copy(info = "Задача выполнена", error = null)
                     refreshAll()
                 }
-                is AppResult.Error -> state = state.copy(error = res.message)
+                is AppResult.Error -> {
+                    state = state.copy(error = res.message)
+                    refreshAll()
+                }
             }
         }
     }
@@ -445,6 +482,8 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun deleteTask(taskId: String) {
+        removeTaskLocally(taskId)
+
         viewModelScope.launch {
             state = state.copy(loading = true, error = null, info = null)
             when (val res = tasksRepo.deleteTask(taskId)) {
@@ -470,6 +509,7 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
                             loading = false,
                             error = res.message
                         )
+                        refreshAll()
                     }
                 }
             }
