@@ -77,7 +77,7 @@ object UrgentTaskNotifier {
         }
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_notification)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentTitle(task.title)
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))

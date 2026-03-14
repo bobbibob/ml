@@ -39,7 +39,8 @@ class TasksRepository(
         assigneeUserId: String,
         reminderType: String? = null,
         reminderIntervalMinutes: Int? = null,
-        reminderTimeOfDay: String? = null
+        reminderTimeOfDay: String? = null,
+        isUrgent: Boolean = false
     ): AppResult<String> {
         return when (
             val result = safeApiCall {
@@ -50,7 +51,8 @@ class TasksRepository(
                         assignee_user_id = assigneeUserId,
                         reminder_type = reminderType,
                         reminder_interval_minutes = reminderIntervalMinutes,
-                        reminder_time_of_day = reminderTimeOfDay
+                        reminder_time_of_day = reminderTimeOfDay,
+                        is_urgent = if (isUrgent) 1 else 0
                     )
                 )
             }
@@ -266,7 +268,8 @@ class TasksRepository(
         assigneeUserId: String,
         reminderType: String? = null,
         reminderIntervalMinutes: Int? = null,
-        reminderTimeOfDay: String? = null
+        reminderTimeOfDay: String? = null,
+        isUrgent: Boolean = false
     ): AppResult<Unit> {
         return try {
             val raw = api.updateTaskRaw(
@@ -274,7 +277,8 @@ class TasksRepository(
                     "task_id" to taskId,
                     "title" to title,
                     "description" to description,
-                    "assignee_user_id" to assigneeUserId
+                    "assignee_user_id" to assigneeUserId,
+                    "is_urgent" to if (isUrgent) "1" else "0"
                 )
             )
             val json = JSONObject(raw.string())

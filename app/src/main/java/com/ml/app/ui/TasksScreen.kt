@@ -1326,7 +1326,8 @@ private fun EditTaskWizard(
                                         assigneeUserId,
                                         payload.first,
                                         payload.second,
-                                        payload.third
+                                        payload.third,
+                                        isUrgent
                                     )
                                 },
                                 modifier = Modifier.weight(1f),
