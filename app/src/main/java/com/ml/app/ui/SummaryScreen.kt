@@ -249,7 +249,7 @@ fun SummaryScreen(
   }
 
   val pullState = rememberPullRefreshState(
-    refreshing = state.loading,
+    refreshing = state.refreshing,
     onRefresh = { vm.syncServerSummaries() }
   )
 
@@ -474,7 +474,7 @@ Row(verticalAlignment = Alignment.CenterVertically) {
 
             }
 
-            if (state.status.isNotBlank()) {
+            if (state.status.isNotBlank() && !(state.syncingPack && state.status.contains("Updating pack", ignoreCase = true))) {
               Spacer(Modifier.height(8.dp))
               Text(
                 text = state.status,
@@ -606,7 +606,7 @@ Row(verticalAlignment = Alignment.CenterVertically) {
 
 
     PullRefreshIndicator(
-      refreshing = state.loading,
+      refreshing = state.refreshing,
       state = pullState,
       modifier = Modifier.align(Alignment.TopCenter)
     )

@@ -44,6 +44,8 @@ data class SummaryState(
   val cardTypes: Map<String, CardType> = emptyMap(),
   val status: String = "",
   val loading: Boolean = false,
+  val refreshing: Boolean = false,
+  val syncingPack: Boolean = false,
   val hasPack: Boolean = false
 )
 
@@ -195,8 +197,12 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
   }
 
 
-  private suspend fun downloadAndInstallPack(statusText: String) {
-    _state.value = _state.value.copy(loading = true, status = statusText)
+  private suspend fun downloadAndInstallPack(statusText: String, silent: Boolean = false) {
+    _state.value = if (silent) {
+      _state.value.copy(syncingPack = true, status = statusText)
+    } else {
+      _state.value.copy(loading = true, status = statusText)
+    }
 
     val packDir = PackPaths.packDir(ctx)
     if (!packDir.exists()) packDir.mkdirs()
@@ -214,11 +220,19 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
       PackDbSync.refreshMergedDb(ctx)
     }
 
-    _state.value = _state.value.copy(
-      hasPack = true,
-      loading = false,
-      status = "Downloaded"
-    )
+    _state.value = if (silent) {
+      _state.value.copy(
+        hasPack = true,
+        syncingPack = false,
+        status = ""
+      )
+    } else {
+      _state.value.copy(
+        hasPack = true,
+        loading = false,
+        status = "Downloaded"
+      )
+    }
 
     refreshTimeline()
   }
@@ -242,7 +256,7 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
                             val saved = prefsPack.getString("pack_etag", null)
 
                             if (saved == null || saved != remote.etag) {
-                                downloadAndInstallPack("Updating pack…")
+                                downloadAndInstallPack("Updating pack…", silent = true)
                                 prefsPack.edit().putString("pack_etag", remote.etag).apply()
                             }
                         }
@@ -403,7 +417,7 @@ fun refreshTimeline() {
       }
 
       if (saved != remote.etag) {
-        downloadAndInstallPack("Updating pack…")
+        downloadAndInstallPack("Updating pack…", silent = true)
         prefsPack.edit().putString("pack_etag", remote.etag).apply()
       }
     }
@@ -419,7 +433,7 @@ fun refreshTimeline() {
     viewModelScope.launch(Dispatchers.IO) {
       try {
         _state.value = _state.value.copy(
-          loading = true,
+          refreshing = true,
           status = "Syncing summaries…"
         )
 
@@ -432,7 +446,7 @@ fun refreshTimeline() {
         val syncStatus = _state.value.status
         refreshTimeline()
         _state.value = _state.value.copy(
-          loading = false,
+          refreshing = false,
           status = syncStatus
         )
 
@@ -450,7 +464,7 @@ fun refreshTimeline() {
       } catch (t: Throwable) {
         val msg = "SYNC ERROR: ${t.message}"
         _state.value = _state.value.copy(
-          loading = false,
+          refreshing = false,
           status = msg
         )
         viewModelScope.launch(Dispatchers.Main) {
