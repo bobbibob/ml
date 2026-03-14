@@ -290,9 +290,11 @@ fun TasksScreen(
                     if (!task.description.isNullOrBlank()) {
                         Text(task.description)
                     }
-                    Text("Исполнитель: ${task.assignee_name}")
                     Text("Создал: ${task.created_by_name}")
                     Text("Статус: ${if (task.status == "open") "Открыта" else "Выполнена"}")
+                    if (!task.completed_at.isNullOrBlank()) {
+                        Text("Выполнено: ${fmtTaskDateTime(task.completed_at)}")
+                    }
                 }
             },
             confirmButton = {
