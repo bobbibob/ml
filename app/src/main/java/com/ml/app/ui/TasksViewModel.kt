@@ -180,11 +180,6 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
             else -> loadMyTasks()
         }
     }
-
-    private fun refreshAllInBackground() {
-        viewModelScope.launch {
-            kotlin.runCatching { refreshAllInBackground() }
-        }
     }
 
     fun loadMyTasks() {
