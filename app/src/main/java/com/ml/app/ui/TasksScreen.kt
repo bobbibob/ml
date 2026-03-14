@@ -293,6 +293,91 @@ fun TasksScreen(
 }
 
 @Composable
+private fun TaskDetailsDialog(
+    task: TaskDto,
+    canEdit: Boolean,
+    canDelete: Boolean,
+    onDismiss: () -> Unit,
+    onComplete: (String) -> Unit,
+    onRemind: (String) -> Unit,
+    onEdit: (TaskDto) -> Unit,
+    onDelete: (TaskDto) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {},
+        title = { Text(task.title) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (!task.description.isNullOrBlank()) {
+                    Text(task.description)
+                }
+
+                Text("Исполнитель: ${task.assignee_name}")
+                Text("Создал: ${task.created_by_name}")
+                Text("Статус: ${if (task.status == "open") "Открыта" else "Выполнена"}")
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        if (task.status == "open") {
+                            Button(
+                                onClick = { onComplete(task.task_id) },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(20.dp)
+                            ) {
+                                Text("Выполнено")
+                            }
+                        }
+
+                        if (canEdit) {
+                            Button(
+                                onClick = { onEdit(task) },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(20.dp)
+                            ) {
+                                Text("Редактировать")
+                            }
+                        }
+                    }
+
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        if (task.status == "open") {
+                            OutlinedButton(
+                                onClick = { onRemind(task.task_id) },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(20.dp)
+                            ) {
+                                Text("Напомнить")
+                            }
+                        }
+
+                        if (canDelete) {
+                            OutlinedButton(
+                                onClick = { onDelete(task) },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(20.dp)
+                            ) {
+                                Text("Удалить")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    )
+}
+
+
+@Composable
 private fun CreateTaskWizard(
     vm: TasksViewModel,
     onCancel: () -> Unit
@@ -673,11 +758,16 @@ private fun TasksListTab(
     var editTask by remember { mutableStateOf<TaskDto?>(null) }
     var deleteTask by remember { mutableStateOf<TaskDto?>(null) }
     var showEditWizard by remember { mutableStateOf(false) }
+    var openedTask by remember { mutableStateOf<TaskDto?>(null) }
+    var showTaskDetails by remember { mutableStateOf(false) }
 
     LaunchedEffect(openSignal, initialOpenTaskId, tasks) {
         if (!initialOpenTaskId.isNullOrBlank()) {
-            // По push не открываем редактор автоматически.
-            // Задача должна открываться только через явное действие пользователя.
+            val target = tasks.firstOrNull { it.task_id == initialOpenTaskId }
+            if (target != null) {
+                openedTask = target
+                showTaskDetails = true
+            }
         }
     }
 
@@ -716,7 +806,12 @@ private fun TasksListTab(
                     val canEdit = canDelete && task.status == "open"
 
                     Card(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                openedTask = task
+                                showTaskDetails = true
+                            },
                         shape = RoundedCornerShape(28.dp),
                         colors = CardDefaults.cardColors(containerColor = Color.White),
                         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
@@ -855,6 +950,38 @@ private fun TasksListTab(
             }
         }
     }
+
+      if (showTaskDetails && openedTask != null) {
+          val task = openedTask!!
+          val canDelete = currentUserRole == "admin" || task.created_by_user_id == currentUserId
+          val canEdit = canDelete && task.status == "open"
+
+          TaskDetailsDialog(
+              task = task,
+              canEdit = canEdit,
+              canDelete = canDelete,
+              onDismiss = {
+                  showTaskDetails = false
+                  openedTask = null
+              },
+              onComplete = {
+                  showTaskDetails = false
+                  onComplete(it)
+              },
+              onRemind = { onRemind(it) },
+              onEdit = {
+                  showTaskDetails = false
+                  onEdit()
+                  editTask = it
+                  showEditWizard = true
+              },
+              onDelete = {
+                  showTaskDetails = false
+                  deleteTask = it
+              }
+          )
+      }
+
 
       if (showEditWizard && editTask != null) {
           EditTaskWizard(
