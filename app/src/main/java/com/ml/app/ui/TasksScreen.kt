@@ -676,12 +676,8 @@ private fun TasksListTab(
 
     LaunchedEffect(openSignal, initialOpenTaskId, tasks) {
         if (!initialOpenTaskId.isNullOrBlank()) {
-            val target = tasks.firstOrNull { it.task_id == initialOpenTaskId }
-            if (target != null) {
-                onEdit()
-                editTask = target
-                showEditWizard = true
-            }
+            // По push не открываем редактор автоматически.
+            // Задача должна открываться только через явное действие пользователя.
         }
     }
 
