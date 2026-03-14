@@ -1085,8 +1085,8 @@ private fun TasksListTab(
                   showEditWizard = false
                   editTask = null
               },
-              onSave = { taskId: String, title: String, description: String, assigneeUserId: String, reminderType: String?, reminderIntervalMinutes: Int?, reminderTimeOfDay: String? ->
-                  onSaveEdit(taskId, title, description, assigneeUserId, reminderType, reminderIntervalMinutes, reminderTimeOfDay)
+              onSave = { taskId: String, title: String, description: String, assigneeUserId: String, reminderType: String?, reminderIntervalMinutes: Int?, reminderTimeOfDay: String?, isUrgent: Boolean ->
+                  onSaveEdit(taskId, title, description, assigneeUserId, reminderType, reminderIntervalMinutes, reminderTimeOfDay, isUrgent)
                   showEditWizard = false
                   editTask = null
               }
