@@ -441,11 +441,28 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
             state = state.copy(loading = true, error = null, info = null)
             when (val res = tasksRepo.deleteTask(taskId)) {
                 is AppResult.Success -> {
-                    state = state.copy(loading = false, info = "Задача удалена")
+                    state = state.copy(
+                        loading = false,
+                        error = null,
+                        info = "Задача удалена"
+                    )
                     refreshAll()
                 }
                 is AppResult.Error -> {
-                    state = state.copy(loading = false, error = res.message)
+                    val msg = res.message.lowercase()
+                    if ("timeout" in msg) {
+                        state = state.copy(
+                            loading = false,
+                            error = null,
+                            info = "Удаление выполняется"
+                        )
+                        refreshAll()
+                    } else {
+                        state = state.copy(
+                            loading = false,
+                            error = res.message
+                        )
+                    }
                 }
             }
         }
