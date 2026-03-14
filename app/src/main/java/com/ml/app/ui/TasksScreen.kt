@@ -244,8 +244,8 @@ fun TasksScreen(
         }
     }
 
-    LaunchedEffect(state.openedTaskFromPush?.task_id) {
-        val target = state.openedTaskFromPush ?: return@LaunchedEffect
+    LaunchedEffect(uiState.openedTaskFromPush?.task_id) {
+        val target = uiState.openedTaskFromPush ?: return@LaunchedEffect
         pushedTask = target
         showPushedTaskDetails = true
         vm.clearOpenedTaskFromPush()
@@ -315,7 +315,7 @@ fun TasksScreen(
             },
             onDelete = { vm.deleteTask(it) },
             users = state.users,
-            state = state,
+            uiState = state,
             initialOpenTaskId = if (state.selectedTab == "my") initialOpenTaskId else null,
             openSignal = openSignal,
             onConsumedOpenedTaskFromPush = { vm.clearOpenedTaskFromPush() }
@@ -336,7 +336,7 @@ fun TasksScreen(
             },
             onDelete = { vm.deleteTask(it) },
             users = state.users,
-            state = state,
+            uiState = state,
             initialOpenTaskId = initialOpenTaskId,
             openSignal = openSignal,
             onConsumedOpenedTaskFromPush = { vm.clearOpenedTaskFromPush() }
@@ -479,7 +479,7 @@ private fun CreateTaskWizard(
             description = taskDescription,
             error = state.error,
             info = state.info,
-            loading = state.loading,
+            loading = state.creatingTask,
             onTitleChange = { taskTitle = it },
             onDescriptionChange = { taskDescription = it },
             onCancel = onCancel,
@@ -783,9 +783,9 @@ private fun CreateTaskDetailsStep(
             onClick = onDone,
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(24.dp),
-            enabled = title.isNotBlank() && !state.creatingTask
+            enabled = title.isNotBlank() && !loading
         ) {
-            Text(if (state.creatingTask) "Создаём..." else "Готово")
+            Text(if (loading) "Создаём..." else "Готово")
         }
     }
 }
@@ -804,7 +804,7 @@ private fun TasksListTab(
     onSaveEdit: (String, String, String, String, String?, Int?, String?) -> Unit,
     onDelete: (String) -> Unit,
     users: List<UserDto>,
-    state: TasksUiState,
+    uiState: TasksUiState,
     initialOpenTaskId: String? = null,
     openSignal: Int = 0,
     onConsumedOpenedTaskFromPush: () -> Unit = {}
@@ -819,7 +819,7 @@ private fun TasksListTab(
         // Открытие по push теперь идёт через загрузку задачи по task_id с сервера.
     }
 
-    LaunchedEffect(state.openedTaskFromPush?.task_id) {
+    LaunchedEffect(uiState.openedTaskFromPush?.task_id) {
         // Открытие задачи по push теперь обрабатывается на уровне TasksScreen.
     }
 
@@ -844,7 +844,7 @@ private fun TasksListTab(
             )
         }
 
-        if (state.loadingTasks && tasks.isEmpty()) {
+        if (uiState.loadingTasks && tasks.isEmpty()) {
             Text("Загружаем задачи...")
         } else if (tasks.isEmpty()) {
             Text(titleWhenEmpty)
