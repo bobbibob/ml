@@ -268,7 +268,8 @@ fun TasksScreen(
             users = state.users,
             state = state,
             initialOpenTaskId = if (state.selectedTab == "my") initialOpenTaskId else null,
-            openSignal = openSignal
+            openSignal = openSignal,
+            onConsumedOpenedTaskFromPush = { vm.clearOpenedTaskFromPush() }
         )
 
         else -> TasksListTab(
@@ -288,7 +289,8 @@ fun TasksScreen(
             users = state.users,
             state = state,
             initialOpenTaskId = initialOpenTaskId,
-            openSignal = openSignal
+            openSignal = openSignal,
+            onConsumedOpenedTaskFromPush = { vm.clearOpenedTaskFromPush() }
         )
     }
 }
@@ -755,7 +757,8 @@ private fun TasksListTab(
     users: List<UserDto>,
     state: TasksUiState,
     initialOpenTaskId: String? = null,
-    openSignal: Int = 0
+    openSignal: Int = 0,
+    onConsumedOpenedTaskFromPush: () -> Unit = {}
 ) {
     var editTask by remember { mutableStateOf<TaskDto?>(null) }
     var deleteTask by remember { mutableStateOf<TaskDto?>(null) }
@@ -771,7 +774,7 @@ private fun TasksListTab(
         val target = state.openedTaskFromPush ?: return@LaunchedEffect
         openedTask = target
         showTaskDetails = true
-        vm.clearOpenedTaskFromPush()
+        onConsumedOpenedTaskFromPush()
     }
 
 
