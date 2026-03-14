@@ -3,51 +3,39 @@ name: codex-android-build
 on:
   push:
     branches:
-      - 'codex/**'
-  pull_request:
-    branches:
-      - 'codex/**'
+      - codex/**
   workflow_dispatch:
 
 jobs:
-  build-debug:
+  build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    env:
+      KEYSTORE_PATH: /home/runner/ml-release.keystore
+      KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+      KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+      KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Java 17
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-          cache: gradle
 
-      - name: Prepare keystore
-        shell: bash
-        env:
-  KEYSTORE_PATH: /home/runner/ml-release.keystore
-  KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-  KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-  KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: |
-          if [ -z "$KEYSTORE_B64" ]; then
-            echo "KEYSTORE_B64 secret is missing" >&2
-            exit 1
-          fi
-          echo "$KEYSTORE_B64" | base64 -d > /home/runner/ml-release.keystore
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
 
       - name: Make gradlew executable
-        run: chmod +x gradlew
+        run: chmod +x ./gradlew
 
-      - name: Build debug APK
+      - name: Signing report
+        run: ./gradlew :app:signingReport
+
+      - name: Build Debug APK
         env:
-          KEYSTORE_PATH: /home/runner/ml-release.keystore
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
           R2_ACCESS_KEY: ${{ secrets.R2_ACCESS_KEY }}
@@ -60,6 +48,19 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: codex-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
+          name: app-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+
+      - name: Install sqlite3
+        run: sudo apt-get update && sudo apt-get install -y sqlite3
+
+      - name: CI SQL checks on test database
+        run: |
+          set -e
+          test -f testdata/data.sqlite
+          ls -la testdata/data.sqlite
+          echo "Tables:"
+          sqlite3 testdata/data.sqlite ".tables"
+          echo "svodka rows:"
+          sqlite3 testdata/data.sqlite "SELECT COUNT(*) FROM svodka;"
