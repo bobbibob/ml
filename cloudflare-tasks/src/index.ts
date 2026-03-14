@@ -1260,26 +1260,25 @@ if (path === "/create_task" && request.method === "POST") {
 
         const authorName = String(user.display_name || user.email || "Автор").trim() || "Автор"
 
-        ctx.waitUntil((async () => {
-          try {
-            await sendPushToToken(
-              env,
-              task.assignee_fcm_token,
-              "Напоминание",
-              `Напоминание по задаче "${task.title}" от ${authorName}`,
-              {
-                type: "task_reminder",
-                task_id: taskId,
-                open_tasks: "true",
-                task_title: String(task.title || ""),
-                author_name: authorName
-              }
-            )
-            console.log("task_reminder_push_ok", taskId, task.assignee_user_id)
-          } catch (e) {
-            console.log("task_reminder_push_error", taskId, String(e))
-          }
-        })())
+        try {
+          await sendPushToToken(
+            env,
+            task.assignee_fcm_token,
+            "Напоминание",
+            `Напоминание по задаче "${task.title}" от ${authorName}`,
+            {
+              type: "task_reminder",
+              task_id: taskId,
+              open_tasks: "true",
+              task_title: String(task.title || ""),
+              author_name: authorName
+            }
+          )
+          console.log("task_reminder_push_ok", taskId, task.assignee_user_id)
+        } catch (e) {
+          console.log("task_reminder_push_error", taskId, String(e))
+          return json({ ok: false, error: "push_send_failed" }, 500)
+        }
 
         await logAction(env, "task", taskId, "task_reminder", user.user_id, {
           assignee_user_id: task.assignee_user_id

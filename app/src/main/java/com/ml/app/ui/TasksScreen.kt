@@ -784,52 +784,73 @@ private fun TasksListTab(
                                 )
                             }
 
-                            if (task.status == "open") {
-                                Button(
-                                    onClick = { onComplete(task.task_id) },
-                                    shape = RoundedCornerShape(20.dp),
-                                    modifier = Modifier.padding(top = 12.dp)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 12.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Column(
+                                    modifier = Modifier.weight(1f),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Text("Выполнено")
+                                    if (task.status == "open") {
+                                        Button(
+                                            onClick = { onComplete(task.task_id) },
+                                            shape = RoundedCornerShape(20.dp),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Text("Выполнено")
+                                        }
+                                    } else {
+                                        OutlinedButton(
+                                            onClick = {},
+                                            enabled = false,
+                                            shape = RoundedCornerShape(20.dp),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Text("Выполнено")
+                                        }
+                                    }
+
+                                    if (canEdit) {
+                                        Button(
+                                            onClick = {
+                                                onEdit()
+                                                editTask = task
+                                                showEditWizard = true
+                                            },
+                                            shape = RoundedCornerShape(20.dp),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Text("Редактировать")
+                                        }
+                                    }
                                 }
 
-                                OutlinedButton(
-                                    onClick = { onRemind(task.task_id) },
-                                    shape = RoundedCornerShape(20.dp),
-                                    modifier = Modifier.padding(top = 8.dp)
+                                Column(
+                                    modifier = Modifier.weight(1f),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Text("Напомнить")
-                                }
-                            } else {
-                                Text(
-                                    text = "ВЫПОЛНЕНО",
-                                    color = DoneGreen,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(top = 12.dp)
-                                )
-                            }
+                                    if (task.status == "open") {
+                                        OutlinedButton(
+                                            onClick = { onRemind(task.task_id) },
+                                            shape = RoundedCornerShape(20.dp),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Text("Напомнить")
+                                        }
+                                    }
 
-                            if (canEdit) {
-                                Button(
-                                    onClick = {
-                                        onEdit()
-                                        editTask = task
-                                        showEditWizard = true
-                                    },
-                                    shape = RoundedCornerShape(20.dp),
-                                    modifier = Modifier.padding(top = 12.dp)
-                                ) {
-                                    Text("Редактировать")
-                                }
-                            }
-
-                            if (canDelete) {
-                                OutlinedButton(
-                                    onClick = { deleteTask = task },
-                                    shape = RoundedCornerShape(20.dp),
-                                    modifier = Modifier.padding(top = if (canEdit) 8.dp else 12.dp)
-                                ) {
-                                    Text("Удалить")
+                                    if (canDelete) {
+                                        OutlinedButton(
+                                            onClick = { deleteTask = task },
+                                            shape = RoundedCornerShape(20.dp),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Text("Удалить")
+                                        }
+                                    }
                                 }
                             }
                         }
