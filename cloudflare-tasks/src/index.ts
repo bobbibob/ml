@@ -314,7 +314,11 @@ async function sendPushToToken(
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-    if (request.method === "OPTIONS") return json({ ok: true, fcm_debug: debugText })
+    if (request.method === "OPTIONS") 
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: true, fcm_debug: debugText })
 
     const url = new URL(request.url)
     const path = url.pathname
@@ -327,19 +331,31 @@ await ensureDailySummaryTable(env)
 try {
       if (path === "/google_login" && request.method === "POST") {
         const body = await request.json<{ id_token?: string }>().catch(() => null)
-        if (!body?.id_token) return json({ ok: false, error: "id_token required" }, 400)
+        if (!body?.id_token) 
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: "id_token required" }, 400)
 
         const google = await verifyGoogleIdToken(body.id_token)
         const WEB_CLIENT_ID = "1049013487136-47q0n2q6s3s9itqq3qsf8l4c9dv0frn7.apps.googleusercontent.com"
 
-        if (google.aud !== WEB_CLIENT_ID) return json({ ok: false, error: "invalid audience" }, 401)
+        if (google.aud !== WEB_CLIENT_ID) 
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: "invalid audience" }, 401)
 
         const sub = String(google.sub || "").trim()
         const email = String(google.email || "").trim()
         const displayName = String(google.name || email).trim()
         const photoUrl = String(google.picture || "").trim() || null
 
-        if (!sub || !email) return json({ ok: false, error: "invalid google token payload" }, 401)
+        if (!sub || !email) 
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: "invalid google token payload" }, 401)
 
         const existing = await env.DB.prepare(`
           SELECT user_id, role
@@ -382,6 +398,10 @@ try {
           ) VALUES (?, ?, ?, ?, ?, ?)
         `).bind(sessionId, userId, authToken, nowIso(), expiresAt, nowIso()).run()
 
+        
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
         return json({
           ok: true,
           token: authToken,
@@ -398,6 +418,10 @@ try {
       if (path === "/me" && request.method === "GET") {
         const user = await getCurrentUser(request, env)
         if (!user) console.log("DEBUG: bypass auth for send_push")
+        
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
         return json({ ok: true, user })
       }
 
@@ -410,7 +434,11 @@ try {
         const displayName = String(body?.display_name || "").trim()
 
         if (!displayName) {
-          return json({ ok: false, error: "display_name required" }, 400)
+          
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: "display_name required" }, 400)
         }
 
         await env.DB.prepare(`
@@ -431,13 +459,21 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
           LIMIT 1
         `).bind(user.user_id).first<UserRow>()
 
+        
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
         return json({ ok: true, user: updatedUser })
       }
 
 
       if (path === "/save_fcm_token" && request.method === "POST") {
         const user = await getCurrentUser(request, env)
-        if (!user) return json({ ok: false, error: "unauthorized" }, 401)
+        if (!user) 
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: "unauthorized" }, 401)
 
         const body = await request.json<{ fcm_token?: string; platform?: string; device_name?: string }>().catch(() => null)
         const fcmToken = String(body?.fcm_token || "").trim()
@@ -445,7 +481,11 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
         const deviceName = String(body?.device_name || "").trim() || null
 
         if (!fcmToken) {
-          return json({ ok: false, error: "fcm_token required" }, 400)
+          
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: "fcm_token required" }, 400)
         }
 
         const existing = await env.DB.prepare(`
@@ -484,6 +524,10 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
           WHERE user_id = ?
         `).bind(fcmToken, nowIso(), user.user_id).run()
 
+        
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
         return json({ ok: true })
       }
 
@@ -494,6 +538,10 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
           FROM user_devices
           ORDER BY updated_at DESC
         `).all()
+        
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
         return json({ ok: true, devices: rows.results || [] })
       }
 
@@ -507,6 +555,10 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
           ORDER BY display_name ASC
         `).all()
 
+        
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
         return json({ ok: true, users: rows.results || [] })
       }
 
@@ -515,18 +567,30 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
         const user = await getCurrentUser(request, env)
         const debugBypass = !user
         if (debugBypass) console.log("DEBUG: bypass auth for send_push")
-        if (user && user.role !== "admin") return json({ ok: false, error: "forbidden" }, 403)
+        if (user && user.role !== "admin") 
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: "forbidden" }, 403)
 
         const body = await request.json<{ user_id?: string; role?: string }>().catch(() => null)
         const userId = String(body?.user_id || "").trim()
         const role = String(body?.role || "").trim()
 
         if (!userId || !role) {
-          return json({ ok: false, error: "user_id and role required" }, 400)
+          
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: "user_id and role required" }, 400)
         }
 
         if (!["basic", "plus", "admin"].includes(role)) {
-          return json({ ok: false, error: "invalid role" }, 400)
+          
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: "invalid role" }, 400)
         }
 
         await env.DB.prepare(`
@@ -534,6 +598,10 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
           SET role = ?
           WHERE user_id = ?
         `).bind(role, userId).run()
+
+        
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
 
         return json({ ok: true, user_id: userId, role })
       }
@@ -544,7 +612,11 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
       
       if (path === "/daily_summary_upsert" && request.method === "POST") {
         const user = await getCurrentUser(request, env)
-        if (!user) return json({ ok: false, error: "unauthorized" }, 401)
+        if (!user) 
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: "unauthorized" }, 401)
 
         const body = await request.json<{
           summary_date?: string;
@@ -571,13 +643,21 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
         const summaryDate = String(body?.summary_date || "").trim()
         const entries = Array.isArray(body?.entries) ? body.entries : []
 
-        if (!summaryDate) return json({ ok: false, error: "summary_date required" }, 400)
+        if (!summaryDate) 
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: "summary_date required" }, 400)
 
         for (const entry of entries) {
           const bagId = String(entry?.bag_id || "").trim()
           const color = String(entry?.color || "").trim()
           if (!bagId || !color) {
-            return json({ ok: false, error: "bag_id and color required" }, 400)
+            
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: "bag_id and color required" }, 400)
           }
 
           const existing = await env.DB.prepare(`
@@ -588,7 +668,11 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
           `).bind(summaryDate, bagId, color).first<{ entry_id: string; created_by_user_id: string }>()
 
           if (existing && existing.created_by_user_id !== user.user_id && user.role !== "admin") {
-            return json({ ok: false, error: "forbidden" }, 403)
+            
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: "forbidden" }, 403)
           }
 
           const entryId = existing?.entry_id || randomId("dse")
@@ -652,12 +736,20 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
           entries_count: entries.length
         })
 
+        
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
         return json({ ok: true, summary_date: summaryDate, count: entries.length })
       }
 
       if (path === "/daily_summary_debug" && request.method === "GET") {
         const summaryDate = String(url.searchParams.get("date") || "").trim()
-        if (!summaryDate) return json({ ok: false, error: "date required" }, 400)
+        if (!summaryDate) 
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: "date required" }, 400)
 
         const rows = await env.DB.prepare(`
           SELECT
@@ -670,6 +762,10 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
           WHERE summary_date = ? AND deleted_at IS NULL
           ORDER BY bag_id, color
         `).bind(summaryDate).all()
+
+        
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
 
         return json({ ok: true, summary_date: summaryDate, count: (rows.results || []).length, entries: rows.results || [] })
       }
@@ -686,12 +782,20 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
           LIMIT ?
         `).bind(limit).all()
 
+        
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
         return json({ ok: true, dates: rows.results || [] })
       }
 
       if (path === "/daily_summary_recent_dates" && request.method === "GET") {
         const user = await getCurrentUser(request, env)
-        if (!user) return json({ ok: false, error: "unauthorized" }, 401)
+        if (!user) 
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: "unauthorized" }, 401)
 
         const limit = Math.max(1, Math.min(60, Number(url.searchParams.get("limit") || 30)))
 
@@ -704,12 +808,20 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
           LIMIT ?
         `).bind(limit).all()
 
+        
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
         return json({ ok: true, dates: rows.results || [] })
       }
 
       if (path === "/daily_summary_by_date_debug" && request.method === "GET") {
         const date = (url.searchParams.get("date") || "").trim()
-        if (!date) return json({ ok: false, error: "date_required" }, 400)
+        if (!date) 
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: "date_required" }, 400)
 
         const rows = await env.DB.prepare(`
           SELECT
@@ -747,6 +859,10 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
           ig_enabled: !!row.ig_enabled,
         }))
 
+        
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
         return json({
           ok: true,
           summary_date: date,
@@ -757,8 +873,16 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
 
       if (path === "/daily_summary_delete" && request.method === "POST") {
         const user = await getCurrentUser(request, env)
-        if (!user) return json({ ok: false, error: "unauthorized" }, 401)
-        if (user.role !== "admin") return json({ ok: false, error: "forbidden" }, 403)
+        if (!user) 
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: "unauthorized" }, 401)
+        if (user.role !== "admin") 
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: "forbidden" }, 403)
 
         const contentType = request.headers.get("content-type") || ""
         let summaryDate = ""
@@ -771,7 +895,11 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
           summaryDate = String(body?.summary_date || "").trim()
         }
 
-        if (!summaryDate) return json({ ok: false, error: "summary_date_required" }, 400)
+        if (!summaryDate) 
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: "summary_date_required" }, 400)
 
         await ensureDailySummaryTable(env)
 
@@ -790,15 +918,27 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
           summary_date: summaryDate
         })
 
+        
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
         return json({ ok: true, summary_date: summaryDate })
       }
 
       if (path === "/daily_summary_by_date" && request.method === "GET") {
         const user = await getCurrentUser(request, env)
-        if (!user) return json({ ok: false, error: "unauthorized" }, 401)
+        if (!user) 
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: "unauthorized" }, 401)
 
         const summaryDate = String(url.searchParams.get("date") || "").trim()
-        if (!summaryDate) return json({ ok: false, error: "date required" }, 400)
+        if (!summaryDate) 
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: "date required" }, 400)
 
         const rows = await env.DB.prepare(`
           SELECT
@@ -817,6 +957,10 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
           ig_enabled: !!row.ig_enabled,
         }))
 
+        
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
         return json({ ok: true, summary_date: summaryDate, entries })
       }
 
@@ -826,7 +970,11 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
 
         const obj = await env.R2.get(objectKey)
         if (!obj) {
-          return json({ ok: false, error: "pack_not_found" }, 404)
+          
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: "pack_not_found" }, 404)
         }
 
         let version = 0
@@ -844,6 +992,10 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
           }
         }
 
+        
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
         return json({
           ok: true,
           version,
@@ -859,7 +1011,11 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
         const obj = await env.R2.get(objectKey)
 
         if (!obj) {
-          return json({ ok:false, error:"pack_not_found" },404)
+          
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok:false, error:"pack_not_found" },404)
         }
 
         return new Response(request.method === "HEAD" ? null : obj.body, {
@@ -874,13 +1030,21 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
 
       if (path === "/notify_new_summary" && request.method === "POST") {
         const user = await getCurrentUser(request, env)
-        if (!user) return json({ ok: false, error: "unauthorized" }, 401)
+        if (!user) 
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: "unauthorized" }, 401)
 
         const body = await request.json<{ date?: string }>().catch(() => null)
         const date = String(body?.date || "").trim()
 
         if (!date) {
-          return json({ ok: false, error: "date required" }, 400)
+          
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: "date required" }, 400)
         }
 
         const rows = await env.DB.prepare(`
@@ -913,6 +1077,10 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
           }
         }
 
+        
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
         return json({ ok: true, sent, total: (rows.results || []).length, errors })
       }
 
@@ -920,7 +1088,11 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
         const user = await getCurrentUser(request, env)
         const debugBypass = !user
         if (debugBypass) console.log("DEBUG: bypass auth for send_push")
-        if (user && user.role !== "admin") return json({ ok: false, error: "forbidden" }, 403)
+        if (user && user.role !== "admin") 
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: "forbidden" }, 403)
 
         const body = await request.json<{ user_id?: string; title?: string; body?: string }>().catch(() => null)
         const userId = String(body?.user_id || "").trim()
@@ -928,7 +1100,11 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
         const messageBody = String(body?.body || "").trim()
 
         if (!title || !messageBody) {
-          return json({ ok: false, error: "title and body required" }, 400)
+          
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: "title and body required" }, 400)
         }
 
         let targets: Array<{ user_id: string; fcm_token: string | null }> = []
@@ -980,12 +1156,20 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
         })
 
         if (sent <= 0) {
-          return json({
+          
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({
             ok: false,
             error: errors.length ? errors.join(" | ") : "push_not_delivered",
             sent
           }, 500)
         }
+
+        
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
 
         return json({ ok: true, sent, errors })
       }
@@ -1009,7 +1193,11 @@ if (path === "/create_task" && request.method === "POST") {
         const reminderIntervalMinutes = body?.reminder_interval_minutes == null ? null : Number(body.reminder_interval_minutes)
         const reminderTimeOfDay = body?.reminder_time_of_day == null ? null : String(body.reminder_time_of_day).trim() || null
 
-        if (!title || !assigneeUserId) return json({ ok: false, error: "title and assignee_user_id required" }, 400)
+        if (!title || !assigneeUserId) 
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: "title and assignee_user_id required" }, 400)
 
         const taskId = randomId("t")
 
@@ -1077,16 +1265,31 @@ if (path === "/create_task" && request.method === "POST") {
         }
 
 
+        
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
         return json({ ok: true, task_id: taskId })
       }
 
-      if (path === "/task_by_id" && request.method === "GET") {
+      
+const __t0 = Date.now();
+if (path === "/task_by_id" && request.method
+ === "GET") {
         const user = await getCurrentUser(request, env)
-        if (!user) return json({ ok: false, error: "unauthorized" }, 401)
+        if (!user) 
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: "unauthorized" }, 401)
 
         const url = new URL(request.url)
         const taskId = String(url.searchParams.get("task_id") || "").trim()
-        if (!taskId) return json({ ok: false, error: "task_id_required" }, 400)
+        if (!taskId) 
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: "task_id_required" }, 400)
 
         const task = await env.DB.prepare(`
           SELECT
@@ -1119,7 +1322,11 @@ if (path === "/create_task" && request.method === "POST") {
         `).bind(taskId).first<any>()
 
         if (!task) {
-          return json({ ok: false, error: "task_not_found" }, 404)
+          
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: "task_not_found" }, 404)
         }
 
         const isAdmin = user.role === "admin"
@@ -1127,13 +1334,24 @@ if (path === "/create_task" && request.method === "POST") {
         const isAssignee = task.assignee_user_id === user.user_id
 
         if (!isAdmin && !isAuthor && !isAssignee) {
-          return json({ ok: false, error: "forbidden" }, 403)
+          
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: "forbidden" }, 403)
         }
+
+        
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
 
         return json({ ok: true, task })
       }
 
-      if (path === "/my_tasks" && request.method === "GET") {
+      
+const __t0 = Date.now();
+if (path === "/my_tasks" && request.method
+ === "GET") {
         const user = await getCurrentUser(request, env)
         if (!user) console.log("DEBUG: bypass auth for send_push")
 
@@ -1160,6 +1378,10 @@ if (path === "/create_task" && request.method === "POST") {
           ORDER BY t.created_at DESC
         `).bind(user.user_id, user.user_id).all()
 
+        
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
         return json({ ok: true, tasks: rows.results || [] })
       }
 
@@ -1167,7 +1389,11 @@ if (path === "/create_task" && request.method === "POST") {
         const user = await getCurrentUser(request, env)
         if (!user) console.log("DEBUG: bypass auth for send_push")
         if (!(user.role === "plus" || user.role === "admin")) {
-          return json({ ok: false, error: "permission denied" }, 403)
+          
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: "permission denied" }, 403)
         }
 
         const rows = await env.DB.prepare(`
@@ -1192,6 +1418,10 @@ if (path === "/create_task" && request.method === "POST") {
           ORDER BY t.created_at DESC
         `).all()
 
+        
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
         return json({ ok: true, tasks: rows.results || [] })
       }
 
@@ -1210,7 +1440,11 @@ if (path === "/create_task" && request.method === "POST") {
         const reminderTimeOfDay = body?.reminder_time_of_day == null ? null : String(body.reminder_time_of_day).trim() || null
 
         if (!taskId || !title || !assigneeUserId) {
-          return json({ ok: false, error: "task_id, title and assignee_user_id required" }, 400)
+          
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: "task_id, title and assignee_user_id required" }, 400)
         }
 
         const task = await env.DB.prepare(`
@@ -1220,11 +1454,23 @@ if (path === "/create_task" && request.method === "POST") {
           LIMIT 1
         `).bind(taskId).first<any>()
 
-        if (!task) return json({ ok: false, error: "task not found" }, 404)
+        if (!task) 
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: "task not found" }, 404)
 
         const canEdit = user.role === "admin" || task.created_by_user_id === user.user_id
-        if (!canEdit) return json({ ok: false, error: "permission denied" }, 403)
-        if (task.status !== "open") return json({ ok: false, error: "only open tasks can be edited" }, 400)
+        if (!canEdit) 
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: "permission denied" }, 403)
+        if (task.status !== "open") 
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: "only open tasks can be edited" }, 400)
 
         await env.DB.prepare(`
           UPDATE tasks
@@ -1240,16 +1486,31 @@ if (path === "/create_task" && request.method === "POST") {
           reminder_time_of_day: reminderTimeOfDay
         })
 
+        
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
         return json({ ok: true, task_id: taskId })
       }
 
-      if (path === "/delete_task" && request.method === "POST") {
+      
+const __t0 = Date.now();
+if (path === "/delete_task" && request.method
+ === "POST") {
         const user = await getCurrentUser(request, env)
-        if (!user) return json({ ok: false, error: "unauthorized" }, 401)
+        if (!user) 
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: "unauthorized" }, 401)
 
         const body = await request.json<{ task_id?: string }>().catch(() => null)
         const taskId = String(body?.task_id || "").trim()
-        if (!taskId) return json({ ok: false, error: "task_id required" }, 400)
+        if (!taskId) 
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: "task_id required" }, 400)
 
         const task = await env.DB.prepare(`
           SELECT task_id, created_by_user_id, title
@@ -1258,10 +1519,18 @@ if (path === "/create_task" && request.method === "POST") {
           LIMIT 1
         `).bind(taskId).first<any>()
 
-        if (!task) return json({ ok: false, error: "task not found" }, 404)
+        if (!task) 
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: "task not found" }, 404)
 
         const canDelete = user.role === "admin" || task.created_by_user_id === user.user_id
-        if (!canDelete) return json({ ok: false, error: "permission denied" }, 403)
+        if (!canDelete) 
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: "permission denied" }, 403)
 
         await logAction(env, "task", taskId, "task_deleted", user.user_id, {
           title: task.title || ""
@@ -1272,16 +1541,31 @@ if (path === "/create_task" && request.method === "POST") {
           WHERE task_id = ?
         `).bind(taskId).run()
 
+        
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
         return json({ ok: true, task_id: taskId })
       }
 
-      if (path === "/task_reminder" && request.method === "POST") {
+      
+const __t0 = Date.now();
+if (path === "/task_reminder" && request.method
+ === "POST") {
         const user = await getCurrentUser(request, env)
-        if (!user) return json({ ok: false, error: "unauthorized" }, 401)
+        if (!user) 
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: "unauthorized" }, 401)
 
         const body = await request.json().catch(() => null) as { task_id?: string } | null
         const taskId = String(body?.task_id || "").trim()
-        if (!taskId) return json({ ok: false, error: "task_id_required" }, 400)
+        if (!taskId) 
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: "task_id_required" }, 400)
 
         const task = await env.DB.prepare(`
           SELECT
@@ -1298,17 +1582,29 @@ if (path === "/create_task" && request.method === "POST") {
         `).bind(taskId).first<any>()
 
         if (!task) {
-          return json({ ok: false, error: "task_not_found" }, 404)
+          
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: "task_not_found" }, 404)
         }
 
         const isAdmin = user.role === "admin"
         const isAuthor = task.created_by_user_id === user.user_id
         if (!isAdmin && !isAuthor) {
-          return json({ ok: false, error: "forbidden" }, 403)
+          
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: "forbidden" }, 403)
         }
 
         if (!task.assignee_user_id || !task.assignee_fcm_token) {
-          return json({ ok: false, error: "assignee_has_no_push_token" }, 400)
+          
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: "assignee_has_no_push_token" }, 400)
         }
 
         const authorName = String(user.display_name || user.email || "Автор").trim() || "Автор"
@@ -1330,12 +1626,20 @@ if (path === "/create_task" && request.method === "POST") {
           console.log("task_reminder_push_ok", taskId, task.assignee_user_id)
         } catch (e) {
           console.log("task_reminder_push_error", taskId, String(e))
-          return json({ ok: false, error: "push_send_failed" }, 500)
+          
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: "push_send_failed" }, 500)
         }
 
         await logAction(env, "task", taskId, "task_reminder", user.user_id, {
           assignee_user_id: task.assignee_user_id
         })
+
+        
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
 
         return json({ ok: true, message: "Напоминание отправлено", task_id: taskId })
       }
@@ -1346,7 +1650,11 @@ if (path === "/create_task" && request.method === "POST") {
 
         const body = await request.json<{ task_id?: string }>().catch(() => null)
         const taskId = String(body?.task_id || "").trim()
-        if (!taskId) return json({ ok: false, error: "task_id required" }, 400)
+        if (!taskId) 
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: "task_id required" }, 400)
 
         const task = await env.DB.prepare(`
           SELECT task_id, status, assignee_user_id
@@ -1355,15 +1663,27 @@ if (path === "/create_task" && request.method === "POST") {
           LIMIT 1
         `).bind(taskId).first<any>()
 
-        if (!task) return json({ ok: false, error: "task not found" }, 404)
-        if (task.status === "done") return json({ ok: false, error: "task already completed" }, 400)
+        if (!task) 
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: "task not found" }, 404)
+        if (task.status === "done") 
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: "task already completed" }, 400)
 
         const canComplete =
           (user.role === "basic" && task.assignee_user_id === user.user_id) ||
           user.role === "plus" ||
           user.role === "admin"
 
-        if (!canComplete) return json({ ok: false, error: "permission denied" }, 403)
+        if (!canComplete) 
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: "permission denied" }, 403)
 
         await env.DB.prepare(`
           UPDATE tasks
@@ -1376,12 +1696,24 @@ if (path === "/create_task" && request.method === "POST") {
           completed_by_user_id: user.user_id
         })
 
+        
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
         return json({ ok: true, task_id: taskId })
       }
 
-      return json({ ok: false, error: "not found" }, 404)
+      
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: "not found" }, 404)
     } catch (e: any) {
-      return json({ ok: false, error: e?.message || "internal error" }, 500)
+      
+        const __dt = Date.now() - __t0;
+        console.log("route_time", path, __dt + "ms");
+
+        return json({ ok: false, error: e?.message || "internal error" }, 500)
     }
   }
 }
