@@ -76,6 +76,12 @@ async function ensureReminderColumns(env: Env) {
   }
 }
 
+async function ensureUrgentColumn(env: Env) {
+  try {
+    await env.DB.prepare("ALTER TABLE tasks ADD COLUMN is_urgent INTEGER NOT NULL DEFAULT 0").run()
+  } catch {}
+}
+
 function nowIso(): string {
   const parts = new Intl.DateTimeFormat("sv-SE", {
     timeZone: "Europe/Moscow",
@@ -326,6 +332,7 @@ export default {
           await ensureUserDevicesTable(env)
 await ensureDailySummaryTable(env)
     await ensureReminderColumns(env)
+    await ensureUrgentColumn(env)
 try {
       if (path === "/google_login" && request.method === "POST") {
         const body = await request.json<{ id_token?: string }>().catch(() => null)
@@ -1050,6 +1057,7 @@ if (path === "/create_task" && request.method === "POST") {
           reminder_type?: string | null
           reminder_interval_minutes?: number | null
           reminder_time_of_day?: string | null
+          is_urgent?: boolean | number | null
         }>().catch(() => null)
         const title = String(body?.title || "").trim()
         const description = String(body?.description || "").trim()
@@ -1057,6 +1065,7 @@ if (path === "/create_task" && request.method === "POST") {
         const reminderType = body?.reminder_type == null ? null : String(body.reminder_type).trim() || null
         const reminderIntervalMinutes = body?.reminder_interval_minutes == null ? null : Number(body.reminder_interval_minutes)
         const reminderTimeOfDay = body?.reminder_time_of_day == null ? null : String(body.reminder_time_of_day).trim() || null
+        const isUrgent = body?.is_urgent === true || body?.is_urgent === 1 || body?.is_urgent === "1"
 
         if (!title || !assigneeUserId) 
 
@@ -1067,9 +1076,9 @@ if (path === "/create_task" && request.method === "POST") {
         await env.DB.prepare(`
           INSERT INTO tasks (
             task_id, title, description, status, created_by_user_id, assignee_user_id,
-            reminder_type, reminder_interval_minutes, reminder_time_of_day,
+            reminder_type, reminder_interval_minutes, reminder_time_of_day, is_urgent,
             created_at, updated_at
-          ) VALUES (?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?)
+          ) VALUES (?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?)
         `).bind(
           taskId,
           title,
@@ -1079,6 +1088,7 @@ if (path === "/create_task" && request.method === "POST") {
           reminderType,
           Number.isFinite(reminderIntervalMinutes) ? reminderIntervalMinutes : null,
           reminderTimeOfDay,
+          isUrgent ? 1 : 0,
           nowIso(),
           nowIso()
         ).run()
@@ -1217,9 +1227,10 @@ if (path === "/task_by_id" && request.method
             au.display_name AS assignee_name,
             compu.display_name AS completed_by_name,
             cancelu.display_name AS cancelled_by_name,
-            NULL AS reminder_type,
-            NULL AS reminder_interval_minutes,
-            NULL AS reminder_time_of_day
+            t.reminder_type,
+            t.reminder_interval_minutes,
+            t.reminder_time_of_day,
+            COALESCE(t.is_urgent, 0) AS is_urgent
           FROM tasks t
           LEFT JOIN users cu ON cu.user_id = t.created_by_user_id
           LEFT JOIN users au ON au.user_id = t.assignee_user_id
@@ -1264,6 +1275,7 @@ if (path === "/my_tasks" && request.method
             t.assignee_user_id,
             t.completed_by_user_id,
             t.completed_at,
+            COALESCE(t.is_urgent, 0) AS is_urgent,
             cu.display_name AS created_by_name,
             au.display_name AS assignee_name,
             compu.display_name AS completed_by_name
@@ -1298,6 +1310,7 @@ if (path === "/my_tasks" && request.method
             t.assignee_user_id,
             t.completed_by_user_id,
             t.completed_at,
+            COALESCE(t.is_urgent, 0) AS is_urgent,
             cu.display_name AS created_by_name,
             au.display_name AS assignee_name,
             compu.display_name AS completed_by_name
@@ -1324,6 +1337,7 @@ if (path === "/my_tasks" && request.method
         const reminderType = body?.reminder_type == null ? null : String(body.reminder_type).trim() || null
         const reminderIntervalMinutes = body?.reminder_interval_minutes == null ? null : Number(body.reminder_interval_minutes)
         const reminderTimeOfDay = body?.reminder_time_of_day == null ? null : String(body.reminder_time_of_day).trim() || null
+        const isUrgent = body?.is_urgent === true || body?.is_urgent === 1 || body?.is_urgent === "1"
 
         if (!taskId || !title || !assigneeUserId) {
 
@@ -1351,16 +1365,17 @@ if (path === "/my_tasks" && request.method
 
         await env.DB.prepare(`
           UPDATE tasks
-          SET title = ?, description = ?, assignee_user_id = ?, reminder_type = ?, reminder_interval_minutes = ?, reminder_time_of_day = ?, updated_at = ?
+          SET title = ?, description = ?, assignee_user_id = ?, reminder_type = ?, reminder_interval_minutes = ?, reminder_time_of_day = ?, is_urgent = ?, updated_at = ?
           WHERE task_id = ?
-        `).bind(title, description, assigneeUserId, reminderType, Number.isFinite(reminderIntervalMinutes) ? reminderIntervalMinutes : null, reminderTimeOfDay, nowIso(), taskId).run()
+        `).bind(title, description, assigneeUserId, reminderType, Number.isFinite(reminderIntervalMinutes) ? reminderIntervalMinutes : null, reminderTimeOfDay, isUrgent ? 1 : 0, nowIso(), taskId).run()
 
         await logAction(env, "task", taskId, "task_updated", user.user_id, {
           title,
           assignee_user_id: assigneeUserId,
           reminder_type: reminderType,
           reminder_interval_minutes: Number.isFinite(reminderIntervalMinutes) ? reminderIntervalMinutes : null,
-          reminder_time_of_day: reminderTimeOfDay
+          reminder_time_of_day: reminderTimeOfDay,
+          is_urgent: isUrgent ? 1 : 0
         })
 
         return json({ ok: true, task_id: taskId })
