@@ -6,3 +6,6 @@
 # backups
 *.bak
 *.bak.*
+codex_bundle/
+setup_codex_branch.sh
+sqliterepo_fix.patch
