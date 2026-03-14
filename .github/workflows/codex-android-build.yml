@@ -31,6 +31,19 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
+      - name: Decode keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          python3 - <<'PY2'
+          import os, base64
+          data = os.environ["KEYSTORE_BASE64"].strip()
+          data = "".join(data.split())
+          with open("/home/runner/ml-release.keystore", "wb") as f:
+              f.write(base64.b64decode(data))
+          print("keystore written")
+          PY2
+
       - name: Signing report
         run: ./gradlew :app:signingReport
 
