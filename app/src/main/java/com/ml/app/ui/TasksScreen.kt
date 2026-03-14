@@ -854,9 +854,14 @@ private fun TasksListTab(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(tasks) { task ->
-                    val canDelete = currentUserRole == "admin" || task.created_by_user_id == currentUserId
-                    val canEdit = canDelete && task.status == "open"
-                    val canRemind = currentUserRole == "admin" || task.created_by_user_id == currentUserId
+                    val isAdmin = currentUserRole == "admin"
+                    val isAuthor = task.created_by_user_id == currentUserId
+                    val isAssignee = task.assignee_user_id == currentUserId
+
+                    val canDelete = isAdmin || isAuthor
+                    val canEdit = isAdmin && task.status == "open"
+                    val canRemind = task.status == "open" && (isAdmin || isAuthor)
+                    val canComplete = task.status == "open" && (isAdmin || isAssignee)
 
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -923,71 +928,64 @@ private fun TasksListTab(
                                 )
                             }
 
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(top = 12.dp),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                Column(
-                                    modifier = Modifier.weight(1f),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                            if (task.status == "open") {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 12.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
-                                    if (task.status == "open") {
-                                        Button(
-                                            onClick = { onComplete(task.task_id) },
-                                            shape = RoundedCornerShape(20.dp),
-                                            modifier = Modifier.fillMaxWidth()
-                                        ) {
-                                            Text("Выполнено")
+                                    Column(
+                                        modifier = Modifier.weight(1f),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        if (canComplete) {
+                                            Button(
+                                                onClick = { onComplete(task.task_id) },
+                                                shape = RoundedCornerShape(20.dp),
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Text("Выполнено")
+                                            }
                                         }
-                                    } else {
-                                        OutlinedButton(
-                                            onClick = {},
-                                            enabled = false,
-                                            shape = RoundedCornerShape(20.dp),
-                                            modifier = Modifier.fillMaxWidth()
-                                        ) {
-                                            Text("Выполнено")
+
+                                        if (canEdit) {
+                                            Button(
+                                                onClick = {
+                                                    onEdit()
+                                                    editTask = task
+                                                    showEditWizard = true
+                                                },
+                                                shape = RoundedCornerShape(20.dp),
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Text("Редактировать")
+                                            }
                                         }
                                     }
 
-                                    if (canEdit) {
-                                        Button(
-                                            onClick = {
-                                                onEdit()
-                                                editTask = task
-                                                showEditWizard = true
-                                            },
-                                            shape = RoundedCornerShape(20.dp),
-                                            modifier = Modifier.fillMaxWidth()
-                                        ) {
-                                            Text("Редактировать")
+                                    Column(
+                                        modifier = Modifier.weight(1f),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        if (canRemind) {
+                                            OutlinedButton(
+                                                onClick = { onRemind(task.task_id) },
+                                                shape = RoundedCornerShape(20.dp),
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Text("Напомнить")
+                                            }
                                         }
-                                    }
-                                }
 
-                                Column(
-                                    modifier = Modifier.weight(1f),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    if (task.status == "open" && canRemind) {
-                                        OutlinedButton(
-                                            onClick = { onRemind(task.task_id) },
-                                            shape = RoundedCornerShape(20.dp),
-                                            modifier = Modifier.fillMaxWidth()
-                                        ) {
-                                            Text("Напомнить")
-                                        }
-                                    }
-
-                                    if (canDelete) {
-                                        OutlinedButton(
-                                            onClick = { deleteTask = task },
-                                            shape = RoundedCornerShape(20.dp),
-                                            modifier = Modifier.fillMaxWidth()
-                                        ) {
-                                            Text("Удалить")
+                                        if (canDelete) {
+                                            OutlinedButton(
+                                                onClick = { deleteTask = task },
+                                                shape = RoundedCornerShape(20.dp),
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Text("Удалить")
+                                            }
                                         }
                                     }
                                 }

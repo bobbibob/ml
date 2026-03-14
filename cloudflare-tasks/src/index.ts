@@ -1453,8 +1453,7 @@ if (path === "/task_reminder" && request.method
         return json({ ok: false, error: "task already completed" }, 400)
 
         const canComplete =
-          (user.role === "basic" && task.assignee_user_id === user.user_id) ||
-          user.role === "plus" ||
+          task.assignee_user_id === user.user_id ||
           user.role === "admin"
 
         if (!canComplete) 
