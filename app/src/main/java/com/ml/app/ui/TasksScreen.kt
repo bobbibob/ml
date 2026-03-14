@@ -1025,20 +1025,21 @@ private fun TasksListTab(
                                         }
                                     }
                                 }
-                          } else if (currentUserRole == "admin") {
-                              Row(
-                                  modifier = Modifier
-                                      .fillMaxWidth()
-                                      .padding(top = 12.dp),
-                                  horizontalArrangement = Arrangement.Center
-                              ) {
-                                  OutlinedButton(
-                                      onClick = { deleteTask = task },
-                                      shape = RoundedCornerShape(20.dp)
-                                  ) {
-                                      Text("Удалить")
-                                  }
-                              }
+                            } else if (currentUserRole == "admin") {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 12.dp),
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    OutlinedButton(
+                                        onClick = { deleteTask = task },
+                                        shape = RoundedCornerShape(20.dp)
+                                    ) {
+                                        Text("Удалить")
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -1079,49 +1080,29 @@ private fun TasksListTab(
           )
       }
 
-
-      if (showEditWizard && editTask != null) {
-          EditTaskWizard(
-              task = editTask!!,
-              users = users,
-              error = error,
-              info = info,
-              onCancel = {
-                  showEditWizard = false
-                  editTask = null
+      deleteTask?.let { task ->
+          AlertDialog(
+              onDismissRequest = { deleteTask = null },
+              title = { Text("Удалить задачу?") },
+              text = { Text(task.title) },
+              confirmButton = {
+                  Button(
+                      onClick = {
+                          onDelete(task.task_id)
+                          deleteTask = null
+                      }
+                  ) {
+                      Text("Удалить")
+                  }
               },
-              onSave = { taskId: String, title: String, description: String, assigneeUserId: String, reminderType: String?, reminderIntervalMinutes: Int?, reminderTimeOfDay: String?, isUrgent: Boolean ->
-                  onSaveEdit(taskId, title, description, assigneeUserId, reminderType, reminderIntervalMinutes, reminderTimeOfDay, isUrgent)
-                  showEditWizard = false
-                  editTask = null
+              dismissButton = {
+                  OutlinedButton(onClick = { deleteTask = null }) {
+                      Text("Отмена")
+                  }
               }
           )
       }
-
-      deleteTask?.let { task ->
-        AlertDialog(
-            onDismissRequest = { deleteTask = null },
-            title = { Text("Удалить задачу?") },
-            text = { Text(task.title) },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        onDelete(task.task_id)
-                        deleteTask = null
-                    }
-                ) {
-                    Text("Удалить")
-                }
-            },
-            dismissButton = {
-                OutlinedButton(onClick = { deleteTask = null }) {
-                    Text("Отмена")
-                }
-            }
-        )
-    }
 }
-
 
 @Composable
 private fun EditTaskWizard(
