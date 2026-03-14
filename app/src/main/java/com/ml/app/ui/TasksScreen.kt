@@ -783,9 +783,9 @@ private fun CreateTaskDetailsStep(
             onClick = onDone,
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(24.dp),
-            enabled = title.isNotBlank() && !loading
+            enabled = title.isNotBlank() && !state.creatingTask
         ) {
-            Text(if (loading) "Создаём..." else "Готово")
+            Text(if (state.creatingTask) "Создаём..." else "Готово")
         }
     }
 }
@@ -844,7 +844,7 @@ private fun TasksListTab(
             )
         }
 
-        if (state.loading && tasks.isEmpty()) {
+        if (state.loadingTasks && tasks.isEmpty()) {
             Text("Загружаем задачи...")
         } else if (tasks.isEmpty()) {
             Text(titleWhenEmpty)
