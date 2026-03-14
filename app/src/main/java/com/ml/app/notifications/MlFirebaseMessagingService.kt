@@ -21,7 +21,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
+
 class MlFirebaseMessagingService : FirebaseMessagingService() {
+
+    private fun notificationRequestCode(taskId: String?): Int {
+        return (taskId?.takeIf { it.isNotBlank() } ?: System.currentTimeMillis().toString()).hashCode()
+    }
 
     override fun onNewToken(token: String) {
         super.onNewToken(token)
@@ -93,9 +98,9 @@ class MlFirebaseMessagingService : FirebaseMessagingService() {
 
         val pendingIntent = PendingIntent.getActivity(
             this,
-            (taskId ?: "tasks").hashCode(),
+            notificationRequestCode(taskId),
             openIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
         val notification = NotificationCompat.Builder(this, channelId)

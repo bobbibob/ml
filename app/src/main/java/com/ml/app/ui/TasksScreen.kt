@@ -1026,6 +1026,20 @@ private fun TasksListTab(
                                     }
                                 }
                             }
+                          } else if (currentUserRole == "admin") {
+                              Row(
+                                  modifier = Modifier
+                                      .fillMaxWidth()
+                                      .padding(top = 12.dp),
+                                  horizontalArrangement = Arrangement.Center
+                              ) {
+                                  OutlinedButton(
+                                      onClick = { deleteTask = task },
+                                      shape = RoundedCornerShape(20.dp)
+                                  ) {
+                                      Text("Удалить")
+                                  }
+                              }
                         }
                     }
                 }
