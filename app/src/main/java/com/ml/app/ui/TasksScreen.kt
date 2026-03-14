@@ -183,6 +183,8 @@ fun TasksScreen(
     val state = vm.state
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
+    var pushedTask by remember { mutableStateOf<TaskDto?>(null) }
+    var showPushedTaskDetails by remember { mutableStateOf(false) }
 
     if (state.currentUser == null) {
         Column(
@@ -244,6 +246,41 @@ fun TasksScreen(
         }
     }
 
+    LaunchedEffect(state.openedTaskFromPush?.task_id) {
+        val target = state.openedTaskFromPush ?: return@LaunchedEffect
+        pushedTask = target
+        showPushedTaskDetails = true
+        vm.clearOpenedTaskFromPush()
+    }
+
+    if (showPushedTaskDetails && pushedTask != null && state.currentUser != null) {
+        val task = pushedTask!!
+        val canDelete = state.currentUser.role == "admin" || task.created_by_user_id == state.currentUser.user_id
+        val canRemind = state.currentUser.role == "admin" || task.created_by_user_id == state.currentUser.user_id
+
+        TaskDetailsDialog(
+            task = task,
+            canEdit = false,
+            canDelete = canDelete,
+            canRemind = canRemind,
+            onDismiss = {
+                showPushedTaskDetails = false
+                pushedTask = null
+            },
+            onComplete = {
+                showPushedTaskDetails = false
+                pushedTask = null
+                vm.completeTask(it)
+            },
+            onRemind = { vm.remindTask(it) },
+            onEdit = {},
+            onDelete = {
+                showPushedTaskDetails = false
+                pushedTask = null
+                vm.deleteTask(it.task_id)
+            }
+        )
+    }
 
     when (state.selectedTab) {
         "create" -> CreateTaskWizard(
@@ -771,10 +808,7 @@ private fun TasksListTab(
     }
 
     LaunchedEffect(state.openedTaskFromPush?.task_id) {
-        val target = state.openedTaskFromPush ?: return@LaunchedEffect
-        openedTask = target
-        showTaskDetails = true
-        onConsumedOpenedTaskFromPush()
+        // Открытие задачи по push теперь обрабатывается на уровне TasksScreen.
     }
 
 
