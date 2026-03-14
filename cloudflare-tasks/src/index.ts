@@ -1222,6 +1222,72 @@ if (path === "/create_task" && request.method === "POST") {
         return json({ ok: true, task_id: taskId })
       }
 
+      if (path === "/task_reminder" && request.method === "POST") {
+        const user = await getCurrentUser(request, env)
+        if (!user) return json({ ok: false, error: "unauthorized" }, 401)
+
+        const body = await request.json().catch(() => null) as { task_id?: string } | null
+        const taskId = String(body?.task_id || "").trim()
+        if (!taskId) return json({ ok: false, error: "task_id_required" }, 400)
+
+        const task = await env.DB.prepare(`
+          SELECT
+            t.task_id,
+            t.title,
+            t.assignee_user_id,
+            t.created_by_user_id,
+            u.display_name AS assignee_name,
+            u.fcm_token AS assignee_fcm_token
+          FROM tasks t
+          LEFT JOIN users u ON u.user_id = t.assignee_user_id
+          WHERE t.task_id = ?
+          LIMIT 1
+        `).bind(taskId).first<any>()
+
+        if (!task) {
+          return json({ ok: false, error: "task_not_found" }, 404)
+        }
+
+        const isAdmin = user.role === "admin"
+        const isAuthor = task.created_by_user_id === user.user_id
+        if (!isAdmin && !isAuthor) {
+          return json({ ok: false, error: "forbidden" }, 403)
+        }
+
+        if (!task.assignee_user_id || !task.assignee_fcm_token) {
+          return json({ ok: false, error: "assignee_has_no_push_token" }, 400)
+        }
+
+        const authorName = String(user.display_name || user.email || "Автор").trim() || "Автор"
+
+        ctx.waitUntil((async () => {
+          try {
+            await sendPushToToken(
+              env,
+              task.assignee_fcm_token,
+              "Напоминание",
+              `Напоминание по задаче "${task.title}" от ${authorName}`,
+              {
+                type: "task_reminder",
+                task_id: taskId,
+                open_tasks: "true",
+                task_title: String(task.title || ""),
+                author_name: authorName
+              }
+            )
+            console.log("task_reminder_push_ok", taskId, task.assignee_user_id)
+          } catch (e) {
+            console.log("task_reminder_push_error", taskId, String(e))
+          }
+        })())
+
+        await logAction(env, "task", taskId, "task_reminder", user.user_id, {
+          assignee_user_id: task.assignee_user_id
+        })
+
+        return json({ ok: true, message: "Напоминание отправлено", task_id: taskId })
+      }
+
       if (path === "/complete_task" && request.method === "POST") {
         const user = await getCurrentUser(request, env)
         if (!user) console.log("DEBUG: bypass auth for send_push")

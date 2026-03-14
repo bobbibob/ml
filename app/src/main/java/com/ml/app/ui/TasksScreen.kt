@@ -243,13 +243,6 @@ fun TasksScreen(
         }
     }
 
-    LaunchedEffect(openSignal, initialOpenTaskId, state.currentUser.user_id) {
-        if (!initialOpenTaskId.isNullOrBlank()) {
-            vm.selectTab("my")
-            vm.loadUsers()
-            vm.loadMyTasks()
-        }
-    }
 
     when (state.selectedTab) {
         "create" -> CreateTaskWizard(
@@ -265,6 +258,7 @@ fun TasksScreen(
             currentUserId = state.currentUser.user_id,
             currentUserRole = state.currentUser.role,
             onComplete = { vm.completeTask(it) },
+            onRemind = { vm.remindTask(it) },
             onEdit = { vm.loadUsers() },
             onSaveEdit = { taskId, title, description, assigneeUserId, reminderType, reminderIntervalMinutes, reminderTimeOfDay ->
                 vm.updateTask(taskId, title, description, assigneeUserId, reminderType, reminderIntervalMinutes, reminderTimeOfDay)
@@ -284,6 +278,7 @@ fun TasksScreen(
             currentUserId = state.currentUser.user_id,
             currentUserRole = state.currentUser.role,
             onComplete = { vm.completeTask(it) },
+            onRemind = { vm.remindTask(it) },
             onEdit = { vm.loadUsers() },
             onSaveEdit = { taskId, title, description, assigneeUserId, reminderType, reminderIntervalMinutes, reminderTimeOfDay ->
                 vm.updateTask(taskId, title, description, assigneeUserId, reminderType, reminderIntervalMinutes, reminderTimeOfDay)
@@ -666,6 +661,7 @@ private fun TasksListTab(
     currentUserId: String,
     currentUserRole: String,
     onComplete: (String) -> Unit,
+    onRemind: (String) -> Unit,
     onEdit: () -> Unit,
     onSaveEdit: (String, String, String, String, String?, Int?, String?) -> Unit,
     onDelete: (String) -> Unit,
@@ -689,16 +685,6 @@ private fun TasksListTab(
         }
     }
 
-    LaunchedEffect(openSignal, initialOpenTaskId, tasks) {
-        if (!initialOpenTaskId.isNullOrBlank()) {
-            val target = tasks.firstOrNull { it.task_id == initialOpenTaskId }
-            if (target != null) {
-                onEdit()
-                editTask = target
-                showEditWizard = true
-            }
-        }
-    }
 
     Column(
         modifier = Modifier
@@ -805,6 +791,14 @@ private fun TasksListTab(
                                     modifier = Modifier.padding(top = 12.dp)
                                 ) {
                                     Text("Выполнено")
+                                }
+
+                                OutlinedButton(
+                                    onClick = { onRemind(task.task_id) },
+                                    shape = RoundedCornerShape(20.dp),
+                                    modifier = Modifier.padding(top = 8.dp)
+                                ) {
+                                    Text("Напомнить")
                                 }
                             } else {
                                 Text(

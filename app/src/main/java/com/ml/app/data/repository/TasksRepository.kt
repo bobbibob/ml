@@ -13,6 +13,7 @@ import com.ml.app.data.remote.request.ChangeRoleRequest
 import com.ml.app.data.remote.request.CompleteTaskRequest
 import com.ml.app.data.remote.request.CreateTaskRequest
 import com.ml.app.data.remote.request.ReassignTaskRequest
+import com.ml.app.data.remote.request.TaskReminderRequest
 
 class TasksRepository(
     private val api: MlApiService
@@ -109,6 +110,25 @@ class TasksRepository(
                     AppResult.Success(id)
                 } else {
                     AppResult.Error("Failed to complete task")
+                }
+            }
+        }
+    }
+
+
+    suspend fun remindTask(taskId: String): AppResult<String> {
+        return when (
+            val result = safeApiCall {
+                api.taskReminder(TaskReminderRequest(task_id = taskId))
+            }
+        ) {
+            is AppResult.Error -> result
+            is AppResult.Success<*> -> {
+                val body = result.data as com.ml.app.data.remote.response.BasicOkResponse
+                if (body.ok) {
+                    AppResult.Success(body.message ?: "Напоминание отправлено")
+                } else {
+                    AppResult.Error(body.error ?: "Не удалось отправить напоминание")
                 }
             }
         }

@@ -257,6 +257,39 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+
+    fun remindTask(taskId: String) {
+        viewModelScope.launch {
+            state = state.copy(loading = true, error = null, info = null)
+            when (val res = tasksRepo.remindTask(taskId)) {
+                is AppResult.Success -> {
+                    state = state.copy(
+                        loading = false,
+                        error = null,
+                        info = res.data
+                    )
+                    refreshAll()
+                }
+                is AppResult.Error -> {
+                    val msg = res.message.lowercase()
+                    if ("timeout" in msg) {
+                        state = state.copy(
+                            loading = false,
+                            error = null,
+                            info = "Напоминание отправляется"
+                        )
+                        refreshAll()
+                    } else {
+                        state = state.copy(
+                            loading = false,
+                            error = res.message
+                        )
+                    }
+                }
+            }
+        }
+    }
+
     fun loadHistory() {
         viewModelScope.launch {
             state = state.copy(loading = true, error = null, info = null)

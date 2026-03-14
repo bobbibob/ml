@@ -11,6 +11,7 @@ import com.ml.app.data.remote.request.LoginRequest
 import com.ml.app.data.remote.request.ReassignTaskRequest
 import com.ml.app.data.remote.request.RegisterRequest
 import com.ml.app.data.remote.request.SaveFcmTokenRequest
+import com.ml.app.data.remote.request.TaskReminderRequest
 import com.ml.app.data.remote.response.CancelTaskResponse
 import com.ml.app.data.remote.response.ChangeRoleResponse
 import com.ml.app.data.remote.response.CompleteTaskResponse
@@ -61,6 +62,9 @@ interface MlApiService {
 
     @GET("all_tasks")
     suspend fun getAllTasks(): TasksResponse
+
+    @POST("task_reminder")
+    suspend fun taskReminder(@Body request: TaskReminderRequest): BasicOkResponse
 
     @POST("complete_task")
     suspend fun completeTask(@Body request: CompleteTaskRequest): CompleteTaskResponse
