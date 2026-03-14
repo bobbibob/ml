@@ -244,8 +244,8 @@ fun TasksScreen(
         }
     }
 
-    LaunchedEffect(uiState.openedTaskFromPush?.task_id) {
-        val target = uiState.openedTaskFromPush ?: return@LaunchedEffect
+    LaunchedEffect(state.openedTaskFromPush?.task_id) {
+        val target = state.openedTaskFromPush ?: return@LaunchedEffect
         pushedTask = target
         showPushedTaskDetails = true
         vm.clearOpenedTaskFromPush()
@@ -819,7 +819,7 @@ private fun TasksListTab(
         // Открытие по push теперь идёт через загрузку задачи по task_id с сервера.
     }
 
-    LaunchedEffect(uiState.openedTaskFromPush?.task_id) {
+    LaunchedEffect(state.openedTaskFromPush?.task_id) {
         // Открытие задачи по push теперь обрабатывается на уровне TasksScreen.
     }
 
