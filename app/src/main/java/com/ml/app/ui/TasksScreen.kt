@@ -1025,7 +1025,6 @@ private fun TasksListTab(
                                         }
                                     }
                                 }
-                            }
                           } else if (currentUserRole == "admin") {
                               Row(
                                   modifier = Modifier
