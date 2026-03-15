@@ -34,12 +34,16 @@ CREATE TABLE IF NOT EXISTS tasks (
   cancelled_by_user_id TEXT,
   cancelled_at TEXT,
   is_urgent INTEGER NOT NULL DEFAULT 0,
+  client_request_id TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_tasks_assignee ON tasks(assignee_user_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_creator ON tasks(created_by_user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_client_request_id
+  ON tasks(created_by_user_id, client_request_id)
+  WHERE client_request_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS action_log (
   log_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -50,3 +54,5 @@ CREATE TABLE IF NOT EXISTS action_log (
   details_json TEXT,
   created_at TEXT NOT NULL
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_user_devices_fcm_token ON user_devices(fcm_token) WHERE fcm_token IS NOT NULL;

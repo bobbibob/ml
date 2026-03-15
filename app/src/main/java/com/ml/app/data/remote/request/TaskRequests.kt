@@ -7,7 +7,8 @@ data class CreateTaskRequest(
     val reminder_type: String? = null,
     val reminder_interval_minutes: Int? = null,
     val reminder_time_of_day: String? = null,
-    val is_urgent: Int = 0
+    val is_urgent: Int = 0,
+    val client_request_id: String? = null
 )
 
 data class CompleteTaskRequest(

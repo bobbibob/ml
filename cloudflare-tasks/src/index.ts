@@ -82,6 +82,52 @@ async function ensureUrgentColumn(env: Env) {
   } catch {}
 }
 
+async function ensureClientRequestIdColumn(env: Env) {
+  try {
+    await env.DB.prepare("ALTER TABLE tasks ADD COLUMN client_request_id TEXT").run()
+  } catch {}
+
+  try {
+    await env.DB.prepare(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_client_request_id
+      ON tasks(created_by_user_id, client_request_id)
+      WHERE client_request_id IS NOT NULL
+    `).run()
+  } catch (e) {
+    console.log("ensureClientRequestIdColumn error", String(e))
+  }
+}
+
+
+async function ensureUserDeviceTokenIndex(env: Env) {
+  try {
+    await env.DB.prepare(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_user_devices_fcm_token
+      ON user_devices(fcm_token)
+      WHERE fcm_token IS NOT NULL
+    `).run()
+  } catch (e) {
+    console.log("ensureUserDeviceTokenIndex error", String(e))
+  }
+}
+
+
+async function deleteUserDeviceToken(env: Env, token: string) {
+  const cleanToken = String(token || "").trim()
+  if (!cleanToken) return
+
+  try {
+    await env.DB.prepare(`
+      DELETE FROM user_devices
+      WHERE fcm_token = ?
+    `).bind(cleanToken).run()
+
+    console.log("deleteUserDeviceToken removed", cleanToken.slice(0, 12))
+  } catch (e) {
+    console.log("deleteUserDeviceToken error", String(e))
+  }
+}
+
 function nowIso(): string {
   const parts = new Intl.DateTimeFormat("sv-SE", {
     timeZone: "Europe/Moscow",
@@ -153,6 +199,8 @@ async function ensureSchemaOnce(env: Env) {
       await ensureDailySummaryTable(env)
       await ensureReminderColumns(env)
       await ensureUrgentColumn(env)
+      await ensureClientRequestIdColumn(env)
+      await ensureUserDeviceTokenIndex(env)
       await ensureIndexes(env)
     })().catch((e) => {
       schemaReadyPromise = null
@@ -489,60 +537,69 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
 
       if (path === "/save_fcm_token" && request.method === "POST") {
         const user = await getCurrentUser(request, env)
-        if (!user) 
-
-        return json({ ok: false, error: "unauthorized" }, 401)
+        if (!user)
+          return json({ ok: false, error: "unauthorized" }, 401)
 
         const body = await request.json<{ fcm_token?: string; platform?: string; device_name?: string }>().catch(() => null)
         const fcmToken = String(body?.fcm_token || "").trim()
         const platform = String(body?.platform || "android").trim() || "android"
         const deviceName = String(body?.device_name || "").trim() || null
 
-        if (!fcmToken) {
+        if (!fcmToken)
+          return json({ ok: false, error: "fcm_token required" }, 400)
 
-        return json({ ok: false, error: "fcm_token required" }, 400)
-        }
+        const now = nowIso()
 
-        const existing = await env.DB.prepare(`
-          SELECT device_id
+        const existingByToken = await env.DB.prepare(`
+          SELECT id, user_id
           FROM user_devices
           WHERE fcm_token = ?
           LIMIT 1
-        `).bind(fcmToken).first<{ device_id: string }>()
+        `).bind(fcmToken).first<{ id: number; user_id: string }>()
 
-        const deviceId = existing?.device_id || randomId("dev")
+        if (existingByToken?.id != null) {
+          await env.DB.prepare(`
+            UPDATE user_devices
+            SET user_id = ?, platform = ?, device_name = ?, updated_at = ?
+            WHERE id = ?
+          `).bind(
+            user.user_id,
+            platform,
+            deviceName,
+            now,
+            existingByToken.id
+          ).run()
+
+          console.log("save_fcm_token_updated_existing", JSON.stringify({
+            user_id: user.user_id,
+            previous_user_id: existingByToken.user_id,
+            device_id: existingByToken.id
+          }))
+
+          return json({ ok: true, updated: true })
+        }
 
         await env.DB.prepare(`
           INSERT INTO user_devices (
-            device_id, user_id, fcm_token, platform, device_name, created_at, updated_at, last_seen_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-          ON CONFLICT(fcm_token) DO UPDATE SET
-            user_id=excluded.user_id,
-            platform=excluded.platform,
-            device_name=excluded.device_name,
-            updated_at=excluded.updated_at,
-            last_seen_at=excluded.last_seen_at
+            user_id, fcm_token, platform, device_name, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?)
         `).bind(
-          deviceId,
           user.user_id,
           fcmToken,
           platform,
           deviceName,
-          nowIso(),
-          nowIso(),
-          nowIso()
+          now,
+          now
         ).run()
 
-        await env.DB.prepare(`
-          UPDATE users
-          SET fcm_token = ?, updated_at = ?
-          WHERE user_id = ?
-        `).bind(fcmToken, nowIso(), user.user_id).run()
+        console.log("save_fcm_token_inserted", JSON.stringify({
+          user_id: user.user_id,
+          platform,
+          has_device_name: !!deviceName
+        }))
 
-        return json({ ok: true })
+        return json({ ok: true, inserted: true })
       }
-
-
       if (path === "/devices_debug" && request.method === "GET") {
         const rows = await env.DB.prepare(`
           SELECT user_id, platform, device_name, substr(fcm_token,1,24) AS token_prefix, updated_at
@@ -1083,7 +1140,8 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
 
 if (path === "/create_task" && request.method === "POST") {
         const user = await getCurrentUser(request, env)
-        if (!user) console.log("DEBUG: bypass auth for send_push")
+        if (!user)
+          return json({ ok: false, error: "unauthorized" }, 401)
 
         const body = await request.json<{
           title?: string
@@ -1093,7 +1151,9 @@ if (path === "/create_task" && request.method === "POST") {
           reminder_interval_minutes?: number | null
           reminder_time_of_day?: string | null
           is_urgent?: boolean | number | null
+          client_request_id?: string | null
         }>().catch(() => null)
+
         const title = String(body?.title || "").trim()
         const description = String(body?.description || "").trim()
         const assigneeUserId = String(body?.assignee_user_id || "").trim()
@@ -1101,11 +1161,32 @@ if (path === "/create_task" && request.method === "POST") {
         const reminderIntervalMinutes = body?.reminder_interval_minutes == null ? null : Number(body.reminder_interval_minutes)
         const reminderTimeOfDay = body?.reminder_time_of_day == null ? null : String(body.reminder_time_of_day).trim() || null
         const isUrgent = body?.is_urgent === true || body?.is_urgent === 1 || body?.is_urgent === "1"
+        const clientRequestId = body?.client_request_id == null ? null : String(body.client_request_id).trim() || null
 
-        if (!title || !assigneeUserId) 
+        if (!title || !assigneeUserId)
+          return json({ ok: false, error: "title and assignee_user_id required" }, 400)
 
-        return json({ ok: false, error: "title and assignee_user_id required" }, 400)
+        if (clientRequestId) {
+          const existingByClientRequest = await env.DB.prepare(`
+            SELECT task_id
+            FROM tasks
+            WHERE created_by_user_id = ?
+              AND client_request_id = ?
+            LIMIT 1
+          `).bind(
+            user.user_id,
+            clientRequestId
+          ).first<{ task_id: string }>()
 
+          if (existingByClientRequest?.task_id) {
+            console.log("create_task_deduplicated_by_client_request_id", existingByClientRequest.task_id)
+            return json({
+              ok: true,
+              task_id: existingByClientRequest.task_id,
+              deduplicated: true
+            })
+          }
+        } else {
           const cutoffIso = new Date(Date.now() - 2 * 60 * 1000).toISOString()
           const existingTask = await env.DB.prepare(`
             SELECT task_id
@@ -1127,35 +1208,66 @@ if (path === "/create_task" && request.method === "POST") {
           ).first<{ task_id: string }>()
 
           if (existingTask?.task_id) {
-            console.log("create_task_deduplicated", existingTask.task_id)
+            console.log("create_task_deduplicated_legacy", existingTask.task_id)
             return json({ ok: true, task_id: existingTask.task_id, deduplicated: true })
           }
+        }
 
         const taskId = randomId("t")
+        const createdAt = nowIso()
+        const updatedAt = createdAt
 
-        await env.DB.prepare(`
-          INSERT INTO tasks (
-            task_id, title, description, status, created_by_user_id, assignee_user_id,
-            reminder_type, reminder_interval_minutes, reminder_time_of_day, is_urgent,
-            created_at, updated_at
-          ) VALUES (?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?)
-        `).bind(
-          taskId,
-          title,
-          description,
-          user.user_id,
-          assigneeUserId,
-          reminderType,
-          Number.isFinite(reminderIntervalMinutes) ? reminderIntervalMinutes : null,
-          reminderTimeOfDay,
-          isUrgent ? 1 : 0,
-          nowIso(),
-          nowIso()
-        ).run()
+        try {
+          await env.DB.prepare(`
+            INSERT INTO tasks (
+              task_id, title, description, status, created_by_user_id, assignee_user_id,
+              reminder_type, reminder_interval_minutes, reminder_time_of_day, is_urgent,
+              client_request_id, created_at, updated_at
+            ) VALUES (?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `).bind(
+            taskId,
+            title,
+            description,
+            user.user_id,
+            assigneeUserId,
+            reminderType,
+            Number.isFinite(reminderIntervalMinutes) ? reminderIntervalMinutes : null,
+            reminderTimeOfDay,
+            isUrgent ? 1 : 0,
+            clientRequestId,
+            createdAt,
+            updatedAt
+          ).run()
+        } catch (e) {
+          if (clientRequestId) {
+            const existingAfterConflict = await env.DB.prepare(`
+              SELECT task_id
+              FROM tasks
+              WHERE created_by_user_id = ?
+                AND client_request_id = ?
+              LIMIT 1
+            `).bind(
+              user.user_id,
+              clientRequestId
+            ).first<{ task_id: string }>()
+
+            if (existingAfterConflict?.task_id) {
+              console.log("create_task_conflict_resolved_by_client_request_id", existingAfterConflict.task_id)
+              return json({
+                ok: true,
+                task_id: existingAfterConflict.task_id,
+                deduplicated: true
+              })
+            }
+          }
+
+          throw e
+        }
 
         await logAction(env, "task", taskId, "task_created", user.user_id, {
           title,
-          assignee_user_id: assigneeUserId
+          assignee_user_id: assigneeUserId,
+          client_request_id: clientRequestId
         })
 
         const assignee = await env.DB.prepare(`
@@ -1178,6 +1290,7 @@ if (path === "/create_task" && request.method === "POST") {
 
         console.log("push_debug", JSON.stringify({
           assignee_user_id: assigneeUserId,
+          assignee_name: assignee?.display_name || null,
           token_count: assigneeTokens.length,
           title
         }))
@@ -1207,7 +1320,18 @@ if (path === "/create_task" && request.method === "POST") {
                 )
                 sent++
               } catch (e) {
-                console.log("push_send_error", assigneeUserId, String(e))
+                const errorText = String(e)
+                console.log("push_send_error", assigneeUserId, errorText)
+
+                if (
+                  errorText.includes("registration-token-not-registered") ||
+                  errorText.includes("Requested entity was not found") ||
+                  errorText.includes("UNREGISTERED") ||
+                  errorText.includes("invalid-registration-token") ||
+                  errorText.includes("Invalid registration token")
+                ) {
+                  await deleteUserDeviceToken(env, token)
+                }
               }
             }
 
@@ -1220,8 +1344,6 @@ if (path === "/create_task" && request.method === "POST") {
         } else {
           console.log("push_send_skipped_no_token", assigneeUserId)
         }
-
-        
 
         return json({ ok: true, task_id: taskId })
       }

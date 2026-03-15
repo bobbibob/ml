@@ -24,6 +24,25 @@ import kotlinx.coroutines.launch
 
 class MlFirebaseMessagingService : FirebaseMessagingService() {
 
+    private val fcmSyncPrefsName = "ml_fcm_sync"
+    private val lastSyncedFcmTokenKey = "last_synced_fcm_token"
+
+    private fun lastSyncedFcmToken(): String {
+        return applicationContext
+            .getSharedPreferences(fcmSyncPrefsName, android.content.Context.MODE_PRIVATE)
+            .getString(lastSyncedFcmTokenKey, null)
+            .orEmpty()
+    }
+
+    private fun markFcmTokenSynced(token: String) {
+        applicationContext
+            .getSharedPreferences(fcmSyncPrefsName, android.content.Context.MODE_PRIVATE)
+            .edit()
+            .putString(lastSyncedFcmTokenKey, token)
+            .apply()
+    }
+
+
     private fun notificationRequestCode(taskId: String?): Int {
         return (taskId?.takeIf { it.isNotBlank() } ?: System.currentTimeMillis().toString()).hashCode()
     }
@@ -41,7 +60,26 @@ class MlFirebaseMessagingService : FirebaseMessagingService() {
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                authRepo.saveFcmToken(token)
+                val sessionToken = session.getToken().orEmpty()
+                val cleanToken = token.trim()
+
+                if (sessionToken.isBlank()) {
+                    Log.d("ML_PUSH", "skip token sync: no session")
+                    return@launch
+                }
+
+                if (cleanToken.isBlank()) {
+                    Log.d("ML_PUSH", "skip token sync: blank token")
+                    return@launch
+                }
+
+                if (cleanToken == lastSyncedFcmToken()) {
+                    Log.d("ML_PUSH", "skip token sync: unchanged token")
+                    return@launch
+                }
+
+                authRepo.saveFcmToken(cleanToken)
+                markFcmTokenSynced(cleanToken)
                 Log.d("ML_PUSH", "token synced")
             } catch (e: Exception) {
                 Log.e("ML_PUSH", "token sync failed: ${e.message}", e)
@@ -89,10 +127,16 @@ class MlFirebaseMessagingService : FirebaseMessagingService() {
         }
 
         val openIntent = Intent(this, MainActivity::class.java).apply {
+            action = if (!taskId.isNullOrBlank()) {
+                "com.ml.app.OPEN_TASK.$taskId"
+            } else {
+                "com.ml.app.OPEN_TASKS.${System.currentTimeMillis()}"
+            }
             addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
             putExtra("open_tasks", true)
             if (!taskId.isNullOrBlank()) {
                 putExtra("task_id", taskId)
+                data = android.net.Uri.parse("ml://task/open?task_id=$taskId")
             }
         }
 
@@ -100,7 +144,7 @@ class MlFirebaseMessagingService : FirebaseMessagingService() {
             this,
             notificationRequestCode(taskId),
             openIntent,
-            PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
         val notification = NotificationCompat.Builder(this, channelId)

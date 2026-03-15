@@ -40,33 +40,34 @@ class TasksRepository(
         reminderType: String? = null,
         reminderIntervalMinutes: Int? = null,
         reminderTimeOfDay: String? = null,
-        isUrgent: Boolean = false
+        isUrgent: Boolean = false,
+        clientRequestId: String
     ): AppResult<String> {
-        return when (
-            val result = safeApiCall {
-                api.createTask(
-                    CreateTaskRequest(
-                        title = title,
-                        description = description,
-                        assignee_user_id = assigneeUserId,
-                        reminder_type = reminderType,
-                        reminder_interval_minutes = reminderIntervalMinutes,
-                        reminder_time_of_day = reminderTimeOfDay,
-                        is_urgent = if (isUrgent) 1 else 0
-                    )
+        val result = safeApiCall {
+            api.createTask(
+                CreateTaskRequest(
+                    title = title,
+                    description = description,
+                    assignee_user_id = assigneeUserId,
+                    reminder_type = reminderType,
+                    reminder_interval_minutes = reminderIntervalMinutes,
+                    reminder_time_of_day = reminderTimeOfDay,
+                    is_urgent = if (isUrgent) 1 else 0,
+                    client_request_id = clientRequestId
                 )
-            }
-        ) {
-            is AppResult.Error -> result
-            is AppResult.Success<*> -> {
-                val body = result.data as com.ml.app.data.remote.response.CreateTaskResponse
-                val taskId = body.task_id
-                if (body.ok && taskId != null) {
-                    AppResult.Success(taskId)
+            )
+        }
+
+        return when (result) {
+            is AppResult.Success -> {
+                val taskId = result.data.task_id
+                if (taskId.isNullOrBlank()) {
+                    AppResult.Error("Сервер не вернул task_id")
                 } else {
-                    AppResult.Error("Failed to create task")
+                    AppResult.Success(taskId)
                 }
             }
+            is AppResult.Error -> result
         }
     }
 

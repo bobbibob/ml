@@ -20,11 +20,49 @@ import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
+    private val fcmSyncPrefsName = "ml_fcm_sync"
+    private val lastSyncedFcmTokenKey = "last_synced_fcm_token"
+
+    private fun lastSyncedFcmToken(): String {
+        return applicationContext
+            .getSharedPreferences(fcmSyncPrefsName, android.content.Context.MODE_PRIVATE)
+            .getString(lastSyncedFcmTokenKey, null)
+            .orEmpty()
+    }
+
+    private fun markFcmTokenSynced(token: String) {
+        applicationContext
+            .getSharedPreferences(fcmSyncPrefsName, android.content.Context.MODE_PRIVATE)
+            .edit()
+            .putString(lastSyncedFcmTokenKey, token)
+            .apply()
+    }
+
+
     private val notificationPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
     private val openTasksSignalState = mutableStateOf(0)
     private val openTaskIdState = mutableStateOf<String?>(null)
+
+    private fun extractPushTaskId(src: Intent?): String? {
+        val direct = src?.getStringExtra("task_id")?.trim().orEmpty()
+        if (direct.isNotBlank()) return direct
+
+        val fromData = src?.data?.getQueryParameter("task_id")?.trim().orEmpty()
+        if (fromData.isNotBlank()) return fromData
+
+        val extrasTaskId = src?.extras?.get("task_id")?.toString()?.trim().orEmpty()
+        if (extrasTaskId.isNotBlank()) return extrasTaskId
+
+        return null
+    }
+
+    private fun shouldOpenTasksFromIntent(src: Intent?): Boolean {
+        if (src?.getBooleanExtra("open_tasks", false) == true) return true
+        if (!extractPushTaskId(src).isNullOrBlank()) return true
+        return false
+    }
 
     private fun syncFcmTokenNow() {
         val session = com.ml.app.data.session.PrefsSessionStorage(applicationContext)
@@ -39,24 +77,27 @@ class MainActivity : ComponentActivity() {
         CoroutineScope(Dispatchers.IO).launch {
             kotlin.runCatching {
                 val fm = com.google.firebase.messaging.FirebaseMessaging.getInstance()
-                val token = Tasks.await(fm.token)
-                if (!token.isNullOrBlank()) {
-                    authRepo.saveFcmToken(token)
-                }
+                val token = Tasks.await(fm.token)?.trim().orEmpty()
+                if (token.isBlank()) return@launch
+                if (token == lastSyncedFcmToken()) return@launch
+
+                authRepo.saveFcmToken(token)
+                markFcmTokenSynced(token)
             }
         }
     }
 
 
     private fun applyLaunchIntent() {
-        val openTasks = intent?.getBooleanExtra("open_tasks", false) == true
-        val taskId = intent?.getStringExtra("task_id")?.trim()
+        val src = intent
+        val openTasks = shouldOpenTasksFromIntent(src)
+        val taskId = extractPushTaskId(src)
 
         if (openTasks) {
             openTaskIdState.value = taskId
             openTasksSignalState.value = openTasksSignalState.value + 1
-            intent?.removeExtra("open_tasks")
-            intent?.removeExtra("task_id")
+            src?.removeExtra("open_tasks")
+            src?.removeExtra("task_id")
         } else {
             openTaskIdState.value = null
         }

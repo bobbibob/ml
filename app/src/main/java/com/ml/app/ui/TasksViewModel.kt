@@ -16,6 +16,7 @@ import com.ml.app.data.repository.AuthRepository
 import com.ml.app.data.repository.TasksRepository
 import com.ml.app.data.session.PrefsSessionStorage
 import com.ml.app.notifications.UrgentTaskNotifier
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 
@@ -231,6 +232,8 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
 
     fun refreshAllInBackground() {
         val user = state.currentUser ?: return
+        if (state.loadingTasks) return
+
         state = state.copy(error = null)
         when (state.selectedTab) {
             "all" -> if (user.role == "plus" || user.role == "admin") loadAllTasks() else loadMyTasks()
@@ -245,19 +248,26 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun loadMyTasks() {
+        if (state.loadingTasks) return
+
         viewModelScope.launch {
             state = state.copy(loadingTasks = true, error = null, info = null)
             try {
                 val res = withTimeout(30000) { tasksRepo.getMyTasks() }
                 when (res) {
                     is AppResult.Success -> {
+                        val optimisticMyTasks = state.myTasks.filter { it.task_id.startsWith("local_") }
+                        val mergedMyTasks = optimisticMyTasks + res.data.filterNot { serverTask ->
+                            optimisticMyTasks.any { it.task_id == serverTask.task_id }
+                        }
+
                         state = state.copy(
                             loadingTasks = false,
-                            myTasks = res.data,
+                            myTasks = mergedMyTasks,
                             error = null,
                             info = null
                         )
-                        syncUrgentNotifications(res.data)
+                        syncUrgentNotifications(mergedMyTasks)
                     }
                     is AppResult.Error -> {
                         val msg = res.message.lowercase()
@@ -286,17 +296,26 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun loadAllTasks() {
+        if (state.loadingTasks) return
+
         viewModelScope.launch {
             state = state.copy(loadingTasks = true, error = null, info = null)
             try {
                 val res = withTimeout(30000) { tasksRepo.getAllTasks() }
                 when (res) {
-                    is AppResult.Success -> state = state.copy(
-                        loadingTasks = false,
-                        allTasks = res.data,
-                        error = null,
-                        info = null
-                    )
+                    is AppResult.Success -> {
+                        val optimisticAllTasks = state.allTasks.filter { it.task_id.startsWith("local_") }
+                        val mergedAllTasks = optimisticAllTasks + res.data.filterNot { serverTask ->
+                            optimisticAllTasks.any { it.task_id == serverTask.task_id }
+                        }
+
+                        state = state.copy(
+                            loadingTasks = false,
+                            allTasks = mergedAllTasks,
+                            error = null,
+                            info = null
+                        )
+                    }
                     is AppResult.Error -> {
                         val msg = res.message.lowercase()
                         if ("timeout" in msg) {
@@ -400,29 +419,36 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
 
     fun loadOpenedTaskFromPush(taskId: String) {
         viewModelScope.launch {
-            when (val res = tasksRepo.getTaskById(taskId)) {
-                is AppResult.Success -> {
-                    val freshTask = res.data
+            repeat(3) { attempt ->
+                when (val res = tasksRepo.getTaskById(taskId)) {
+                    is AppResult.Success -> {
+                        val freshTask = res.data
 
-                    fun patch(list: List<TaskDto>): List<TaskDto> =
-                        list.map { if (it.task_id == freshTask.task_id) freshTask else it }
+                        fun patch(list: List<TaskDto>): List<TaskDto> =
+                            list.map { if (it.task_id == freshTask.task_id) freshTask else it }
 
-                    state = state.copy(
-                        openedTaskFromPush = freshTask,
-                        myTasks = patch(state.myTasks),
-                        allTasks = patch(state.allTasks),
-                        error = null
-                    )
-                    val me = state.currentUser?.user_id
-                    if (freshTask.is_urgent == 1 && freshTask.assignee_user_id == me && freshTask.status == "open") {
-                        UrgentTaskNotifier.show(getApplication<Application>().applicationContext, freshTask)
+                        state = state.copy(
+                            openedTaskFromPush = freshTask,
+                            myTasks = patch(state.myTasks),
+                            allTasks = patch(state.allTasks),
+                            error = null
+                        )
+                        val me = state.currentUser?.user_id
+                        if (freshTask.is_urgent == 1 && freshTask.assignee_user_id == me && freshTask.status == "open") {
+                            UrgentTaskNotifier.show(getApplication<Application>().applicationContext, freshTask)
+                        }
+                        return@launch
                     }
-                }
-                is AppResult.Error -> {
-                    state = state.copy(
-                        openedTaskFromPush = null,
-                        error = res.message
-                    )
+                    is AppResult.Error -> {
+                        if (attempt < 2) {
+                            delay(700)
+                        } else {
+                            state = state.copy(
+                                openedTaskFromPush = null,
+                                error = res.message
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -491,7 +517,8 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
 
         val cleanTitle = title.trim()
         val cleanDescription = description.trim()
-        val tempTaskId = "local_" + java.util.UUID.randomUUID().toString()
+        val clientRequestId = java.util.UUID.randomUUID().toString()
+        val tempTaskId = "local_" + clientRequestId
         val targetTab = when {
             state.currentUser?.role == "plus" || state.currentUser?.role == "admin" -> "all"
             assigneeUserId == state.currentUser?.user_id -> "my"
@@ -519,13 +546,14 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             when (
                 val res = tasksRepo.createTask(
-                    cleanTitle,
-                    cleanDescription,
-                    assigneeUserId,
-                    reminderType,
-                    reminderIntervalMinutes,
-                    reminderTimeOfDay,
-                    isUrgent
+                    title = cleanTitle,
+                    description = cleanDescription,
+                    assigneeUserId = assigneeUserId,
+                    reminderType = reminderType,
+                    reminderIntervalMinutes = reminderIntervalMinutes,
+                    reminderTimeOfDay = reminderTimeOfDay,
+                    isUrgent = isUrgent,
+                    clientRequestId = clientRequestId
                 )
             ) {
                 is AppResult.Success -> {
@@ -544,16 +572,48 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
                         state = state.copy(
                             creatingTask = false,
                             error = null,
-                            info = "Создание выполняется",
+                            info = "Задача ещё не подтверждена сервером",
                             selectedTab = targetTab
                         )
-                        refreshAllInBackground()
+
+                        delay(1500)
+
+                        when (
+                            val retryRes = tasksRepo.createTask(
+                                title = cleanTitle,
+                                description = cleanDescription,
+                                assigneeUserId = assigneeUserId,
+                                reminderType = reminderType,
+                                reminderIntervalMinutes = reminderIntervalMinutes,
+                                reminderTimeOfDay = reminderTimeOfDay,
+                                isUrgent = isUrgent,
+                                clientRequestId = clientRequestId
+                            )
+                        ) {
+                            is AppResult.Success -> {
+                                replaceOptimisticTaskId(tempTaskId, retryRes.data)
+                                state = state.copy(
+                                    creatingTask = false,
+                                    error = null,
+                                    info = "Задача подтверждена сервером",
+                                    selectedTab = targetTab
+                                )
+                                refreshAllInBackground()
+                            }
+                            is AppResult.Error -> {
+                                state = state.copy(
+                                    creatingTask = false,
+                                    error = null,
+                                    info = "Локальная задача сохранена. Сервер ещё не подтвердил создание",
+                                    selectedTab = targetTab
+                                )
+                            }
+                        }
                     } else {
-                        removeTaskLocally(tempTaskId)
-                        state = state.copy(
+                                                state = state.copy(
                             creatingTask = false,
                             error = res.message,
-                            info = null,
+                            info = "Локальная задача сохранена. Сервер ещё не подтвердил создание",
                             selectedTab = targetTab
                         )
                     }
