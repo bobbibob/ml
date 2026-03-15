@@ -1106,6 +1106,31 @@ if (path === "/create_task" && request.method === "POST") {
 
         return json({ ok: false, error: "title and assignee_user_id required" }, 400)
 
+          const cutoffIso = new Date(Date.now() - 2 * 60 * 1000).toISOString()
+          const existingTask = await env.DB.prepare(`
+            SELECT task_id
+            FROM tasks
+            WHERE created_by_user_id = ?
+              AND assignee_user_id = ?
+              AND title = ?
+              AND COALESCE(description, '') = ?
+              AND status = 'open'
+              AND created_at >= ?
+            ORDER BY created_at DESC
+            LIMIT 1
+          `).bind(
+            user.user_id,
+            assigneeUserId,
+            title,
+            description,
+            cutoffIso
+          ).first<{ task_id: string }>()
+
+          if (existingTask?.task_id) {
+            console.log("create_task_deduplicated", existingTask.task_id)
+            return json({ ok: true, task_id: existingTask.task_id, deduplicated: true })
+          }
+
         const taskId = randomId("t")
 
         await env.DB.prepare(`
