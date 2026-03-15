@@ -39,9 +39,10 @@ class MainActivity : ComponentActivity() {
         CoroutineScope(Dispatchers.IO).launch {
             kotlin.runCatching {
                 val fm = com.google.firebase.messaging.FirebaseMessaging.getInstance()
-                fm.deleteToken()
                 val token = Tasks.await(fm.token)
-                authRepo.saveFcmToken(token)
+                if (!token.isNullOrBlank()) {
+                    authRepo.saveFcmToken(token)
+                }
             }
         }
     }
