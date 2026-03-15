@@ -243,14 +243,9 @@ fun TasksScreen(
     LaunchedEffect(openSignal, initialOpenTaskId, state.currentUser.user_id) {
         if (!initialOpenTaskId.isNullOrBlank()) {
             vm.selectTab("my")
-
-            val localTask = (state.myTasks + state.allTasks).firstOrNull { it.task_id == initialOpenTaskId }
-            if (localTask != null) {
-                pushedTask = localTask
-                showPushedTaskDetails = true
-            } else {
-                vm.loadOpenedTaskFromPush(initialOpenTaskId)
-            }
+            pushedTask = null
+            showPushedTaskDetails = false
+            vm.loadOpenedTaskFromPush(initialOpenTaskId)
         }
     }
 
@@ -264,11 +259,8 @@ fun TasksScreen(
     LaunchedEffect(initialOpenTaskId, state.myTasks, state.allTasks) {
         if (initialOpenTaskId.isNullOrBlank()) return@LaunchedEffect
         if (showPushedTaskDetails || pushedTask != null) return@LaunchedEffect
-
-        val localTask = (state.myTasks + state.allTasks).firstOrNull { it.task_id == initialOpenTaskId }
-        if (localTask != null) {
-            pushedTask = localTask
-            showPushedTaskDetails = true
+        if (state.openedTaskFromPush == null) {
+            vm.loadOpenedTaskFromPush(initialOpenTaskId)
         }
     }
 

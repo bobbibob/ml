@@ -1222,35 +1222,6 @@ if (path === "/create_task" && request.method === "POST") {
         }
 
         
-        const authorDevices = await env.DB.prepare(`
-          SELECT fcm_token
-          FROM user_devices
-          WHERE user_id = (SELECT created_by_user_id FROM tasks WHERE task_id = ?)
-        `).bind(taskId).all<any>()
-
-        const authorTokens = (authorDevices.results || [])
-          .map((x:any) => String(x.fcm_token || "").trim())
-          .filter(Boolean)
-
-        const completedByName = String(user.display_name || user.email || "Исполнитель")
-
-        for (const token of authorTokens) {
-          try {
-            await sendPushToToken(
-              env,
-              token,
-              "Задача выполнена",
-              `Задача выполнена — ${completedByName}`,
-              {
-                type: "task_completed",
-                task_id: taskId,
-                open_tasks: "true"
-              }
-            )
-          } catch (e) {
-            console.log("task_completed_push_error", taskId, String(e))
-          }
-        }
 
         return json({ ok: true, task_id: taskId })
       }
