@@ -346,13 +346,20 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             when (val res = tasksRepo.getTaskById(taskId)) {
                 is AppResult.Success -> {
+                    val freshTask = res.data
+
+                    fun patch(list: List<TaskDto>): List<TaskDto> =
+                        list.map { if (it.task_id == freshTask.task_id) freshTask else it }
+
                     state = state.copy(
-                        openedTaskFromPush = res.data,
+                        openedTaskFromPush = freshTask,
+                        myTasks = patch(state.myTasks),
+                        allTasks = patch(state.allTasks),
                         error = null
                     )
                     val me = state.currentUser?.user_id
-                    if (res.data.is_urgent == 1 && res.data.assignee_user_id == me && res.data.status == "open") {
-                        UrgentTaskNotifier.show(getApplication<Application>().applicationContext, res.data)
+                    if (freshTask.is_urgent == 1 && freshTask.assignee_user_id == me && freshTask.status == "open") {
+                        UrgentTaskNotifier.show(getApplication<Application>().applicationContext, freshTask)
                     }
                 }
                 is AppResult.Error -> {

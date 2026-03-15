@@ -184,6 +184,7 @@ fun TasksScreen(
     val scope = rememberCoroutineScope()
     var pushedTask by remember { mutableStateOf<TaskDto?>(null) }
     var showPushedTaskDetails by remember { mutableStateOf(false) }
+    var lastHandledOpenSignal by remember { mutableStateOf(-1) }
 
     if (state.currentUser == null) {
         Column(
@@ -241,7 +242,8 @@ fun TasksScreen(
     }
 
     LaunchedEffect(openSignal, initialOpenTaskId, state.currentUser.user_id) {
-        if (!initialOpenTaskId.isNullOrBlank()) {
+        if (!initialOpenTaskId.isNullOrBlank() && openSignal != lastHandledOpenSignal) {
+            lastHandledOpenSignal = openSignal
             vm.selectTab("my")
             pushedTask = null
             showPushedTaskDetails = false
@@ -256,13 +258,7 @@ fun TasksScreen(
         vm.clearOpenedTaskFromPush()
     }
 
-    LaunchedEffect(initialOpenTaskId, state.myTasks, state.allTasks) {
-        if (initialOpenTaskId.isNullOrBlank()) return@LaunchedEffect
-        if (showPushedTaskDetails || pushedTask != null) return@LaunchedEffect
-        if (state.openedTaskFromPush == null) {
-            vm.loadOpenedTaskFromPush(initialOpenTaskId)
-        }
-    }
+
 
         if (showPushedTaskDetails && pushedTask != null && state.currentUser != null) {
         val task = pushedTask!!
@@ -283,9 +279,6 @@ fun TasksScreen(
                     }
                     Text("Создал: ${task.created_by_name}")
                     Text("Статус: ${if (task.status == "open") "Открыта" else "Выполнена"}")
-                    if (!task.completed_at.isNullOrBlank()) {
-                        Text("Выполнено: ${fmtTaskDateTime(task.completed_at)}")
-                    }
                 }
             },
             confirmButton = {
