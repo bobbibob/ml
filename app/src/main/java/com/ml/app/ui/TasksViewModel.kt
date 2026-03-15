@@ -130,7 +130,7 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
         )
 
         state = state.copy(
-            myTasks = listOf(optimisticTask) + state.myTasks,
+            myTasks = if (assigneeUserId == me.user_id) listOf(optimisticTask) + state.myTasks else state.myTasks,
             allTasks = if (me.role == "plus" || me.role == "admin") listOf(optimisticTask) + state.allTasks else state.allTasks
         )
     }
@@ -492,6 +492,11 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
         val cleanTitle = title.trim()
         val cleanDescription = description.trim()
         val tempTaskId = "local_" + java.util.UUID.randomUUID().toString()
+        val targetTab = when {
+            state.currentUser?.role == "plus" || state.currentUser?.role == "admin" -> "all"
+            assigneeUserId == state.currentUser?.user_id -> "my"
+            else -> "my"
+        }
 
         insertCreatedTaskLocally(
             tempTaskId = tempTaskId,
@@ -508,7 +513,7 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
             creatingTask = true,
             error = null,
             info = "Создание задачи...",
-            selectedTab = "my"
+            selectedTab = targetTab
         )
 
         viewModelScope.launch {
@@ -529,7 +534,7 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
                         creatingTask = false,
                         info = "Задача создана",
                         error = null,
-                        selectedTab = "my"
+                        selectedTab = targetTab
                     )
                     refreshAllInBackground()
                 }
@@ -540,7 +545,7 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
                             creatingTask = false,
                             error = null,
                             info = "Создание выполняется",
-                            selectedTab = "my"
+                            selectedTab = targetTab
                         )
                         refreshAllInBackground()
                     } else {
@@ -549,7 +554,7 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
                             creatingTask = false,
                             error = res.message,
                             info = null,
-                            selectedTab = "my"
+                            selectedTab = targetTab
                         )
                     }
                 }
