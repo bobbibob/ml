@@ -766,7 +766,8 @@ private fun CreateTaskDetailsStep(
             onValueChange = onTitleChange,
             modifier = Modifier.fillMaxWidth(),
             label = { Text("Название") },
-            singleLine = true
+            singleLine = true,
+            enabled = !loading
         )
 
         OutlinedTextField(
@@ -774,7 +775,8 @@ private fun CreateTaskDetailsStep(
             onValueChange = onDescriptionChange,
             modifier = Modifier.fillMaxWidth(),
             label = { Text("Описание") },
-            minLines = 4
+            minLines = 4,
+            enabled = !loading
         )
 
         Button(

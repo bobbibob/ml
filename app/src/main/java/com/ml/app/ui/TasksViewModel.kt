@@ -79,6 +79,62 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
         )
     }
 
+    private fun replaceOptimisticTaskId(tempTaskId: String, realTaskId: String) {
+        fun patch(list: List<TaskDto>): List<TaskDto> {
+            return list.map { task ->
+                if (task.task_id == tempTaskId) task.copy(task_id = realTaskId) else task
+            }
+        }
+
+        state = state.copy(
+            myTasks = patch(state.myTasks),
+            allTasks = patch(state.allTasks)
+        )
+    }
+
+    private fun insertCreatedTaskLocally(
+        tempTaskId: String,
+        title: String,
+        description: String,
+        assigneeUserId: String,
+        reminderType: String?,
+        reminderIntervalMinutes: Int?,
+        reminderTimeOfDay: String?,
+        isUrgent: Boolean
+    ) {
+        val now = java.time.OffsetDateTime.now().toString()
+        val me = state.currentUser ?: return
+        val assignee = state.users.firstOrNull { it.user_id == assigneeUserId }
+
+        val optimisticTask = TaskDto(
+            task_id = tempTaskId,
+            title = title,
+            description = description,
+            status = "open",
+            created_at = now,
+            updated_at = now,
+            created_by_user_id = me.user_id,
+            assignee_user_id = assigneeUserId,
+            completed_by_user_id = null,
+            completed_at = null,
+            cancelled_by_user_id = null,
+            cancelled_at = null,
+            created_by_name = me.display_name,
+            assignee_name = assignee?.display_name ?: assigneeUserId,
+            completed_by_name = null,
+            cancelled_by_name = null,
+            reminder_type = reminderType,
+            reminder_interval_minutes = reminderIntervalMinutes,
+            reminder_time_of_day = reminderTimeOfDay,
+            is_urgent = if (isUrgent) 1 else 0
+        )
+
+        state = state.copy(
+            myTasks = listOf(optimisticTask) + state.myTasks,
+            allTasks = if (me.role == "plus" || me.role == "admin") listOf(optimisticTask) + state.allTasks else state.allTasks
+        )
+    }
+
 
     private fun syncFcmToken() {
         FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
@@ -423,6 +479,8 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
         reminderTimeOfDay: String? = null,
         isUrgent: Boolean = false
     ) {
+        if (state.creatingTask) return
+
         if (title.isBlank() || assigneeUserId.isBlank()) {
             state = state.copy(
                 error = "Заполни название и исполнителя",
@@ -431,24 +489,42 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
 
-        viewModelScope.launch {
-            state = state.copy(
-                creatingTask = true,
-                error = null,
-                info = null
-            )
+        val cleanTitle = title.trim()
+        val cleanDescription = description.trim()
+        val tempTaskId = "local_" + java.util.UUID.randomUUID().toString()
 
+        insertCreatedTaskLocally(
+            tempTaskId = tempTaskId,
+            title = cleanTitle,
+            description = cleanDescription,
+            assigneeUserId = assigneeUserId,
+            reminderType = reminderType,
+            reminderIntervalMinutes = reminderIntervalMinutes,
+            reminderTimeOfDay = reminderTimeOfDay,
+            isUrgent = isUrgent
+        )
+
+        state = state.copy(
+            creatingTask = true,
+            error = null,
+            info = "Создание задачи...",
+            selectedTab = "my"
+        )
+
+        viewModelScope.launch {
             when (
                 val res = tasksRepo.createTask(
-                    title,
-                    description,
+                    cleanTitle,
+                    cleanDescription,
                     assigneeUserId,
                     reminderType,
                     reminderIntervalMinutes,
-                    reminderTimeOfDay
+                    reminderTimeOfDay,
+                    isUrgent
                 )
             ) {
                 is AppResult.Success -> {
+                    replaceOptimisticTaskId(tempTaskId, res.data)
                     state = state.copy(
                         creatingTask = false,
                         info = "Задача создана",
@@ -458,10 +534,24 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
                     refreshAllInBackground()
                 }
                 is AppResult.Error -> {
-                    state = state.copy(
-                        creatingTask = false,
-                        error = res.message
-                    )
+                    val msg = res.message.lowercase()
+                    if ("timeout" in msg || "слишком долго" in msg) {
+                        state = state.copy(
+                            creatingTask = false,
+                            error = null,
+                            info = "Создание выполняется",
+                            selectedTab = "my"
+                        )
+                        refreshAllInBackground()
+                    } else {
+                        removeTaskLocally(tempTaskId)
+                        state = state.copy(
+                            creatingTask = false,
+                            error = res.message,
+                            info = null,
+                            selectedTab = "my"
+                        )
+                    }
                 }
             }
         }
