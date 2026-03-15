@@ -124,6 +124,45 @@ async function ensureUserDevicesTable(env: Env) {
   }
 }
 
+async function ensureIndexes(env: Env) {
+  const statements = [
+    "CREATE INDEX IF NOT EXISTS idx_tasks_assignee_user_id ON tasks(assignee_user_id)",
+    "CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status)",
+    "CREATE INDEX IF NOT EXISTS idx_tasks_created_at ON tasks(created_at)",
+    "CREATE INDEX IF NOT EXISTS idx_tasks_is_urgent ON tasks(is_urgent)",
+    "CREATE INDEX IF NOT EXISTS idx_tasks_created_by_user_id ON tasks(created_by_user_id)",
+    "CREATE INDEX IF NOT EXISTS idx_user_devices_user_id ON user_devices(user_id)",
+    "CREATE INDEX IF NOT EXISTS idx_user_sessions_token ON user_sessions(token)"
+  ]
+  for (const sql of statements) {
+    try {
+      await env.DB.prepare(sql).run()
+    } catch (e) {
+      console.log("ensureIndexes error", sql, String(e))
+    }
+  }
+}
+
+let schemaReadyPromise: Promise<void> | null = null
+
+async function ensureSchemaOnce(env: Env) {
+  if (!schemaReadyPromise) {
+    schemaReadyPromise = (async () => {
+      await ensureFcmTokenColumn(env)
+      await ensureUserDevicesTable(env)
+      await ensureDailySummaryTable(env)
+      await ensureReminderColumns(env)
+      await ensureUrgentColumn(env)
+      await ensureIndexes(env)
+    })().catch((e) => {
+      schemaReadyPromise = null
+      throw e
+    })
+  }
+
+  return schemaReadyPromise
+}
+
 function randomId(prefix: string): string {
   const bytes = crypto.getRandomValues(new Uint8Array(8))
   const hex = Array.from(bytes).map(b => b.toString(16).padStart(2, "0")).join("")
@@ -326,14 +365,10 @@ export default {
 
     const url = new URL(request.url)
     const path = url.pathname
-      await ensureFcmTokenColumn(env)
 
-    
-          await ensureUserDevicesTable(env)
-await ensureDailySummaryTable(env)
-    await ensureReminderColumns(env)
-    await ensureUrgentColumn(env)
-try {
+    await ensureSchemaOnce(env)
+
+    try {
       if (path === "/google_login" && request.method === "POST") {
         const body = await request.json<{ id_token?: string }>().catch(() => null)
         if (!body?.id_token) 
