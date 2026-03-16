@@ -1,4 +1,10 @@
 package com.ml.app.ui
+import com.ml.app.notifications.MlFirebaseMessagingService
+import androidx.core.content.ContextCompat
+import android.content.IntentFilter
+import android.content.Intent
+import android.content.Context
+import android.content.BroadcastReceiver
 import androidx.compose.foundation.clickable
 
 import androidx.activity.compose.BackHandler
@@ -52,6 +58,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.runtime.DisposableEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import coil.compose.AsyncImage
 import com.ml.app.auth.GoogleAuthManager
 import com.ml.app.data.remote.dto.TaskDto
@@ -182,9 +192,49 @@ fun TasksScreen(
     val state = vm.state
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
+    val lifecycleOwner = LocalLifecycleOwner.current
     var pushedTask by remember { mutableStateOf<TaskDto?>(null) }
     var showPushedTaskDetails by remember { mutableStateOf(false) }
     var lastHandledOpenSignal by remember { mutableStateOf(-1) }
+
+    DisposableEffect(lifecycleOwner, state.currentUser?.user_id, state.selectedTab) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME &&
+                state.currentUser != null &&
+                state.selectedTab != "create"
+            ) {
+                vm.refreshAllInBackground()
+            }
+        }
+
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    DisposableEffect(ctx, state.currentUser?.user_id, state.selectedTab) {
+        if (state.currentUser == null || state.selectedTab == "create") {
+            onDispose { }
+        } else {
+            val receiver = object : BroadcastReceiver() {
+                override fun onReceive(context: Context?, intent: Intent?) {
+                    vm.refreshAllInBackground()
+                }
+            }
+
+            ContextCompat.registerReceiver(
+                ctx,
+                receiver,
+                IntentFilter(MlFirebaseMessagingService.ACTION_TASKS_REFRESH),
+                ContextCompat.RECEIVER_NOT_EXPORTED
+            )
+
+            onDispose {
+                kotlin.runCatching { ctx.unregisterReceiver(receiver) }
+            }
+        }
+    }
 
     if (state.currentUser == null) {
         Column(

@@ -24,6 +24,10 @@ import kotlinx.coroutines.launch
 
 class MlFirebaseMessagingService : FirebaseMessagingService() {
 
+    companion object {
+        const val ACTION_TASKS_REFRESH = "com.ml.app.ACTION_TASKS_REFRESH"
+    }
+
     private val fcmSyncPrefsName = "ml_fcm_sync"
     private val lastSyncedFcmTokenKey = "last_synced_fcm_token"
 
@@ -96,6 +100,13 @@ class MlFirebaseMessagingService : FirebaseMessagingService() {
             ?: "У вас новое уведомление"
 
         val taskId = message.data["task_id"]?.trim().orEmpty()
+
+        sendBroadcast(
+            Intent(ACTION_TASKS_REFRESH).apply {
+                `package` = packageName
+                putExtra("task_id", taskId)
+            }
+        )
 
         showNotification(title, body, taskId)
     }
