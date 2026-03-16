@@ -233,7 +233,6 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
 
     fun refreshAllInBackground() {
         val user = state.currentUser ?: return
-        if (state.loadingTasks) return
 
         viewModelScope.launch {
             val allPendingSynced = flushPendingOperationsBeforeRefresh()
