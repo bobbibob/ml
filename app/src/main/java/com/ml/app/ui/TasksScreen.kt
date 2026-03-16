@@ -52,6 +52,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.animateContentSize
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -922,25 +923,30 @@ private fun TasksListTab(
                     val isDeleting = deletingTaskId == task.task_id
                     val deleteProgress by animateFloatAsState(
                         targetValue = if (isDeleting) 1f else 0f,
-                        animationSpec = tween(durationMillis = 420),
+                        animationSpec = tween(durationMillis = 520),
                         label = "deleteProgress_${task.task_id}"
                     )
 
                     AnimatedVisibility(
                         visible = !isDeleting,
-                        exit = shrinkVertically(animationSpec = tween(420)) +
-                            fadeOut(animationSpec = tween(320)) +
-                            scaleOut(targetScale = 0.72f, animationSpec = tween(420))
+                        exit = slideOutHorizontally(
+                            targetOffsetX = { fullWidth -> fullWidth },
+                            animationSpec = tween(520)
+                        ) +
+                            shrinkVertically(animationSpec = tween(520)) +
+                            fadeOut(animationSpec = tween(420)) +
+                            scaleOut(targetScale = 0.68f, animationSpec = tween(520))
                     ) {
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .graphicsLayer {
-                                    alpha = 1f - (0.35f * deleteProgress)
-                                    scaleX = 1f - (0.18f * deleteProgress)
-                                    scaleY = 1f - (0.18f * deleteProgress)
-                                    translationX = 140f * deleteProgress
-                                    rotationZ = -7f * deleteProgress
+                                    alpha = 1f - (0.45f * deleteProgress)
+                                    scaleX = 1f - (0.24f * deleteProgress)
+                                    scaleY = 1f - (0.24f * deleteProgress)
+                                    translationX = 220f * deleteProgress
+                                    translationY = -18f * deleteProgress
+                                    rotationZ = -10f * deleteProgress
                                 },
                         shape = RoundedCornerShape(28.dp),
                         colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -1161,7 +1167,7 @@ private fun TasksListTab(
                             deleteTask = null
 
                             deleteAnimScope.launch {
-                                delay(420)
+                                delay(520)
                                 onDelete(task.task_id)
                                 if (deletingTaskId == task.task_id) {
                                     deletingTaskId = null
