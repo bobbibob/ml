@@ -382,18 +382,26 @@ async function sendPushToToken(
         authorization: `Bearer ${accessToken}`,
       },
       body: JSON.stringify({
-        message: {
-          token,
-          data: {
-            title,
-            body,
-            ...extraData,
+          message: {
+            token,
+            notification: {
+              title,
+              body,
+            },
+            data: {
+              title,
+              body,
+              ...extraData,
+            },
+            android: {
+              priority: "high",
+              notification: {
+                channel_id: "ml_tasks_channel",
+                sound: "default",
+              },
+            },
           },
-          android: {
-            priority: "high",
-          },
-        },
-      }),
+        }),
     }
   )
 
