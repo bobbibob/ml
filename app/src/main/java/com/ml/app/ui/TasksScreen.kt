@@ -49,6 +49,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.animateContentSize
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -197,6 +199,8 @@ fun TasksScreen(
     var pushedTask by remember { mutableStateOf<TaskDto?>(null) }
     var showPushedTaskDetails by remember { mutableStateOf(false) }
     var lastHandledOpenSignal by remember { mutableStateOf(-1) }
+    val deleteAnimScope = rememberCoroutineScope()
+    var deletingTaskId by remember { mutableStateOf<String?>(null) }
 
     DisposableEffect(lifecycleOwner, state.currentUser?.user_id, state.selectedTab) {
         val observer = LifecycleEventObserver { _, event ->
@@ -914,9 +918,14 @@ private fun TasksListTab(
                     val canEdit = isAdmin && task.status == "open"
                     val canRemind = task.status == "open" && (isAdmin || isAuthor)
                     val canComplete = task.status == "open" && (isAdmin || isAssignee)
+                    val isDeleting = deletingTaskId == task.task_id
 
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
+                    AnimatedVisibility(
+                        visible = !isDeleting,
+                        exit = shrinkVertically(animationSpec = tween(260)) + fadeOut(animationSpec = tween(220))
+                    ) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(28.dp),
                         colors = CardDefaults.cardColors(containerColor = Color.White),
                         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
@@ -1088,6 +1097,7 @@ private fun TasksListTab(
                 }
             }
         }
+        }
     }
 
       if (showTaskDetails && openedTask != null) {
@@ -1129,16 +1139,24 @@ private fun TasksListTab(
               title = { Text("Удалить задачу?") },
               text = { Text(task.title) },
               confirmButton = {
-                  Button(
-                      onClick = {
-                          onDelete(task.task_id)
-                          deleteTask = null
-                      }
-                  ) {
-                      Text("Удалить")
-                  }
-              },
-              dismissButton = {
+                    Button(
+                        onClick = {
+                            deletingTaskId = task.task_id
+                            deleteTask = null
+
+                            deleteAnimScope.launch {
+                                delay(260)
+                                onDelete(task.task_id)
+                                if (deletingTaskId == task.task_id) {
+                                    deletingTaskId = null
+                                }
+                            }
+                        }
+                    ) {
+                        Text("Удалить")
+                    }
+                },
+                dismissButton = {
                   OutlinedButton(onClick = { deleteTask = null }) {
                       Text("Отмена")
                   }
