@@ -419,7 +419,7 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
 
     fun loadOpenedTaskFromPush(taskId: String) {
         viewModelScope.launch {
-            repeat(3) { attempt ->
+            repeat(4) { attempt ->
                 when (val res = tasksRepo.getTaskById(taskId)) {
                     is AppResult.Success -> {
                         val freshTask = res.data
@@ -440,8 +440,8 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
                         return@launch
                     }
                     is AppResult.Error -> {
-                        if (attempt < 2) {
-                            delay(700)
+                        if (attempt < 3) {
+                            delay(150)
                         } else {
                             state = state.copy(
                                 openedTaskFromPush = null,
