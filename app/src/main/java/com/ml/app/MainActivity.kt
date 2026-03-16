@@ -23,6 +23,7 @@ class MainActivity : ComponentActivity() {
     private val fcmSyncPrefsName = "ml_fcm_sync"
     private val lastSyncedFcmTokenKey = "last_synced_fcm_token"
     private val fcmBootstrapDoneKey = "fcm_bootstrap_done"
+    private val lastFcmSyncAtKey = "last_fcm_sync_at"
 
     private fun lastSyncedFcmToken(): String {
         return applicationContext
@@ -36,6 +37,25 @@ class MainActivity : ComponentActivity() {
         return applicationContext
             .getSharedPreferences(fcmSyncPrefsName, android.content.Context.MODE_PRIVATE)
             .getBoolean(fcmBootstrapDoneKey, false)
+    }
+
+
+    private fun shouldForceDailyFcmSync(): Boolean {
+        val prefs = applicationContext.getSharedPreferences(
+            fcmSyncPrefsName,
+            android.content.Context.MODE_PRIVATE
+        )
+        val last = prefs.getLong(lastFcmSyncAtKey, 0L)
+        val now = System.currentTimeMillis()
+        return now - last >= 24L * 60L * 60L * 1000L
+    }
+
+    private fun markFcmSyncNow() {
+        applicationContext
+            .getSharedPreferences(fcmSyncPrefsName, android.content.Context.MODE_PRIVATE)
+            .edit()
+            .putLong(lastFcmSyncAtKey, System.currentTimeMillis())
+            .apply()
     }
 
     private fun markFcmBootstrapDone() {
@@ -97,11 +117,13 @@ class MainActivity : ComponentActivity() {
                 if (token.isBlank()) return@launch
 
                 val bootstrap = !isFcmBootstrapDone()
+                val dailyRefresh = shouldForceDailyFcmSync()
 
-                if (bootstrap || token != lastSyncedFcmToken()) {
+                if (bootstrap || dailyRefresh || token != lastSyncedFcmToken()) {
                     authRepo.saveFcmToken(token)
                     markFcmTokenSynced(token)
                     markFcmBootstrapDone()
+                    markFcmSyncNow()
                 }
             }
         }

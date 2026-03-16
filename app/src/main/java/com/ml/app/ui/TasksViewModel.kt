@@ -235,7 +235,12 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
         if (state.loadingTasks) return
 
         viewModelScope.launch {
+            val allPendingSynced = flushPendingOperationsBeforeRefresh()
             syncPendingCreatesBeforeRefresh()
+
+            if (!allPendingSynced || pendingOperations.isNotEmpty()) {
+                return@launch
+            }
 
             state = state.copy(error = null)
             when (state.selectedTab) {
@@ -249,6 +254,42 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
     private fun syncUrgentNotifications(tasks: List<TaskDto>) {
         val ctx = getApplication<Application>().applicationContext
         UrgentTaskNotifier.syncForTasks(ctx, tasks)
+    }
+
+    private val pendingOperations = mutableListOf<suspend () -> Boolean>()
+
+    private fun enqueuePendingOperation(operation: suspend () -> Boolean) {
+        pendingOperations.add(operation)
+    }
+
+    private suspend fun flushPendingOperationsBeforeRefresh(): Boolean {
+        if (pendingOperations.isEmpty()) return true
+
+        val ops = pendingOperations.toList()
+        pendingOperations.clear()
+
+        var allSynced = true
+        for (operation in ops) {
+            val synced = try {
+                operation()
+            } catch (_: Exception) {
+                false
+            }
+
+            if (!synced) {
+                allSynced = false
+                pendingOperations.add(operation)
+            }
+        }
+
+        if (!allSynced) {
+            state = state.copy(
+                error = null,
+                info = "Есть несинхронизированные изменения. Повторю позже."
+            )
+        }
+
+        return allSynced
     }
 
     private suspend fun syncPendingCreatesBeforeRefresh() {
@@ -433,20 +474,18 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
                     refreshAllInBackground()
                 }
                 is AppResult.Error -> {
-                    val msg = res.message.lowercase()
-                    if ("timeout" in msg) {
-                        state = state.copy(
-                            loading = false,
-                            error = null,
-                            info = "Напоминание отправляется"
-                        )
-                        refreshAllInBackground()
-                    } else {
-                        state = state.copy(
-                            loading = false,
-                            error = res.message
-                        )
+                    enqueuePendingOperation {
+                        when (tasksRepo.remindTask(taskId)) {
+                            is AppResult.Success -> true
+                            is AppResult.Error -> false
+                        }
                     }
+
+                    state = state.copy(
+                        loading = false,
+                        error = null,
+                        info = "Напоминание сохранено локально. Отправлю при обновлении."
+                    )
                 }
             }
         }
@@ -637,19 +676,61 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
                                 refreshAllInBackground()
                             }
                             is AppResult.Error -> {
+                                enqueuePendingOperation {
+                                    when (
+                                        val pendingRes = tasksRepo.createTask(
+                                            title = cleanTitle,
+                                            description = cleanDescription,
+                                            assigneeUserId = assigneeUserId,
+                                            reminderType = reminderType,
+                                            reminderIntervalMinutes = reminderIntervalMinutes,
+                                            reminderTimeOfDay = reminderTimeOfDay,
+                                            isUrgent = isUrgent,
+                                            clientRequestId = clientRequestId
+                                        )
+                                    ) {
+                                        is AppResult.Success -> {
+                                            replaceOptimisticTaskId(tempTaskId, pendingRes.data)
+                                            true
+                                        }
+                                        is AppResult.Error -> false
+                                    }
+                                }
+
                                 state = state.copy(
                                     creatingTask = false,
                                     error = null,
-                                    info = "Локальная задача сохранена. Сервер ещё не подтвердил создание",
+                                    info = "Локальная задача сохранена. Отправлю при обновлении.",
                                     selectedTab = targetTab
                                 )
                             }
                         }
                     } else {
-                                                state = state.copy(
+                        enqueuePendingOperation {
+                            when (
+                                val pendingRes = tasksRepo.createTask(
+                                    title = cleanTitle,
+                                    description = cleanDescription,
+                                    assigneeUserId = assigneeUserId,
+                                    reminderType = reminderType,
+                                    reminderIntervalMinutes = reminderIntervalMinutes,
+                                    reminderTimeOfDay = reminderTimeOfDay,
+                                    isUrgent = isUrgent,
+                                    clientRequestId = clientRequestId
+                                )
+                            ) {
+                                is AppResult.Success -> {
+                                    replaceOptimisticTaskId(tempTaskId, pendingRes.data)
+                                    true
+                                }
+                                is AppResult.Error -> false
+                            }
+                        }
+
+                        state = state.copy(
                             creatingTask = false,
-                            error = res.message,
-                            info = "Локальная задача сохранена. Сервер ещё не подтвердил создание",
+                            error = null,
+                            info = "Локальная задача сохранена. Отправлю при обновлении.",
                             selectedTab = targetTab
                         )
                     }
@@ -669,8 +750,17 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
                     refreshAllInBackground()
                 }
                 is AppResult.Error -> {
-                    state = state.copy(error = res.message)
-                    refreshAllInBackground()
+                    enqueuePendingOperation {
+                        when (tasksRepo.completeTask(taskId)) {
+                            is AppResult.Success -> true
+                            is AppResult.Error -> false
+                        }
+                    }
+
+                    state = state.copy(
+                        error = null,
+                        info = "Выполнение сохранено локально. Отправлю при обновлении."
+                    )
                 }
             }
         }
@@ -699,7 +789,18 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
                     refreshAllInBackground()
                 }
                 is AppResult.Error -> {
-                    state = state.copy(loading = false, error = res.message)
+                    enqueuePendingOperation {
+                        when (tasksRepo.updateTask(taskId, title, description, assigneeUserId, reminderType, reminderIntervalMinutes, reminderTimeOfDay, isUrgent)) {
+                            is AppResult.Success -> true
+                            is AppResult.Error -> false
+                        }
+                    }
+
+                    state = state.copy(
+                        loading = false,
+                        error = null,
+                        info = "Изменение сохранено локально. Отправлю при обновлении."
+                    )
                 }
             }
         }
@@ -720,21 +821,18 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
                     refreshAllInBackground()
                 }
                 is AppResult.Error -> {
-                    val msg = res.message.lowercase()
-                    if ("timeout" in msg) {
-                        state = state.copy(
-                            loading = false,
-                            error = null,
-                            info = "Удаление выполняется"
-                        )
-                        refreshAllInBackground()
-                    } else {
-                        state = state.copy(
-                            loading = false,
-                            error = res.message
-                        )
-                        refreshAllInBackground()
+                    enqueuePendingOperation {
+                        when (tasksRepo.deleteTask(taskId)) {
+                            is AppResult.Success -> true
+                            is AppResult.Error -> false
+                        }
                     }
+
+                    state = state.copy(
+                        loading = false,
+                        error = null,
+                        info = "Удаление сохранено локально. Отправлю при обновлении."
+                    )
                 }
             }
         }
