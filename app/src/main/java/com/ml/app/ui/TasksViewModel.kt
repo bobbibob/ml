@@ -16,6 +16,7 @@ import com.ml.app.data.repository.AuthRepository
 import com.ml.app.data.repository.TasksRepository
 import com.ml.app.data.session.PrefsSessionStorage
 import com.ml.app.notifications.UrgentTaskNotifier
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
@@ -257,9 +258,19 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private val pendingOperations = mutableListOf<suspend () -> Boolean>()
+    private var pendingFlushJob: Job? = null
 
     private fun enqueuePendingOperation(operation: suspend () -> Boolean) {
         pendingOperations.add(operation)
+    }
+
+    private fun schedulePendingOperationsFlush(delayMs: Long = 1200L) {
+        if (pendingFlushJob?.isActive == true) return
+
+        pendingFlushJob = viewModelScope.launch {
+            if (delayMs > 0) delay(delayMs)
+            flushPendingOperationsBeforeRefresh()
+        }
     }
 
     private suspend fun flushPendingOperationsBeforeRefresh(): Boolean {
@@ -696,6 +707,7 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
                                         is AppResult.Error -> false
                                     }
                                 }
+                                schedulePendingOperationsFlush()
 
                                 state = state.copy(
                                     creatingTask = false,
@@ -726,6 +738,7 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
                                 is AppResult.Error -> false
                             }
                         }
+                        schedulePendingOperationsFlush()
 
                         state = state.copy(
                             creatingTask = false,
@@ -795,6 +808,7 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
                             is AppResult.Error -> false
                         }
                     }
+                    schedulePendingOperationsFlush()
 
                     state = state.copy(
                         loading = false,
@@ -827,6 +841,7 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
                             is AppResult.Error -> false
                         }
                     }
+                    schedulePendingOperationsFlush()
 
                     state = state.copy(
                         loading = false,
