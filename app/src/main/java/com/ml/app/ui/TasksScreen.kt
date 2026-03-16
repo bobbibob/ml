@@ -632,8 +632,7 @@ private fun CreateTaskAssigneeStep(
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                            .animateItemPlacement()
-                            .animateContentSize()
+                                                        .animateContentSize()
                         .graphicsLayer {
                             this.alpha = alpha
                             scaleX = scale
