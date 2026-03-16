@@ -836,9 +836,16 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 is AppResult.Error -> {
                     enqueuePendingOperation {
-                        when (tasksRepo.deleteTask(taskId)) {
+                        when (val pendingDelete = tasksRepo.deleteTask(taskId)) {
                             is AppResult.Success -> true
-                            is AppResult.Error -> false
+                            is AppResult.Error -> {
+                                val msg = pendingDelete.message.lowercase()
+                                "not found" in msg ||
+                                "не найден" in msg ||
+                                "404" in msg ||
+                                "already deleted" in msg ||
+                                "уже удал" in msg
+                            }
                         }
                     }
                     schedulePendingOperationsFlush()
