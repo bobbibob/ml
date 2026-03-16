@@ -1504,6 +1504,12 @@ if (path === "/my_tasks" && request.method
             t.assignee_user_id,
             t.completed_by_user_id,
             t.completed_at,
+            CASE
+              WHEN t.notification_seen_at IS NOT NULL THEN 'seen'
+              WHEN t.notification_delivered_at IS NOT NULL THEN 'delivered'
+              WHEN t.notification_sent_at IS NOT NULL THEN 'sent'
+              ELSE NULL
+            END AS notification_status,
             COALESCE(t.is_urgent, 0) AS is_urgent,
             cu.display_name AS created_by_name,
             au.display_name AS assignee_name,
@@ -1539,6 +1545,12 @@ if (path === "/my_tasks" && request.method
             t.assignee_user_id,
             t.completed_by_user_id,
             t.completed_at,
+            CASE
+              WHEN t.notification_seen_at IS NOT NULL THEN 'seen'
+              WHEN t.notification_delivered_at IS NOT NULL THEN 'delivered'
+              WHEN t.notification_sent_at IS NOT NULL THEN 'sent'
+              ELSE NULL
+            END AS notification_status,
             COALESCE(t.is_urgent, 0) AS is_urgent,
             cu.display_name AS created_by_name,
             au.display_name AS assignee_name,
