@@ -1490,7 +1490,8 @@ if (path === "/task_by_id" && request.method
 if (path === "/my_tasks" && request.method
  === "GET") {
         const user = await getCurrentUser(request, env)
-        if (!user) console.log("DEBUG: bypass auth for send_push")
+        if (!user)
+          return json({ ok: false, error: "unauthorized" }, 401)
 
         const rows = await env.DB.prepare(`
           SELECT
@@ -1527,7 +1528,8 @@ if (path === "/my_tasks" && request.method
 
       if (path === "/all_tasks" && request.method === "GET") {
         const user = await getCurrentUser(request, env)
-        if (!user) console.log("DEBUG: bypass auth for send_push")
+        if (!user)
+          return json({ ok: false, error: "unauthorized" }, 401)
         if (!(user.role === "plus" || user.role === "admin")) {
 
         return json({ ok: false, error: "permission denied" }, 403)
