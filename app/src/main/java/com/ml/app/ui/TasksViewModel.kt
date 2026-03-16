@@ -856,32 +856,6 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-                is AppResult.Error -> {
-                    enqueuePendingOperation {
-                        when (val pendingDelete = tasksRepo.deleteTask(taskId)) {
-                            is AppResult.Success -> true
-                            is AppResult.Error -> {
-                                val msg = pendingDelete.message.lowercase()
-                                "not found" in msg ||
-                                "не найден" in msg ||
-                                "404" in msg ||
-                                "already deleted" in msg ||
-                                "уже удал" in msg
-                            }
-                        }
-                    }
-                    schedulePendingOperationsFlush()
-
-                    state = state.copy(
-                        loading = false,
-                        error = null,
-                        info = "Удаление сохранено локально. Отправлю при обновлении."
-                    )
-                }
-            }
-        }
-    }
-
     fun updateOwnDisplayName(displayName: String) {
         if (displayName.isBlank()) {
             state = state.copy(error = "Имя не может быть пустым")
