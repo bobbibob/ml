@@ -11,7 +11,12 @@
     android:roundIcon="@mipmap/ic_launcher_round"
     android:supportsRtl="true"
         android:fullBackupContent="false"
-        android:dataExtractionRules="@xml/no_backup_rules">
+        android:dataExtractionRules="@xml/no_backup_rules"
+        android:name=".MlApp">
+    <meta-data
+        android:name="com.google.firebase.messaging.default_notification_channel_id"
+        android:value="ml_tasks_channel" />
+
 
     <activity
       android:name=".MainActivity"
