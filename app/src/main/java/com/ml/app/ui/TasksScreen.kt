@@ -934,6 +934,7 @@ private fun TasksListTab(
                             )
 
                             if (!task.completed_by_name.isNullOrBlank() &&
+                                task.completed_by_name != "null" &&
                                 task.completed_by_user_id != task.assignee_user_id
                             ) {
                                 Text(
@@ -943,7 +944,9 @@ private fun TasksListTab(
                                 )
                             }
 
-                            if (!task.completed_at.isNullOrBlank()) {
+                            if (!task.completed_at.isNullOrBlank() &&
+                                task.completed_at != "null"
+                            ) {
                                 Text(
                                     text = "Выполнено: ${fmtTaskDateTime(task.completed_at)}",
                                     color = DoneGreen,
