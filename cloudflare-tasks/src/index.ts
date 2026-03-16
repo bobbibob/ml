@@ -560,12 +560,13 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
         if (existingByToken?.user_id != null) {
           await env.DB.prepare(`
             UPDATE user_devices
-            SET user_id = ?, platform = ?, device_name = ?, updated_at = ?
+            SET user_id = ?, platform = ?, device_name = ?, updated_at = ?, last_seen_at = ?
             WHERE fcm_token = ?
           `).bind(
             user.user_id,
             platform,
             deviceName,
+            now,
             now,
             fcmToken
           ).run()
@@ -581,13 +582,14 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
 
         await env.DB.prepare(`
           INSERT INTO user_devices (
-            user_id, fcm_token, platform, device_name, created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?)
+            user_id, fcm_token, platform, device_name, created_at, updated_at, last_seen_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?)
         `).bind(
           user.user_id,
           fcmToken,
           platform,
           deviceName,
+          now,
           now,
           now
         ).run()
