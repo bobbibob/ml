@@ -10,9 +10,11 @@ import androidx.compose.foundation.clickable
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.border
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -116,6 +118,59 @@ private fun reminderPayload(option: ReminderOption?): Triple<String?, Int?, Stri
     }
 }
 
+
+@Composable
+private fun DeleteBurstOverlay(progress: Float) {
+    val pieces = listOf(
+        Triple(-120f, -78f, 10),
+        Triple(-88f, -54f, 8),
+        Triple(-44f, -92f, 7),
+        Triple(-22f, -48f, 9),
+        Triple(18f, -96f, 8),
+        Triple(44f, -58f, 10),
+        Triple(82f, -82f, 7),
+        Triple(118f, -40f, 9),
+        Triple(-116f, 12f, 8),
+        Triple(-72f, 26f, 10),
+        Triple(-28f, 18f, 7),
+        Triple(16f, 16f, 9),
+        Triple(54f, 24f, 8),
+        Triple(104f, 10f, 10),
+        Triple(-90f, 84f, 9),
+        Triple(-42f, 92f, 8),
+        Triple(0f, 74f, 10),
+        Triple(36f, 98f, 7),
+        Triple(80f, 82f, 9),
+        Triple(122f, 66f, 8)
+    )
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(8.dp)
+    ) {
+        pieces.forEachIndexed { index, (dx, dy, size) ->
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .size(size.dp)
+                    .graphicsLayer {
+                        translationX = dx * progress
+                        translationY = dy * progress
+                        alpha = 0.95f - progress
+                        scaleX = 1f - 0.45f * progress
+                        scaleY = 1f - 0.45f * progress
+                        rotationZ = if (index % 2 == 0) 220f * progress else -220f * progress
+                    }
+                    .background(
+                        color = if (index % 3 == 0) Color(0xFFE8DDF7) else Color(0xFFF5ECFF),
+                        shape = RoundedCornerShape((size / 2).dp)
+                    )
+            )
+        }
+    }
+}
+
 private fun fmtTaskDateTime(v: String?): String {
 
 
@@ -197,6 +252,8 @@ fun TasksScreen(
     var pushedTask by remember { mutableStateOf<TaskDto?>(null) }
     var showPushedTaskDetails by remember { mutableStateOf(false) }
     var lastHandledOpenSignal by remember { mutableStateOf(-1) }
+    val deleteAnimScope = rememberCoroutineScope()
+    var deletingTaskId by remember { mutableStateOf<String?>(null) }
 
     DisposableEffect(lifecycleOwner, state.currentUser?.user_id, state.selectedTab) {
         val observer = LifecycleEventObserver { _, event ->
@@ -479,6 +536,9 @@ private fun TaskDetailsDialog(
                             ) {
                                 Text("Удалить")
                             }
+                        }
+                        if (isDeleting) {
+                            DeleteBurstOverlay(progress = deleteProgress)
                         }
                     }
                 }
@@ -914,9 +974,24 @@ private fun TasksListTab(
                     val canEdit = isAdmin && task.status == "open"
                     val canRemind = task.status == "open" && (isAdmin || isAuthor)
                     val canComplete = task.status == "open" && (isAdmin || isAssignee)
+                    val isDeleting = deletingTaskId == task.task_id
+                    val deleteProgress by animateFloatAsState(
+                        targetValue = if (isDeleting) 1f else 0f,
+                        animationSpec = tween(durationMillis = 420),
+                        label = "deleteBurst_${task.task_id}"
+                    )
 
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
+                    Box(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .graphicsLayer {
+                                    alpha = 1f - deleteProgress
+                                    scaleX = 1f - (0.10f * deleteProgress)
+                                    scaleY = 1f - (0.10f * deleteProgress)
+                                },
                         shape = RoundedCornerShape(28.dp),
                         colors = CardDefaults.cardColors(containerColor = Color.White),
                         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
@@ -1129,15 +1204,23 @@ private fun TasksListTab(
               title = { Text("Удалить задачу?") },
               text = { Text(task.title) },
               confirmButton = {
-                  Button(
-                      onClick = {
-                          onDelete(task.task_id)
-                          deleteTask = null
-                      }
-                  ) {
-                      Text("Удалить")
-                  }
-              },
+                    Button(
+                        onClick = {
+                            deletingTaskId = task.task_id
+                            deleteTask = null
+
+                            deleteAnimScope.launch {
+                                delay(420)
+                                onDelete(task.task_id)
+                                if (deletingTaskId == task.task_id) {
+                                    deletingTaskId = null
+                                }
+                            }
+                        }
+                    ) {
+                        Text("Удалить")
+                    }
+                },
               dismissButton = {
                   OutlinedButton(onClick = { deleteTask = null }) {
                       Text("Отмена")
