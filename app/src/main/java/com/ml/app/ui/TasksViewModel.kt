@@ -34,6 +34,7 @@ data class TasksUiState(
     val users: List<UserDto> = emptyList(),
     val history: List<HistoryItemDto> = emptyList(),
     val selectedTab: String = "my",
+    val lastTasksTab: String = "my",
     val openedTaskFromPush: TaskDto? = null
 )
 
@@ -223,7 +224,19 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun selectTab(tab: String) {
-        state = state.copy(selectedTab = tab, error = null, info = null, creatingTask = false)
+        val newLastTasksTab = when (tab) {
+            "my", "all" -> tab
+            else -> state.lastTasksTab
+        }
+
+        state = state.copy(
+            selectedTab = tab,
+            lastTasksTab = newLastTasksTab,
+            error = null,
+            info = null,
+            creatingTask = false
+        )
+
         val user = state.currentUser
         when (tab) {
             "my" -> loadMyTasks()
@@ -604,11 +617,7 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
         val cleanDescription = description.trim()
         val clientRequestId = java.util.UUID.randomUUID().toString()
         val tempTaskId = "local_" + clientRequestId
-        val targetTab = when {
-            state.currentUser?.role == "plus" || state.currentUser?.role == "admin" -> "all"
-            assigneeUserId == state.currentUser?.user_id -> "my"
-            else -> "my"
-        }
+        val targetTab = state.lastTasksTab
 
         insertCreatedTaskLocally(
             tempTaskId = tempTaskId,
