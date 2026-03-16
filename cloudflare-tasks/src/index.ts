@@ -551,29 +551,29 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
         const now = nowIso()
 
         const existingByToken = await env.DB.prepare(`
-          SELECT id, user_id
+          SELECT user_id
           FROM user_devices
           WHERE fcm_token = ?
           LIMIT 1
-        `).bind(fcmToken).first<{ id: number; user_id: string }>()
+        `).bind(fcmToken).first<{ user_id: string }>()
 
-        if (existingByToken?.id != null) {
+        if (existingByToken?.user_id != null) {
           await env.DB.prepare(`
             UPDATE user_devices
             SET user_id = ?, platform = ?, device_name = ?, updated_at = ?
-            WHERE id = ?
+            WHERE fcm_token = ?
           `).bind(
             user.user_id,
             platform,
             deviceName,
             now,
-            existingByToken.id
+            fcmToken
           ).run()
 
           console.log("save_fcm_token_updated_existing", JSON.stringify({
             user_id: user.user_id,
             previous_user_id: existingByToken.user_id,
-            device_id: existingByToken.id
+            fcm_token_prefix: fcmToken.slice(0, 12)
           }))
 
           return json({ ok: true, updated: true })
