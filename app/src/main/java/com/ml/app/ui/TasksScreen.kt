@@ -853,7 +853,7 @@ private fun TasksListTab(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(tasks) { task ->
+                items(items = tasks, key = { it.task_id }) { task ->
                     val isAdmin = currentUserRole == "admin"
                     val isAuthor = task.created_by_user_id == currentUserId
                     val isAssignee = task.assignee_user_id == currentUserId
