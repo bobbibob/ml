@@ -73,11 +73,6 @@ class MlFirebaseMessagingService : FirebaseMessagingService() {
                     return@launch
                 }
 
-                if (cleanToken == lastSyncedFcmToken()) {
-                    Log.d("ML_PUSH", "skip token sync: unchanged token")
-                    return@launch
-                }
-
                 authRepo.saveFcmToken(cleanToken)
                 markFcmTokenSynced(cleanToken)
                 Log.d("ML_PUSH", "token synced")

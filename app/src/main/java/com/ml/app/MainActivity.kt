@@ -79,8 +79,6 @@ class MainActivity : ComponentActivity() {
                 val fm = com.google.firebase.messaging.FirebaseMessaging.getInstance()
                 val token = Tasks.await(fm.token)?.trim().orEmpty()
                 if (token.isBlank()) return@launch
-                if (token == lastSyncedFcmToken()) return@launch
-
                 authRepo.saveFcmToken(token)
                 markFcmTokenSynced(token)
             }
