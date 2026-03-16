@@ -821,12 +821,12 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun deleteTask(taskId: String) {
-        removeTaskLocally(taskId)
 
         viewModelScope.launch {
             state = state.copy(loading = true, error = null, info = null)
             when (val res = tasksRepo.deleteTask(taskId)) {
                 is AppResult.Success -> {
+                    removeTaskLocally(taskId)
                     state = state.copy(
                         loading = false,
                         error = null,
