@@ -82,6 +82,20 @@ async function ensureUrgentColumn(env: Env) {
   } catch {}
 }
 
+
+async function ensureTaskNotificationColumns(env: Env) {
+  const commands = [
+    "ALTER TABLE tasks ADD COLUMN notification_sent_at TEXT",
+    "ALTER TABLE tasks ADD COLUMN notification_delivered_at TEXT",
+    "ALTER TABLE tasks ADD COLUMN notification_seen_at TEXT"
+  ]
+  for (const sql of commands) {
+    try {
+      await env.DB.prepare(sql).run()
+    } catch {}
+  }
+}
+
 async function ensureClientRequestIdColumn(env: Env) {
   try {
     await env.DB.prepare("ALTER TABLE tasks ADD COLUMN client_request_id TEXT").run()
@@ -199,6 +213,7 @@ async function ensureSchemaOnce(env: Env) {
       await ensureDailySummaryTable(env)
       await ensureReminderColumns(env)
       await ensureUrgentColumn(env)
+      await ensureTaskNotificationColumns(env)
       await ensureClientRequestIdColumn(env)
       await ensureUserDeviceTokenIndex(env)
       await ensureIndexes(env)
@@ -1274,7 +1289,13 @@ if (path === "/create_task" && request.method === "POST") {
           throw e
         }
 
-        await logAction(env, "task", taskId, "task_created", user.user_id, {
+                  await env.DB.prepare(`
+            UPDATE tasks
+            SET notification_sent_at = ?, updated_at = ?
+            WHERE task_id = ?
+          `).bind(createdAt, createdAt, taskId).run()
+
+await logAction(env, "task", taskId, "task_created", user.user_id, {
           title,
           assignee_user_id: assigneeUserId,
           client_request_id: clientRequestId
@@ -1359,6 +1380,45 @@ if (path === "/create_task" && request.method === "POST") {
       }
 
       
+
+if (path === "/task_notification_delivered" && request.method === "POST") {
+        const user = await getCurrentUser(request, env)
+        if (!user)
+          return json({ ok: false, error: "unauthorized" }, 401)
+
+        const body = await request.json<{ task_id?: string }>().catch(() => null)
+        const taskId = String(body?.task_id || "").trim()
+        if (!taskId)
+          return json({ ok: false, error: "task_id required" }, 400)
+
+        await env.DB.prepare(`
+          UPDATE tasks
+          SET notification_delivered_at = COALESCE(notification_delivered_at, ?), updated_at = ?
+          WHERE task_id = ? AND assignee_user_id = ?
+        `).bind(nowIso(), nowIso(), taskId, user.user_id).run()
+
+        return json({ ok: true, task_id: taskId })
+      }
+
+if (path === "/task_seen" && request.method === "POST") {
+        const user = await getCurrentUser(request, env)
+        if (!user)
+          return json({ ok: false, error: "unauthorized" }, 401)
+
+        const body = await request.json<{ task_id?: string }>().catch(() => null)
+        const taskId = String(body?.task_id || "").trim()
+        if (!taskId)
+          return json({ ok: false, error: "task_id required" }, 400)
+
+        await env.DB.prepare(`
+          UPDATE tasks
+          SET notification_seen_at = COALESCE(notification_seen_at, ?), updated_at = ?
+          WHERE task_id = ? AND assignee_user_id = ?
+        `).bind(nowIso(), nowIso(), taskId, user.user_id).run()
+
+        return json({ ok: true, task_id: taskId })
+      }
+
 if (path === "/task_by_id" && request.method
  === "GET") {
         const user = await getCurrentUser(request, env)
@@ -1393,6 +1453,12 @@ if (path === "/task_by_id" && request.method
             t.reminder_type,
             t.reminder_interval_minutes,
             t.reminder_time_of_day,
+            CASE
+              WHEN t.notification_seen_at IS NOT NULL THEN 'seen'
+              WHEN t.notification_delivered_at IS NOT NULL THEN 'delivered'
+              WHEN t.notification_sent_at IS NOT NULL THEN 'sent'
+              ELSE NULL
+            END AS notification_status,
             COALESCE(t.is_urgent, 0) AS is_urgent
           FROM tasks t
           LEFT JOIN users cu ON cu.user_id = t.created_by_user_id

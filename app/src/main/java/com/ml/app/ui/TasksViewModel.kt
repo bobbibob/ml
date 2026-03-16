@@ -129,6 +129,7 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
             reminder_type = reminderType,
             reminder_interval_minutes = reminderIntervalMinutes,
             reminder_time_of_day = reminderTimeOfDay,
+            notification_status = "sent",
             is_urgent = if (isUrgent) 1 else 0
         )
 
@@ -532,6 +533,9 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
                             error = null
                         )
                         val me = state.currentUser?.user_id
+                        if (freshTask.assignee_user_id == me) {
+                            kotlin.runCatching { tasksRepo.markTaskSeen(freshTask.task_id) }
+                        }
                         if (freshTask.is_urgent == 1 && freshTask.assignee_user_id == me && freshTask.status == "open") {
                             UrgentTaskNotifier.show(getApplication<Application>().applicationContext, freshTask)
                         }

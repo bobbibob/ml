@@ -120,6 +120,18 @@ private fun reminderPayload(option: ReminderOption?): Triple<String?, Int?, Stri
     }
 }
 
+
+private fun taskStatusText(status: String?): String {
+    return when (status) {
+        "sent" -> "Отправлено"
+        "delivered" -> "Доставлено"
+        "seen" -> "Прочитано"
+        "open" -> "Открыта"
+        "done" -> "Выполнено"
+        else -> status ?: "-"
+    }
+}
+
 private fun fmtTaskDateTime(v: String?): String {
 
 
@@ -1002,7 +1014,7 @@ private fun TasksListTab(
                             )
 
                             Text(
-                                text = "Статус: ${task.status}",
+                                text = "Статус: ${taskStatusText(task.notification_status ?: task.status)}",
                                 color = TextBlack
                             )
 

@@ -16,6 +16,7 @@ import com.google.firebase.messaging.RemoteMessage
 import com.ml.app.MainActivity
 import com.ml.app.core.network.ApiModule
 import com.ml.app.data.repository.AuthRepository
+import com.ml.app.data.repository.TasksRepository
 import com.ml.app.data.session.PrefsSessionStorage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -100,6 +101,21 @@ class MlFirebaseMessagingService : FirebaseMessagingService() {
             ?: "У вас новое уведомление"
 
         val taskId = message.data["task_id"]?.trim().orEmpty()
+
+        if (taskId.isNotBlank()) {
+            val session = PrefsSessionStorage(applicationContext)
+            val api = ApiModule.createApi(
+                baseUrl = "https://ml-tasks-api.bboobb666.workers.dev/",
+                sessionStorage = session
+            )
+            val tasksRepo = TasksRepository(api)
+
+            CoroutineScope(Dispatchers.IO).launch {
+                kotlin.runCatching {
+                    tasksRepo.markTaskDelivered(taskId)
+                }
+            }
+        }
 
         sendBroadcast(
             Intent(ACTION_TASKS_REFRESH).apply {

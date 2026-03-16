@@ -71,6 +71,21 @@ class TasksRepository(
         }
     }
 
+
+    suspend fun markTaskDelivered(taskId: String): AppResult<Unit> {
+        return when (val result = safeApiCall { api.markTaskDelivered(com.ml.app.data.remote.request.CompleteTaskRequest(taskId)) }) {
+            is AppResult.Error -> result
+            is AppResult.Success<*> -> AppResult.Success(Unit)
+        }
+    }
+
+    suspend fun markTaskSeen(taskId: String): AppResult<Unit> {
+        return when (val result = safeApiCall { api.markTaskSeen(com.ml.app.data.remote.request.CompleteTaskRequest(taskId)) }) {
+            is AppResult.Error -> result
+            is AppResult.Success<*> -> AppResult.Success(Unit)
+        }
+    }
+
     suspend fun getMyTasks(): AppResult<List<TaskDto>> {
         return when (val result = safeApiCall { api.getMyTasks() }) {
             is AppResult.Error -> result

@@ -142,4 +142,10 @@ interface MlApiService {
     suspend fun sendPushRaw(
         @Body body: Map<String, String>
     ): ResponseBody
+
+    @POST("task_notification_delivered")
+    suspend fun markTaskDelivered(@Body request: CompleteTaskRequest): BasicOkResponse
+
+    @POST("task_seen")
+    suspend fun markTaskSeen(@Body request: CompleteTaskRequest): BasicOkResponse
 }
