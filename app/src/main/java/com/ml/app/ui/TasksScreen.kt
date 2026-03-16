@@ -49,6 +49,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -631,6 +632,8 @@ private fun CreateTaskAssigneeStep(
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
+                            .animateItemPlacement()
+                            .animateContentSize()
                         .graphicsLayer {
                             this.alpha = alpha
                             scaleX = scale
@@ -922,6 +925,7 @@ private fun TasksListTab(
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .animateContentSize()
                                 .padding(18.dp)
                         ) {
                             Row(
