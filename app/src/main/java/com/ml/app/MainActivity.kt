@@ -22,12 +22,28 @@ class MainActivity : ComponentActivity() {
 
     private val fcmSyncPrefsName = "ml_fcm_sync"
     private val lastSyncedFcmTokenKey = "last_synced_fcm_token"
+    private val fcmBootstrapDoneKey = "fcm_bootstrap_done"
 
     private fun lastSyncedFcmToken(): String {
         return applicationContext
             .getSharedPreferences(fcmSyncPrefsName, android.content.Context.MODE_PRIVATE)
             .getString(lastSyncedFcmTokenKey, null)
             .orEmpty()
+    }
+
+    
+    private fun isFcmBootstrapDone(): Boolean {
+        return applicationContext
+            .getSharedPreferences(fcmSyncPrefsName, android.content.Context.MODE_PRIVATE)
+            .getBoolean(fcmBootstrapDoneKey, false)
+    }
+
+    private fun markFcmBootstrapDone() {
+        applicationContext
+            .getSharedPreferences(fcmSyncPrefsName, android.content.Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean(fcmBootstrapDoneKey, true)
+            .apply()
     }
 
     private fun markFcmTokenSynced(token: String) {
@@ -79,8 +95,14 @@ class MainActivity : ComponentActivity() {
                 val fm = com.google.firebase.messaging.FirebaseMessaging.getInstance()
                 val token = Tasks.await(fm.token)?.trim().orEmpty()
                 if (token.isBlank()) return@launch
-                authRepo.saveFcmToken(token)
-                markFcmTokenSynced(token)
+
+                val bootstrap = !isFcmBootstrapDone()
+
+                if (bootstrap || token != lastSyncedFcmToken()) {
+                    authRepo.saveFcmToken(token)
+                    markFcmTokenSynced(token)
+                    markFcmBootstrapDone()
+                }
             }
         }
     }
