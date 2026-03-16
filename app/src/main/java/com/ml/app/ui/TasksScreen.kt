@@ -199,8 +199,6 @@ fun TasksScreen(
     var pushedTask by remember { mutableStateOf<TaskDto?>(null) }
     var showPushedTaskDetails by remember { mutableStateOf(false) }
     var lastHandledOpenSignal by remember { mutableStateOf(-1) }
-    val deleteAnimScope = rememberCoroutineScope()
-    var deletingTaskId by remember { mutableStateOf<String?>(null) }
 
     DisposableEffect(lifecycleOwner, state.currentUser?.user_id, state.selectedTab) {
         val observer = LifecycleEventObserver { _, event ->
@@ -867,6 +865,8 @@ private fun TasksListTab(
 ) {
     var editTask by remember { mutableStateOf<TaskDto?>(null) }
     var deleteTask by remember { mutableStateOf<TaskDto?>(null) }
+    val deleteAnimScope = rememberCoroutineScope()
+    var deletingTaskId by remember { mutableStateOf<String?>(null) }
     var showEditWizard by remember { mutableStateOf(false) }
     var openedTask by remember { mutableStateOf<TaskDto?>(null) }
     var showTaskDetails by remember { mutableStateOf(false) }
