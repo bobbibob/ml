@@ -560,6 +560,14 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
         state = state.copy(openedTaskFromPush = null)
     }
 
+    fun markTaskSeen(taskId: String) {
+        viewModelScope.launch {
+            kotlin.runCatching {
+                tasksRepo.markTaskSeen(taskId)
+            }
+        }
+    }
+
     fun loadHistory() {
         viewModelScope.launch {
             state = state.copy(loading = true, error = null, info = null)

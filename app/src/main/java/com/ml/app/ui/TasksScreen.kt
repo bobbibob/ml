@@ -389,6 +389,7 @@ fun TasksScreen(
                 vm.updateTask(taskId, title, description, assigneeUserId, reminderType, reminderIntervalMinutes, reminderTimeOfDay, isUrgent)
             },
             onDelete = { vm.deleteTask(it) },
+            onMarkSeen = { vm.markTaskSeen(it) },
             users = state.users,
             uiState = state,
             initialOpenTaskId = if (state.selectedTab == "my") initialOpenTaskId else null,
@@ -410,6 +411,7 @@ fun TasksScreen(
                 vm.updateTask(taskId, title, description, assigneeUserId, reminderType, reminderIntervalMinutes, reminderTimeOfDay, isUrgent)
             },
             onDelete = { vm.deleteTask(it) },
+            onMarkSeen = { vm.markTaskSeen(it) },
             users = state.users,
             uiState = state,
             initialOpenTaskId = initialOpenTaskId,
@@ -871,6 +873,7 @@ private fun TasksListTab(
     onEdit: () -> Unit,
     onSaveEdit: (String, String, String, String, String?, Int?, String?, Boolean) -> Unit,
     onDelete: (String) -> Unit,
+    onMarkSeen: (String) -> Unit,
     users: List<UserDto>,
     uiState: TasksUiState,
     initialOpenTaskId: String? = null,
@@ -893,6 +896,12 @@ private fun TasksListTab(
         // Открытие задачи по push теперь обрабатывается на уровне TasksScreen.
     }
 
+    LaunchedEffect(showTaskDetails, openedTask?.task_id, currentUserId) {
+        val task = openedTask ?: return@LaunchedEffect
+        if (showTaskDetails && task.assignee_user_id == currentUserId) {
+            onMarkSeen(task.task_id)
+        }
+    }
 
     Column(
         modifier = Modifier
