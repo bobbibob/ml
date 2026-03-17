@@ -1851,6 +1851,122 @@ if (path === "/task_reminder" && request.method
         return json({ ok: true, message: "Напоминание отправлено", task_id: taskId })
       }
 
+      if (path === "/debug_run_reminders" && request.method === "POST") {
+        const user = await getCurrentUser(request, env)
+        if (!user)
+          return json({ ok: false, error: "unauthorized" }, 401)
+
+        if (user.role !== "admin")
+          return json({ ok: false, error: "forbidden" }, 403)
+
+        const now = nowIso()
+
+        const due = await env.DB.prepare(`
+          SELECT
+            t.task_id,
+            t.title,
+            t.description,
+            t.assignee_user_id,
+            t.created_by_user_id,
+            t.reminder_type,
+            t.reminder_interval_minutes,
+            t.reminder_time_of_day,
+            t.next_reminder_at
+          FROM tasks t
+          WHERE t.status = 'open'
+            AND t.reminder_type IS NOT NULL
+            AND t.next_reminder_at IS NOT NULL
+            AND t.next_reminder_at <= ?
+          ORDER BY t.next_reminder_at ASC
+          LIMIT 50
+        `).bind(now).all<any>()
+
+        const tasks = due.results || []
+        let processed = 0
+        let sentTotal = 0
+
+        for (const task of tasks) {
+          const tokensRes = await env.DB.prepare(`
+            SELECT fcm_token
+            FROM user_devices
+            WHERE user_id = ?
+              AND fcm_token IS NOT NULL
+              AND TRIM(fcm_token) <> ''
+            ORDER BY updated_at DESC
+          `).bind(task.assignee_user_id).all<{ fcm_token: string | null }>()
+
+          const tokens = Array.from(new Set((tokensRes.results || [])
+            .map(x => String(x.fcm_token || "").trim())
+            .filter(Boolean)))
+
+          let sent = 0
+          const body =
+            String(task.description || "").trim() ||
+            String(task.title || "").trim() ||
+            "Напоминание по задаче"
+
+          for (const token of tokens) {
+            try {
+              await sendPushToToken(
+                env,
+                token,
+                "Напоминание по задаче",
+                body,
+                {
+                  type: "task_reminder_auto",
+                  task_id: String(task.task_id),
+                  open_tasks: "true"
+                }
+              )
+              sent++
+              sentTotal++
+            } catch (e) {
+              console.log("debug_task_reminder_push_error", String(task.task_id), String(e))
+            }
+          }
+
+          const nextReminderAt = computeNextReminderAt(
+            task.reminder_type == null ? null : String(task.reminder_type),
+            task.reminder_interval_minutes == null ? null : Number(task.reminder_interval_minutes),
+            task.reminder_time_of_day == null ? null : String(task.reminder_time_of_day),
+            now
+          )
+
+          await env.DB.prepare(`
+            UPDATE tasks
+            SET last_reminder_sent_at = ?,
+                next_reminder_at = ?,
+                updated_at = ?
+            WHERE task_id = ?
+          `).bind(now, nextReminderAt, now, task.task_id).run()
+
+          await logAction(
+            env,
+            "task",
+            String(task.task_id),
+            "task_reminder_debug_run",
+            user.user_id,
+            {
+              sent,
+              reminder_type: task.reminder_type,
+              reminder_interval_minutes: task.reminder_interval_minutes,
+              reminder_time_of_day: task.reminder_time_of_day,
+              previous_next_reminder_at: task.next_reminder_at,
+              next_reminder_at: nextReminderAt
+            }
+          )
+
+          processed++
+        }
+
+        return json({
+          ok: true,
+          processed,
+          sent: sentTotal,
+          now
+        })
+      }
+
       if (path === "/complete_task" && request.method === "POST") {
         const user = await getCurrentUser(request, env)
         if (!user) console.log("DEBUG: bypass auth for send_push")
