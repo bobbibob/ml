@@ -432,7 +432,6 @@ async function sendPushToToken(
 
   if (!resp.ok) {
     throw new Error(`fcm_send_failed: status=${resp.status} body=${text}`)
-)
   }
 }
 
