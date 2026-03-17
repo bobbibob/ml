@@ -433,16 +433,6 @@ async function sendPushToToken(
   if (!resp.ok) {
     throw new Error(`fcm_send_failed: status=${resp.status} body=${text}`)
   }
-})(),
-    }
-  )
-
-  const text = await resp.text()
-  console.log("FCM_RESPONSE", text)
-
-  if (!resp.ok) {
-    throw new Error(`fcm_send_failed: ${text}`)
-  }
 }
 
 export default {
