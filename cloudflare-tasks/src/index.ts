@@ -1852,6 +1852,15 @@ if (path === "/task_reminder" && request.method
       }
 
       if (path === "/debug_run_reminders" && request.method === "POST") {
+
+        const url = new URL(request.url)
+        const key = url.searchParams.get("key")
+        const DEBUG_REMINDER_KEY = "123456"
+
+        if (key !== DEBUG_REMINDER_KEY) {
+          return json({ ok: false, error: "forbidden" }, 403)
+        }
+
         const user = await getCurrentUser(request, env)
         if (!user)
           return json({ ok: false, error: "unauthorized" }, 401)
