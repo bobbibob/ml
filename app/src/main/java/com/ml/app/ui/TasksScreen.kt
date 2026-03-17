@@ -121,6 +121,16 @@ private fun reminderPayload(option: ReminderOption?): Triple<String?, Int?, Stri
 }
 
 
+private fun shouldShowDeliveryStatus(
+    task: TaskDto,
+    currentUserId: String,
+    currentUserRole: String
+): Boolean {
+    val isAdmin = currentUserRole == "admin"
+    val isAuthor = task.created_by_user_id == currentUserId
+    return isAdmin || isAuthor
+}
+
 private fun taskStatusText(status: String?): String {
     return when (status) {
         "sent" -> "Отправлено"
@@ -1022,11 +1032,12 @@ private fun TasksListTab(
                                 modifier = Modifier.padding(top = 8.dp)
                             )
 
-                            Text(
-                                text = "Статус: ${taskStatusText(task.notification_status ?: task.status)}",
-                                color = TextBlack
-                            )
-
+                            if (shouldShowDeliveryStatus(task, currentUserId, currentUserRole)) {
+                                Text(
+                                    text = "Статус: ${taskStatusText(task.notification_status ?: task.status)}",
+                                    color = TextBlack
+                                )
+                            }
 
                             Text(
                                 text = "Исполнитель: ${task.assignee_name}",

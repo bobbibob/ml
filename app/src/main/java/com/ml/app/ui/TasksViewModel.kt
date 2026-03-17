@@ -134,8 +134,12 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
         )
 
         state = state.copy(
-            myTasks = if (assigneeUserId == me.user_id) listOf(optimisticTask) + state.myTasks else state.myTasks,
-            allTasks = if (me.role == "plus" || me.role == "admin") listOf(optimisticTask) + state.allTasks else state.allTasks
+            myTasks = listOf(optimisticTask) + state.myTasks.filterNot { it.task_id == tempTaskId },
+            allTasks = if (me.role == "plus" || me.role == "admin") {
+                listOf(optimisticTask) + state.allTasks.filterNot { it.task_id == tempTaskId }
+            } else {
+                state.allTasks
+            }
         )
     }
 
