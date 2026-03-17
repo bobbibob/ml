@@ -287,6 +287,7 @@ async function logAction(
 async function verifyGoogleIdToken(idToken: string) {
   const url = "https://oauth2.googleapis.com/tokeninfo?id_token=" + encodeURIComponent(idToken)
   const res = await fetch(url)
+    console.log("FCM_REQUEST_SENT")
   if (!res.ok) throw new Error("google token verification failed")
   return await res.json<any>()
 }
@@ -361,6 +362,7 @@ async function getGoogleAccessToken(env: Env): Promise<string> {
   body.set("assertion", jwt)
 
   const resp = await fetch("https://oauth2.googleapis.com/token", {
+    console.log("FCM_REQUEST_SENT")
     method: "POST",
     headers: {
       "content-type": "application/x-www-form-urlencoded",
@@ -370,6 +372,7 @@ async function getGoogleAccessToken(env: Env): Promise<string> {
 
   if (!resp.ok) {
     const text = await resp.text()
+    console.log("FCM_RESPONSE_TEXT", text)
     throw new Error(`oauth_failed: ${text}`)
   }
 
@@ -389,6 +392,7 @@ async function sendPushToToken(
   const accessToken = await getGoogleAccessToken(env)
 
   const resp = await fetch(
+    console.log("FCM_REQUEST_SENT")
     `https://fcm.googleapis.com/v1/projects/${env.FIREBASE_PROJECT_ID}/messages:send`,
     {
       method: "POST",
@@ -421,6 +425,7 @@ async function sendPushToToken(
   )
 
   const text = await resp.text()
+    console.log("FCM_RESPONSE_TEXT", text)
   console.log("FCM_RESPONSE", text)
 
   if (!resp.ok) {
