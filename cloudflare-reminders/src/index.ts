@@ -205,6 +205,39 @@ export default {
         return json({ ok: true, worker: "ml-reminders-debug", now: nowIso() })
       }
 
+      if (path === "/debug_find_task" && request.method === "GET") {
+        const key = url.searchParams.get("key")
+        const title = (url.searchParams.get("title") || "").trim()
+        if (key !== DEBUG_REMINDER_KEY) {
+          return json({ ok: false, error: "forbidden" }, 403)
+        }
+        if (!title) {
+          return json({ ok: false, error: "title required" }, 400)
+        }
+
+        const rows = await env.DB.prepare(`
+          SELECT
+            task_id,
+            title,
+            status,
+            assignee_user_id,
+            created_by_user_id,
+            reminder_type,
+            reminder_interval_minutes,
+            reminder_time_of_day,
+            last_reminder_sent_at,
+            next_reminder_at,
+            created_at,
+            updated_at
+          FROM tasks
+          WHERE title = ?
+          ORDER BY created_at DESC
+          LIMIT 10
+        `).bind(title).all<any>()
+
+        return json({ ok: true, tasks: rows.results || [] })
+      }
+
       if (path === "/debug_list_reminders" && request.method === "GET") {
         const key = url.searchParams.get("key")
         if (key !== DEBUG_REMINDER_KEY) {
