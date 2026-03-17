@@ -233,6 +233,53 @@ export default {
         return json({ ok: true, tasks: rows.results || [] })
       }
 
+      if (path === "/debug_backfill_reminders" && request.method === "POST") {
+        const key = url.searchParams.get("key")
+        if (key !== DEBUG_REMINDER_KEY) {
+          return json({ ok: false, error: "forbidden" }, 403)
+        }
+
+        const rows = await env.DB.prepare(`
+          SELECT
+            task_id,
+            reminder_type,
+            reminder_interval_minutes,
+            reminder_time_of_day,
+            created_at
+          FROM tasks
+          WHERE status = 'open'
+            AND reminder_type IS NOT NULL
+            AND next_reminder_at IS NULL
+          ORDER BY created_at DESC
+          LIMIT 100
+        `).all<any>()
+
+        const tasks = rows.results || []
+        let updated = 0
+
+        for (const task of tasks) {
+          const nextReminderAt = computeNextReminderAt(
+            task.reminder_type == null ? null : String(task.reminder_type),
+            task.reminder_interval_minutes == null ? null : Number(task.reminder_interval_minutes),
+            task.reminder_time_of_day == null ? null : String(task.reminder_time_of_day),
+            String(task.created_at || nowIso())
+          )
+
+          await env.DB.prepare(`
+            UPDATE tasks
+            SET next_reminder_at = ?, updated_at = ?
+            WHERE task_id = ?
+          `).bind(nextReminderAt, nowIso(), task.task_id).run()
+
+          updated++
+        }
+
+        return json({
+          ok: true,
+          updated
+        })
+      }
+
       if (path === "/debug_run_reminders" && request.method === "POST") {
         const key = url.searchParams.get("key")
         if (key !== DEBUG_REMINDER_KEY) {
