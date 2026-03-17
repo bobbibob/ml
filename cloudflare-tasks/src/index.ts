@@ -388,50 +388,43 @@ async function sendPushToToken(
 
   const accessToken = await getGoogleAccessToken(env)
 
-  const resp = (async () => {
-  const accessToken = await getGoogleAccessToken(env)
-  const url = `https://fcm.googleapis.com/v1/projects/${env.FIREBASE_PROJECT_ID}/messages:send`
-
-  const payload = {
-    message: {
-      token,
-      data: {
-        type: "task_push",
-        title: String(title),
-        body: String(body),
+  const resp = await fetch(
+    `https://fcm.googleapis.com/v1/projects/${env.FIREBASE_PROJECT_ID}/messages:send`,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${accessToken}`,
       },
-      android: {
-        priority: "high",
-      },
-    },
-  }
-
-  console.log("fcm_debug_request", JSON.stringify({
-    projectId: env.FIREBASE_PROJECT_ID,
-    hasAccessToken: !!accessToken,
-    tokenPrefix: (token || "").slice(0, 25),
-    payload,
-  }))
-
-  const resp = await fetch(url, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${accessToken}`,
-    },
-    body: JSON.stringify(payload),
-  })
+      body: JSON.stringify({
+          message: {
+            token,
+            notification: {
+              title,
+              body,
+            },
+            data: {
+              title,
+              body,
+              ...extraData,
+            },
+            android: {
+              priority: "high",
+              notification: {
+                channel_id: "ml_tasks_channel",
+                sound: "default",
+              },
+            },
+          },
+        }),
+    }
+  )
 
   const text = await resp.text()
-
-  console.log("fcm_debug_response", JSON.stringify({
-    status: resp.status,
-    ok: resp.ok,
-    body: text,
-  }))
+  console.log("FCM_RESPONSE", text)
 
   if (!resp.ok) {
-    throw new Error(`fcm_send_failed: status=${resp.status} body=${text}`)
+    throw new Error(`fcm_send_failed: ${text}`)
   }
 }
 
@@ -1868,5 +1861,3 @@ if (path === "/task_reminder" && request.method
 // force redeploy edit only open tasks
 
 // force redeploy update profile name
-
-// redeploy 1773785354
