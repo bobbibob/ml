@@ -1573,6 +1573,11 @@ if (path === "/my_tasks" && request.method
             t.assignee_user_id,
             t.completed_by_user_id,
             t.completed_at,
+            t.reminder_type,
+            t.reminder_interval_minutes,
+            t.reminder_time_of_day,
+            t.last_reminder_sent_at,
+            t.next_reminder_at,
             CASE
               WHEN t.notification_seen_at IS NOT NULL THEN 'seen'
               WHEN t.notification_delivered_at IS NOT NULL THEN 'delivered'
@@ -1615,6 +1620,11 @@ if (path === "/my_tasks" && request.method
             t.assignee_user_id,
             t.completed_by_user_id,
             t.completed_at,
+            t.reminder_type,
+            t.reminder_interval_minutes,
+            t.reminder_time_of_day,
+            t.last_reminder_sent_at,
+            t.next_reminder_at,
             CASE
               WHEN t.notification_seen_at IS NOT NULL THEN 'seen'
               WHEN t.notification_delivered_at IS NOT NULL THEN 'delivered'
