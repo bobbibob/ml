@@ -36,6 +36,8 @@ CREATE TABLE IF NOT EXISTS tasks (
   reminder_type TEXT,
   reminder_interval_minutes INTEGER,
   reminder_time_of_day TEXT,
+  last_reminder_sent_at TEXT,
+  next_reminder_at TEXT,
   notification_sent_at TEXT,
   notification_delivered_at TEXT,
   notification_seen_at TEXT,

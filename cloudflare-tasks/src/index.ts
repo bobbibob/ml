@@ -76,6 +76,19 @@ async function ensureReminderColumns(env: Env) {
   }
 }
 
+
+async function ensureReminderScheduleColumns(env: Env) {
+  const commands = [
+    "ALTER TABLE tasks ADD COLUMN last_reminder_sent_at TEXT",
+    "ALTER TABLE tasks ADD COLUMN next_reminder_at TEXT"
+  ]
+  for (const sql of commands) {
+    try {
+      await env.DB.prepare(sql).run()
+    } catch {}
+  }
+}
+
 async function ensureUrgentColumn(env: Env) {
   try {
     await env.DB.prepare("ALTER TABLE tasks ADD COLUMN is_urgent INTEGER NOT NULL DEFAULT 0").run()
@@ -212,6 +225,7 @@ async function ensureSchemaOnce(env: Env) {
       await ensureUserDevicesTable(env)
       await ensureDailySummaryTable(env)
       await ensureReminderColumns(env)
+      await ensureReminderScheduleColumns(env)
       await ensureUrgentColumn(env)
       await ensureTaskNotificationColumns(env)
       await ensureClientRequestIdColumn(env)
@@ -375,6 +389,51 @@ async function getGoogleAccessToken(env: Env): Promise<string> {
 
   const json = await resp.json<any>()
   return json.access_token
+}
+
+function toDailyReminderIso(timeOfDay: string, baseIso: string): string {
+  const base = new Date(baseIso)
+  const [hhRaw, mmRaw] = String(timeOfDay || "").split(":")
+  const hh = Number(hhRaw)
+  const mm = Number(mmRaw)
+
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) {
+    return base.toISOString()
+  }
+
+  const dt = new Date(base)
+  dt.setUTCHours(hh, mm, 0, 0)
+
+  if (dt.getTime() <= base.getTime()) {
+    dt.setUTCDate(dt.getUTCDate() + 1)
+  }
+
+  return dt.toISOString()
+}
+
+function computeNextReminderAt(
+  reminderType: string | null,
+  reminderIntervalMinutes: number | null,
+  reminderTimeOfDay: string | null,
+  baseIso: string
+): string | null {
+  if (!reminderType) return null
+
+  const base = new Date(baseIso)
+
+  if (
+    reminderType === "interval" &&
+    Number.isFinite(reminderIntervalMinutes || NaN) &&
+    (reminderIntervalMinutes || 0) > 0
+  ) {
+    return new Date(base.getTime() + (reminderIntervalMinutes as number) * 60 * 1000).toISOString()
+  }
+
+  if (reminderType === "daily_time" && reminderTimeOfDay) {
+    return toDailyReminderIso(reminderTimeOfDay, baseIso)
+  }
+
+  return null
 }
 
 async function sendPushToToken(
@@ -1246,7 +1305,7 @@ if (path === "/create_task" && request.method === "POST") {
           await env.DB.prepare(`
             INSERT INTO tasks (
               task_id, title, description, status, created_by_user_id, assignee_user_id,
-              reminder_type, reminder_interval_minutes, reminder_time_of_day, is_urgent,
+              reminder_type, reminder_interval_minutes, reminder_time_of_day, last_reminder_sent_at, next_reminder_at, is_urgent,
               client_request_id, created_at, updated_at
             ) VALUES (?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `).bind(
@@ -1258,6 +1317,13 @@ if (path === "/create_task" && request.method === "POST") {
             reminderType,
             Number.isFinite(reminderIntervalMinutes) ? reminderIntervalMinutes : null,
             reminderTimeOfDay,
+            null,
+            computeNextReminderAt(
+              reminderType,
+              Number.isFinite(reminderIntervalMinutes) ? reminderIntervalMinutes : null,
+              reminderTimeOfDay,
+              createdAt
+            ),
             isUrgent ? 1 : 0,
             clientRequestId,
             createdAt,
@@ -1453,6 +1519,8 @@ if (path === "/task_by_id" && request.method
             t.reminder_type,
             t.reminder_interval_minutes,
             t.reminder_time_of_day,
+            t.last_reminder_sent_at,
+            t.next_reminder_at,
             CASE
               WHEN t.notification_seen_at IS NOT NULL THEN 'seen'
               WHEN t.notification_delivered_at IS NOT NULL THEN 'delivered'
@@ -1608,9 +1676,25 @@ if (path === "/my_tasks" && request.method
 
         await env.DB.prepare(`
           UPDATE tasks
-          SET title = ?, description = ?, assignee_user_id = ?, reminder_type = ?, reminder_interval_minutes = ?, reminder_time_of_day = ?, is_urgent = ?, updated_at = ?
+          SET title = ?, description = ?, assignee_user_id = ?, reminder_type = ?, reminder_interval_minutes = ?, reminder_time_of_day = ?, last_reminder_sent_at = NULL, next_reminder_at = ?, is_urgent = ?, updated_at = ?
           WHERE task_id = ?
-        `).bind(title, description, assigneeUserId, reminderType, Number.isFinite(reminderIntervalMinutes) ? reminderIntervalMinutes : null, reminderTimeOfDay, isUrgent ? 1 : 0, nowIso(), taskId).run()
+        `).bind(
+          title,
+          description,
+          assigneeUserId,
+          reminderType,
+          Number.isFinite(reminderIntervalMinutes) ? reminderIntervalMinutes : null,
+          reminderTimeOfDay,
+          computeNextReminderAt(
+            reminderType,
+            Number.isFinite(reminderIntervalMinutes) ? reminderIntervalMinutes : null,
+            reminderTimeOfDay,
+            nowIso()
+          ),
+          isUrgent ? 1 : 0,
+          nowIso(),
+          taskId
+        ).run()
 
         await logAction(env, "task", taskId, "task_updated", user.user_id, {
           title,
