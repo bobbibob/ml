@@ -27,6 +27,22 @@ async function ensureReminderColumns(env: Env) {
   ]
   for (const sql of commands) {
     try {
+      if (path === "/health_db" && request.method === "GET") {
+        const rows = await env.DB.prepare(`
+          SELECT task_id, title, status, created_at
+          FROM tasks
+          ORDER BY created_at DESC
+          LIMIT 5
+        `).all<any>()
+
+        return json({
+          ok: true,
+          worker: "ml-reminders-debug",
+          now: new Date().toISOString(),
+          tasks: rows.results || []
+        })
+      }
+
       await env.DB.prepare(sql).run()
     } catch {}
   }
