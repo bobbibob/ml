@@ -263,6 +263,17 @@ fun TasksScreen(
         }
     }
 
+    LaunchedEffect(state.currentUser?.user_id, state.selectedTab) {
+        if (state.currentUser == null || state.selectedTab == "create") return@LaunchedEffect
+
+        while (true) {
+            delay(3000)
+            if (state.selectedTab == "my" || state.selectedTab == "all") {
+                vm.refreshAllInBackground()
+            }
+        }
+    }
+
     if (state.currentUser == null) {
         Column(
             modifier = Modifier
