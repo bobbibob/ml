@@ -142,9 +142,8 @@ object UrgentTaskNotifier {
 
         urgentForMe.forEach { show(context, it, currentUserId) }
 
-        tasks.filter {
-            it.assignee_user_id == currentUserId &&
-            (it.status != "open" || it.is_urgent != 1)
+        tasks.filter { task ->
+            task.task_id !in urgentForMe.map { it.task_id }.toSet()
         }.forEach { cancel(context, it.task_id) }
     }
 }
