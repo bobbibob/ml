@@ -2,7 +2,7 @@ name: Android CI
 
 on:
   push:
-    branches: [ "main", "stable_build" ]
+    branches: [ "main", "stable_build", "release_build" ]
     paths-ignore:
       - "cloudflare-tasks/**"
       - ".github/workflows/deploy-worker.yml"
@@ -53,6 +53,7 @@ jobs:
         run: ./gradlew :app:signingReport
 
       - name: Build Debug APK
+        if: github.ref_name == 'stable_build' || github.ref_name == 'main'
         env:
           R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
@@ -63,11 +64,32 @@ jobs:
           UPDATED_BY: ${{ secrets.UPDATED_BY }}
         run: ./gradlew :app:assembleDebug
 
-      - name: Upload APK artifact
+      - name: Upload Debug APK artifact
+        if: github.ref_name == 'stable_build' || github.ref_name == 'main'
         uses: actions/upload-artifact@v4
         with:
           name: app-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+      - name: Build Release APK
+        if: github.ref_name == 'release_build'
+        env:
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_ACCESS_KEY: ${{ secrets.R2_ACCESS_KEY }}
+          R2_SECRET_KEY: ${{ secrets.R2_SECRET_KEY }}
+          R2_OBJECT_KEY: ${{ secrets.R2_OBJECT_KEY }}
+          R2_REGION: ${{ secrets.R2_REGION }}
+          UPDATED_BY: ${{ secrets.UPDATED_BY }}
+        run: ./gradlew :app:assembleRelease
+
+      - name: Upload Release APK artifact
+        if: github.ref_name == 'release_build'
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-apk
+          path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
 
       - name: Install sqlite3
