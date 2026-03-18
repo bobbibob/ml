@@ -847,8 +847,6 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
 
     
     fun deleteTask(taskId: String) {
-        removeTaskLocally(taskId)
-
         viewModelScope.launch {
             state = state.copy(loading = true, error = null, info = null)
 
@@ -860,22 +858,14 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
                         error = null,
                         info = "Задача удалена"
                     )
+                    refreshAllInBackground()
                 }
 
                 is AppResult.Error -> {
-                    enqueuePendingOperation {
-                        when (tasksRepo.deleteTask(taskId)) {
-                            is AppResult.Success -> true
-                            is AppResult.Error -> false
-                        }
-                    }
-
-                    schedulePendingOperationsFlush()
-
                     state = state.copy(
                         loading = false,
-                        error = null,
-                        info = "Удаление сохранено локально. Отправлю при обновлении."
+                        error = res.message,
+                        info = null
                     )
                 }
             }
