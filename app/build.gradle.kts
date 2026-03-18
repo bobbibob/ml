@@ -62,7 +62,7 @@ android {
         null
       }
       isMinifyEnabled = false
-      buildConfigField("String", "TASKS_API_BASE_URL", "\"https://RELEASE_WORKER_URL_REPLACE_ME/\"")
+      buildConfigField("String", "TASKS_API_BASE_URL", "\"https://ml-tasks-api-release.bboobb666.workers.dev/\"")
     }
   }
 
