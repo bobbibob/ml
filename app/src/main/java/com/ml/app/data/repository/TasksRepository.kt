@@ -288,13 +288,12 @@ class TasksRepository(
         isUrgent: Boolean = false
     ): AppResult<Unit> {
         return try {
-            val payload = mutableMapOf<String, String>(
-                "task_id" to taskId,
-                "title" to title,
-                "description" to description,
-                "assignee_user_id" to assigneeUserId,
-                "is_urgent" to if (isUrgent) "1" else "0"
-            )
+            val payload = mutableMapOf<String, String>()
+            payload["task_id"] = taskId
+            payload["title"] = title
+            payload["description"] = description
+            payload["assignee_user_id"] = assigneeUserId
+            payload["is_urgent"] = if (isUrgent) "1" else "0"
 
             if (!isUrgent) {
                 reminderType?.let { payload["reminder_type"] = it }
