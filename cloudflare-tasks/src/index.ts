@@ -1255,18 +1255,18 @@ if (path === "/create_task" && request.method === "POST") {
               client_request_id, created_at, updated_at
             ) VALUES (?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `).bind(
-            taskId,
-            title,
-            description,
-            user.user_id,
-            assigneeUserId,
-            reminderType,
-            Number.isFinite(reminderIntervalMinutes) ? reminderIntervalMinutes : null,
-            reminderTimeOfDay,
-            isUrgent ? 1 : 0,
-            clientRequestId,
-            createdAt,
-            updatedAt
+              taskId,
+              title,
+              description,
+              user.user_id,
+              assigneeUserId,
+              effectiveReminderType,
+              effectiveReminderIntervalMinutes,
+              effectiveReminderTimeOfDay,
+              isUrgent ? 1 : 0,
+              clientRequestId,
+              createdAt,
+              updatedAt
           ).run()
         } catch (e) {
           if (clientRequestId) {
@@ -1301,10 +1301,11 @@ if (path === "/create_task" && request.method === "POST") {
           `).bind(createdAt, createdAt, taskId).run()
 
 await logAction(env, "task", taskId, "task_created", user.user_id, {
-          title,
-          assignee_user_id: assigneeUserId,
-          client_request_id: clientRequestId
-        })
+            title,
+            assignee_user_id: assigneeUserId,
+            is_urgent: isUrgent ? 1 : 0,
+            client_request_id: clientRequestId
+          })
 
         const assignee = await env.DB.prepare(`
           SELECT display_name

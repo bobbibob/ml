@@ -49,9 +49,9 @@ class TasksRepository(
                     title = title,
                     description = description,
                     assignee_user_id = assigneeUserId,
-                    reminder_type = reminderType,
-                    reminder_interval_minutes = reminderIntervalMinutes,
-                    reminder_time_of_day = reminderTimeOfDay,
+                    reminder_type = if (isUrgent) null else reminderType,
+                    reminder_interval_minutes = if (isUrgent) null else reminderIntervalMinutes,
+                    reminder_time_of_day = if (isUrgent) null else reminderTimeOfDay,
                     is_urgent = if (isUrgent) 1 else 0,
                     client_request_id = clientRequestId
                 )
@@ -294,7 +294,10 @@ class TasksRepository(
                     "title" to title,
                     "description" to description,
                     "assignee_user_id" to assigneeUserId,
-                    "is_urgent" to if (isUrgent) "1" else "0"
+                    "reminder_type" to if (isUrgent) null else reminderType,
+                    "reminder_interval_minutes" to if (isUrgent) null else reminderIntervalMinutes,
+                    "reminder_time_of_day" to if (isUrgent) null else reminderTimeOfDay,
+                    "is_urgent" to if (isUrgent) 1 else 0
                 )
             )
             val json = JSONObject(raw.string())

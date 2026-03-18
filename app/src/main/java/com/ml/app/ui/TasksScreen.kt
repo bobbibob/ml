@@ -27,6 +27,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
@@ -536,6 +537,7 @@ private fun CreateTaskWizard(
     var step by remember { mutableStateOf(CreateTaskStep.Assignee) }
     var selectedAssigneeId by remember { mutableStateOf("") }
     var selectedReminder by remember { mutableStateOf<ReminderOption?>(null) }
+    var isUrgent by remember { mutableStateOf(false) }
     var taskTitle by remember { mutableStateOf("") }
     var taskDescription by remember { mutableStateOf("") }
 
@@ -561,10 +563,15 @@ private fun CreateTaskWizard(
         CreateTaskStep.Reminder -> CreateTaskReminderStep(
             selectedUser = selectedAssigneeUser,
             selected = selectedReminder,
+            isUrgent = isUrgent,
             onCancel = onCancel,
-            onChoose = { selectedReminder = it },
+            onChoose = { if (!isUrgent) selectedReminder = it },
+            onUrgentChange = {
+                isUrgent = it
+                if (it) selectedReminder = null
+            },
             onNext = {
-                if (selectedReminder != null) {
+                if (isUrgent || selectedReminder != null) {
                     step = CreateTaskStep.Details
                 }
             }
@@ -589,7 +596,8 @@ private fun CreateTaskWizard(
                     assigneeUserId = selectedAssigneeId,
                     reminderType = payload.first,
                     reminderIntervalMinutes = payload.second,
-                    reminderTimeOfDay = payload.third
+                    reminderTimeOfDay = payload.third,
+                    isUrgent = isUrgent
                 )
             }
         )
@@ -742,8 +750,10 @@ private fun CreateTaskAssigneeStep(
 private fun CreateTaskReminderStep(
     selectedUser: UserDto?,
     selected: ReminderOption?,
+    isUrgent: Boolean,
     onCancel: () -> Unit,
     onChoose: (ReminderOption) -> Unit,
+    onUrgentChange: (Boolean) -> Unit,
     onNext: () -> Unit
 ) {
     Column(
@@ -768,7 +778,7 @@ private fun CreateTaskReminderStep(
 
             Button(
                 onClick = onNext,
-                enabled = selected != null
+                enabled = isUrgent || selected != null
             ) {
                 Text("Далее")
             }
@@ -779,6 +789,23 @@ private fun CreateTaskReminderStep(
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold
         )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Checkbox(
+                checked = isUrgent,
+                onCheckedChange = onUrgentChange
+            )
+            Text(
+                text = "Срочная задача",
+                modifier = Modifier
+                    .padding(start = 8.dp)
+                    .clickable { onUrgentChange(!isUrgent) },
+                fontWeight = FontWeight.Medium
+            )
+        }
 
         LazyColumn(
             verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -1255,6 +1282,7 @@ private fun EditTaskWizard(
             }
         )
     }
+    var isUrgent by remember(task.task_id) { mutableStateOf(task.is_urgent == 1) }
     var title by remember(task.task_id) { mutableStateOf(task.title) }
     var description by remember(task.task_id) { mutableStateOf(cleanTaskDescriptionForEdit(task.description)) }
     var isUrgent by remember(task.task_id) { mutableStateOf(task.is_urgent == 1) }
@@ -1341,57 +1369,84 @@ private fun EditTaskWizard(
                         }
                     }
 
-                    2 -> {
-                        Text(
-                            text = "Частота напоминания",
-                            fontWeight = FontWeight.Bold,
-                            color = TextBlack
-                        )
+                      2 -> {
+                          Text(
+                              text = "Частота напоминания",
+                              fontWeight = FontWeight.Bold,
+                              color = TextBlack
+                          )
 
-                        LazyColumn(
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            items(ReminderOptions) { option ->
-                                val selected = selectedReminder?.key == option.key
-                                Card(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable { selectedReminder = option },
-                                    shape = RoundedCornerShape(18.dp),
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = if (selected) Color(0xFFE8DDF7) else Color.White
-                                    )
-                                ) {
-                                    Text(
-                                        text = option.title,
-                                        modifier = Modifier.padding(14.dp),
-                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
-                                    )
-                                }
-                            }
-                        }
+                          Row(
+                              modifier = Modifier.fillMaxWidth(),
+                              verticalAlignment = Alignment.CenterVertically
+                          ) {
+                              Checkbox(
+                                  checked = isUrgent,
+                                  onCheckedChange = {
+                                      isUrgent = it
+                                      if (it) selectedReminder = null
+                                  }
+                              )
+                              Text(
+                                  text = "Срочная задача",
+                                  modifier = Modifier
+                                      .padding(start = 8.dp)
+                                      .clickable {
+                                          isUrgent = !isUrgent
+                                          if (isUrgent) selectedReminder = null
+                                      },
+                                  fontWeight = FontWeight.Medium
+                              )
+                          }
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            OutlinedButton(
-                                onClick = { step = 1 },
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(24.dp)
-                            ) {
-                                Text("Назад")
-                            }
+                          LazyColumn(
+                              verticalArrangement = Arrangement.spacedBy(10.dp)
+                          ) {
+                              items(ReminderOptions) { option ->
+                                  val selected = selectedReminder?.key == option.key
+                                  Card(
+                                      modifier = Modifier
+                                          .fillMaxWidth()
+                                          .clickable(enabled = !isUrgent) { selectedReminder = option },
+                                      shape = RoundedCornerShape(18.dp),
+                                      colors = CardDefaults.cardColors(
+                                          containerColor = when {
+                                              isUrgent -> Color(0xFFF1F1F1)
+                                              selected -> Color(0xFFE8DDF7)
+                                              else -> Color.White
+                                          }
+                                      )
+                                  ) {
+                                      Text(
+                                          text = option.title,
+                                          modifier = Modifier.padding(14.dp),
+                                          fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                                      )
+                                  }
+                              }
+                          }
 
-                            Button(
-                                onClick = { step = 3 },
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(24.dp)
-                            ) {
-                                Text("Далее")
-                            }
-                        }
-                    }
+                          Row(
+                              modifier = Modifier.fillMaxWidth(),
+                              horizontalArrangement = Arrangement.spacedBy(12.dp)
+                          ) {
+                              OutlinedButton(
+                                  onClick = { step = 1 },
+                                  modifier = Modifier.weight(1f),
+                                  shape = RoundedCornerShape(24.dp)
+                              ) {
+                                  Text("Назад")
+                              }
+
+                              Button(
+                                  onClick = { step = 3 },
+                                  modifier = Modifier.weight(1f),
+                                  shape = RoundedCornerShape(24.dp)
+                              ) {
+                                  Text("Далее")
+                              }
+                          }
+                      }
 
                     else -> {
                         Text(
