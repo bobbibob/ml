@@ -67,7 +67,8 @@ async function ensureReminderColumns(env: Env) {
   const commands = [
     "ALTER TABLE tasks ADD COLUMN reminder_type TEXT",
     "ALTER TABLE tasks ADD COLUMN reminder_interval_minutes INTEGER",
-    "ALTER TABLE tasks ADD COLUMN reminder_time_of_day TEXT"
+    "ALTER TABLE tasks ADD COLUMN reminder_time_of_day TEXT",
+    "ALTER TABLE tasks ADD COLUMN last_reminder_at TEXT"
   ]
   for (const sql of commands) {
     try {
@@ -391,6 +392,7 @@ type ReminderTaskRow = {
   reminder_time_of_day: string | null
   created_at: string | null
   updated_at: string | null
+  last_reminder_at: string | null
 }
 
 function getMoscowNowParts() {
@@ -2027,6 +2029,12 @@ if (path === "/task_reminder" && request.method
 
           console.log("task_reminder_push_ok", taskId, task.assignee_user_id, sent)
         })())
+
+          await env.DB.prepare(`
+            UPDATE tasks
+            SET last_reminder_at = ?, updated_at = ?
+            WHERE task_id = ?
+          `).bind(nowIso(), nowIso(), taskId).run()
 
         await logAction(env, "task", taskId, "task_reminder", user.user_id, {
           assignee_user_id: task.assignee_user_id
