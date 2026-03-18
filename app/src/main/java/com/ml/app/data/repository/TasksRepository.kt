@@ -131,7 +131,9 @@ class TasksRepository(
                 cancelled_by_name = t.optString("cancelled_by_name").takeIf { it.isNotBlank() },
                 reminder_type = t.optString("reminder_type").takeIf { it.isNotBlank() },
                 reminder_interval_minutes = if (t.has("reminder_interval_minutes") && !t.isNull("reminder_interval_minutes")) t.optInt("reminder_interval_minutes") else null,
-                reminder_time_of_day = t.optString("reminder_time_of_day").takeIf { it.isNotBlank() }
+                reminder_time_of_day = t.optString("reminder_time_of_day").takeIf { it.isNotBlank() },
+                notification_status = t.optString("notification_status").takeIf { it.isNotBlank() },
+                is_urgent = if (t.has("is_urgent") && !t.isNull("is_urgent")) t.optInt("is_urgent") else 0
             )
 
             AppResult.Success(task)
