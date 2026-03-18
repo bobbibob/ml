@@ -133,7 +133,7 @@ class MlFirebaseMessagingService : FirebaseMessagingService() {
             }
         )
 
-        if (type != "task_deleted") {
+        if (type != "task_deleted" && type != "tasks_sync") {
             showNotification(title, body, taskId)
         }
     }

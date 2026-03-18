@@ -563,6 +563,50 @@ async function runReminderScheduler(env: Env, ctx: ExecutionContext) {
   }
 }
 
+async function sendTasksSyncToUser(
+  env: Env,
+  userId: string,
+  reason: string,
+  taskId?: string
+) {
+  const devices = await env.DB.prepare(`
+    SELECT fcm_token
+    FROM user_devices
+    WHERE user_id = ?
+    ORDER BY updated_at DESC
+  `).bind(userId).all<{ fcm_token: string | null }>()
+
+  const tokens = Array.from(new Set((devices.results || [])
+    .map(x => String(x.fcm_token || "").trim())
+    .filter(Boolean)))
+
+  if (tokens.length === 0) {
+    console.log("tasks_sync_no_tokens", userId, reason, taskId || "")
+    return
+  }
+
+  for (const token of tokens) {
+    try {
+      await sendPushToToken(
+        env,
+        token,
+        "sync",
+        "sync",
+        {
+          type: "tasks_sync",
+          reason,
+          open_tasks: "true",
+          ...(taskId ? { task_id: taskId } : {})
+        }
+      )
+    } catch (e) {
+      console.log("tasks_sync_push_error", userId, reason, taskId || "", String(e))
+    }
+  }
+
+  console.log("tasks_sync_push_ok", userId, reason, taskId || "", tokens.length)
+}
+
 async function sendPushToToken(
   env: Env,
   token: string,
@@ -1887,6 +1931,14 @@ if (path === "/delete_task" && request.method
                 }
               })())
             }
+          }
+
+
+          if (task.created_by_user_id) {
+            ctx.waitUntil(sendTasksSyncToUser(env, task.created_by_user_id, "task_deleted", taskId))
+          }
+          if (task.assignee_user_id && task.assignee_user_id !== task.created_by_user_id) {
+            ctx.waitUntil(sendTasksSyncToUser(env, task.assignee_user_id, "task_deleted", taskId))
           }
 
         return json({ ok: true, task_id: taskId })
