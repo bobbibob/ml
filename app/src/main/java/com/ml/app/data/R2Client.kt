@@ -1,5 +1,7 @@
 package com.ml.app.data
 
+import com.ml.app.BuildConfig
+
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -33,10 +35,10 @@ class R2Client(context: Context) {
   private val secrets = Secrets.load(context)
 
   private fun workerPackUrl(): String =
-    "https://ml-tasks-api.bboobb666.workers.dev/pack_download"
+    BuildConfig.TASKS_API_BASE_URL + "pack_download"
 
   private fun workerPackMetaUrl(): String =
-    "https://ml-tasks-api.bboobb666.workers.dev/pack_meta"
+    BuildConfig.TASKS_API_BASE_URL + "pack_meta"
 
   private fun stripTrailingSlashes(s: String): String {
     var x = s

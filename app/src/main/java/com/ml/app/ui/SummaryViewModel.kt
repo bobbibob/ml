@@ -1,5 +1,7 @@
 package com.ml.app.ui
 
+import com.ml.app.BuildConfig
+
 import android.app.Application
 import android.content.Context
 import android.widget.Toast
@@ -67,7 +69,7 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
     if (session.getToken().isNullOrBlank()) return
 
     val api = ApiModule.createApi(
-      baseUrl = "https://ml-tasks-api.bboobb666.workers.dev/",
+      baseUrl = BuildConfig.TASKS_API_BASE_URL,
       sessionStorage = session
     )
     val authRepo = AuthRepository(api, session)
@@ -546,7 +548,7 @@ fun refreshTimeline() {
     }
 
     val api = ApiModule.createApi(
-      baseUrl = "https://ml-tasks-api.bboobb666.workers.dev/",
+      baseUrl = BuildConfig.TASKS_API_BASE_URL,
       sessionStorage = session
     )
     val syncRepo = DailySummarySyncRepository(api, ctx)
@@ -600,7 +602,7 @@ fun refreshTimeline() {
     }
 
     val api = ApiModule.createApi(
-      baseUrl = "https://ml-tasks-api.bboobb666.workers.dev/",
+      baseUrl = BuildConfig.TASKS_API_BASE_URL,
       sessionStorage = session
     )
     val syncRepo = DailySummarySyncRepository(api, ctx)

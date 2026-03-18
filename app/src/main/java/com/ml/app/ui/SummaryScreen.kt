@@ -1,5 +1,7 @@
 @file:OptIn(androidx.compose.material.ExperimentalMaterialApi::class)
 
+import com.ml.app.BuildConfig
+
 package com.ml.app.ui
 
 import androidx.compose.runtime.rememberCoroutineScope
@@ -143,7 +145,7 @@ fun SummaryScreen(
             scope.launch {
               val session = PrefsSessionStorage(ctx)
               val api = ApiModule.createApi(
-                baseUrl = "https://ml-tasks-api.bboobb666.workers.dev/",
+                baseUrl = BuildConfig.TASKS_API_BASE_URL,
                 sessionStorage = session
               )
               val syncRepo = DailySummarySyncRepository(api, ctx)

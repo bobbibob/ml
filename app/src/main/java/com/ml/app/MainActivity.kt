@@ -1,5 +1,7 @@
 package com.ml.app
 
+import com.ml.app.BuildConfig
+
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
@@ -105,7 +107,7 @@ class MainActivity : ComponentActivity() {
         if (session.getToken().isNullOrBlank()) return
 
         val api = com.ml.app.core.network.ApiModule.createApi(
-            baseUrl = "https://ml-tasks-api.bboobb666.workers.dev/",
+            baseUrl = BuildConfig.TASKS_API_BASE_URL,
             sessionStorage = session
         )
         val authRepo = com.ml.app.data.repository.AuthRepository(api, session)

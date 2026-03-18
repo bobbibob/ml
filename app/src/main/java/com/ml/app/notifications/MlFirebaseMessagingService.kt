@@ -1,5 +1,7 @@
 package com.ml.app.notifications
 
+import com.ml.app.BuildConfig
+
 import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -58,7 +60,7 @@ class MlFirebaseMessagingService : FirebaseMessagingService() {
 
         val session = PrefsSessionStorage(applicationContext)
         val api = ApiModule.createApi(
-            baseUrl = "https://ml-tasks-api.bboobb666.workers.dev/",
+            baseUrl = BuildConfig.TASKS_API_BASE_URL,
             sessionStorage = session
         )
         val authRepo = AuthRepository(api, session)
@@ -109,7 +111,7 @@ class MlFirebaseMessagingService : FirebaseMessagingService() {
         if (taskId.isNotBlank() && type != "task_deleted") {
             val session = PrefsSessionStorage(applicationContext)
             val api = ApiModule.createApi(
-                baseUrl = "https://ml-tasks-api.bboobb666.workers.dev/",
+                baseUrl = BuildConfig.TASKS_API_BASE_URL,
                 sessionStorage = session
             )
             val tasksRepo = TasksRepository(api)

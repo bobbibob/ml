@@ -53,6 +53,7 @@ android {
       } else {
         signingConfigs.getByName("debug")
       }
+      buildConfigField("String", "TASKS_API_BASE_URL", "\"https://ml-tasks-api.bboobb666.workers.dev/\"")
     }
     getByName("release") {
       signingConfig = if ((System.getenv("KEYSTORE_PATH") ?: "").isNotBlank()) {
@@ -61,6 +62,7 @@ android {
         null
       }
       isMinifyEnabled = false
+      buildConfigField("String", "TASKS_API_BASE_URL", "\"https://RELEASE_WORKER_URL_REPLACE_ME/\"")
     }
   }
 

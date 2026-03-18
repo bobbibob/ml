@@ -1,5 +1,7 @@
 package com.ml.app.ui
 
+import com.ml.app.BuildConfig
+
 import android.app.Application
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -43,7 +45,7 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
 
     private val session = PrefsSessionStorage(app.applicationContext)
     private val api = ApiModule.createApi(
-        baseUrl = "https://ml-tasks-api.bboobb666.workers.dev/",
+        baseUrl = BuildConfig.TASKS_API_BASE_URL,
         sessionStorage = session
     )
     private val authRepo = AuthRepository(api, session)

@@ -1,0 +1,26 @@
+{
+  "name": "ml-tasks-api-release",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-03-08",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "ml_tasks_release",
+      "database_id": "REPLACE_RELEASE_DATABASE_ID"
+    }
+  ],
+  "vars": {
+    "FIREBASE_PROJECT_ID": "ml-tasks-26f47"
+  },
+  "r2_buckets": [
+    {
+      "binding": "R2",
+      "bucket_name": "ml-br-release"
+    }
+  ],
+  "triggers": {
+    "crons": [
+      "* * * * *"
+    ]
+  }
+}

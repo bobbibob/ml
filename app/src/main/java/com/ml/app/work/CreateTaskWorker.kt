@@ -1,5 +1,7 @@
 package com.ml.app.work
 
+import com.ml.app.BuildConfig
+
 import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
@@ -33,7 +35,7 @@ class CreateTaskWorker(
         }
 
         val api = ApiModule.createApi(
-            baseUrl = "https://ml-tasks-api.bboobb666.workers.dev/",
+            baseUrl = BuildConfig.TASKS_API_BASE_URL,
             sessionStorage = session
         )
         val repo = TasksRepository(api)
