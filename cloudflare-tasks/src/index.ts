@@ -519,7 +519,6 @@ async function runReminderScheduler(env: Env, ctx: ExecutionContext) {
       ? `${String(task.title || "Задача")}\n${String(task.description || "")}`
       : String(task.title || "Напоминание по задаче")
 
-    ctx.waitUntil((async () => {
       let sent = 0
       for (const token of tokens) {
         try {
@@ -549,7 +548,6 @@ async function runReminderScheduler(env: Env, ctx: ExecutionContext) {
         })
         console.log("task_reminder_auto_ok", task.task_id, sent)
       }
-    })())
   }
 }
 
