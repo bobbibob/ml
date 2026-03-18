@@ -6,7 +6,7 @@
     {
       "binding": "DB",
       "database_name": "ml_tasks_release",
-      "database_id": "REPLACE_RELEASE_DATABASE_ID"
+      "database_id": "9a038e46-1fe6-4b57-98fe-3cbe07d4c656"
     }
   ],
   "vars": {
