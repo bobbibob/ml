@@ -807,27 +807,39 @@ private fun CreateTaskReminderStep(
             )
         }
 
-        LazyColumn(
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            items(ReminderOptions) { option ->
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onChoose(option) },
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = if (selected?.key == option.key) Color(0xFFE8DDF7) else Color.White
-                    )
-                ) {
-                    Text(
-                        text = option.title,
-                        modifier = Modifier.padding(18.dp),
-                        fontWeight = if (selected?.key == option.key) FontWeight.Bold else FontWeight.Normal
-                    )
-                }
-            }
-        }
+          if (isUrgent) {
+              Text(
+                  text = "Для срочной задачи повтор напоминания отключён",
+                  color = Color.Gray
+              )
+          }
+
+          LazyColumn(
+              verticalArrangement = Arrangement.spacedBy(12.dp)
+          ) {
+              items(ReminderOptions) { option ->
+                  Card(
+                      modifier = Modifier
+                          .fillMaxWidth()
+                          .clickable(enabled = !isUrgent) { onChoose(option) },
+                      shape = RoundedCornerShape(20.dp),
+                      colors = CardDefaults.cardColors(
+                          containerColor = when {
+                              isUrgent -> Color(0xFFF1F1F1)
+                              selected?.key == option.key -> Color(0xFFE8DDF7)
+                              else -> Color.White
+                          }
+                      )
+                  ) {
+                      Text(
+                          text = option.title,
+                          modifier = Modifier.padding(18.dp),
+                          fontWeight = if (!isUrgent && selected?.key == option.key) FontWeight.Bold else FontWeight.Normal,
+                          color = if (isUrgent) Color.Gray else TextBlack
+                      )
+                  }
+              }
+          }
     }
 }
 
