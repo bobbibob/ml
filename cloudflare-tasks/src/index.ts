@@ -610,6 +610,15 @@ export default {
     await ensureSchemaOnce(env)
 
     try {
+        if (path === "/run_reminder_scheduler" && request.method === "POST") {
+          const user = await getCurrentUser(request, env)
+          if (!user) return json({ ok: false, error: "unauthorized" }, 401)
+          if (user.role !== "admin") return json({ ok: false, error: "forbidden" }, 403)
+
+          await runReminderScheduler(env, ctx)
+          return json({ ok: true, message: "reminder scheduler started" })
+        }
+
       if (path === "/google_login" && request.method === "POST") {
         const body = await request.json<{ id_token?: string }>().catch(() => null)
         if (!body?.id_token) 
