@@ -799,7 +799,7 @@ private fun CreateTaskReminderStep(
                 onCheckedChange = onUrgentChange
             )
             Text(
-                text = "Срочная задача",
+                text = "Приоритетная задача",
                 modifier = Modifier
                     .padding(start = 8.dp)
                     .clickable { onUrgentChange(!isUrgent) },
@@ -809,7 +809,7 @@ private fun CreateTaskReminderStep(
 
           if (isUrgent) {
               Text(
-                  text = "Для срочной задачи повтор напоминания отключён",
+                  text = "Для приоритетной задачи повтор напоминания отключён",
                   color = Color.Gray
               )
           }
