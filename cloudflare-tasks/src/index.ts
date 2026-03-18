@@ -391,8 +391,9 @@ async function sendPushToToken(
 
   const accessToken = await getGoogleAccessToken(env)
 
+  console.log("FCM_REQUEST_SENT", JSON.stringify({ token: token.slice(0, 12), extraData }))
+
   const resp = await fetch(
-    console.log("FCM_REQUEST_SENT")
     `https://fcm.googleapis.com/v1/projects/${env.FIREBASE_PROJECT_ID}/messages:send`,
     {
       method: "POST",
@@ -401,32 +402,23 @@ async function sendPushToToken(
         authorization: `Bearer ${accessToken}`,
       },
       body: JSON.stringify({
-          message: {
-            token,
-            notification: {
-              title,
-              body,
-            },
-            data: {
-              title,
-              body,
-              ...extraData,
-            },
-            android: {
-              priority: "high",
-              notification: {
-                channel_id: "ml_tasks_channel",
-                sound: "default",
-              },
-            },
+        message: {
+          token,
+          data: {
+            title,
+            body,
+            ...extraData,
           },
-        }),
+          android: {
+            priority: "high",
+          },
+        },
+      }),
     }
   )
 
   const text = await resp.text()
-    console.log("FCM_RESPONSE_TEXT", text)
-  console.log("FCM_RESPONSE", text)
+  console.log("FCM_RESPONSE", resp.status, text)
 
   if (!resp.ok) {
     throw new Error(`fcm_send_failed: ${text}`)
