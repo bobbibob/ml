@@ -16,6 +16,7 @@ import com.ml.app.data.repository.AuthRepository
 import com.ml.app.data.repository.TasksRepository
 import com.ml.app.data.session.PrefsSessionStorage
 import com.ml.app.notifications.UrgentTaskNotifier
+import com.ml.app.work.TaskSyncScheduler
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -645,6 +646,18 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
             reminderIntervalMinutes = reminderIntervalMinutes,
             reminderTimeOfDay = reminderTimeOfDay,
             isUrgent = isUrgent
+        )
+
+        TaskSyncScheduler.enqueueCreate(
+            context = getApplication<Application>().applicationContext,
+            title = cleanTitle,
+            description = cleanDescription,
+            assigneeUserId = assigneeUserId,
+            reminderType = reminderType,
+            reminderIntervalMinutes = reminderIntervalMinutes,
+            reminderTimeOfDay = reminderTimeOfDay,
+            isUrgent = isUrgent,
+            clientRequestId = clientRequestId
         )
 
         state = state.copy(

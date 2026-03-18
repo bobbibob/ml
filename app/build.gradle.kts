@@ -105,6 +105,7 @@ implementation(platform("androidx.compose:compose-bom:2024.06.00"))
 
   debugImplementation("androidx.compose.ui:ui-tooling")
   implementation("androidx.navigation:navigation-compose:2.7.7")
+  implementation("androidx.work:work-runtime-ktx:2.9.1")
 
   implementation("androidx.compose.foundation:foundation")
 
