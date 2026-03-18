@@ -551,10 +551,19 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
                         if (attempt < 3) {
                             delay(150)
                         } else {
-                            state = state.copy(
-                                openedTaskFromPush = null,
-                                error = res.message
-                            )
+                            val msg = res.message.lowercase()
+                            if ("404" in msg || "task_not_found" in msg || "не удалось загрузить задачу" in msg || "not found" in msg) {
+                                state = state.copy(
+                                    openedTaskFromPush = null,
+                                    error = null
+                                )
+                                refreshAllInBackground()
+                            } else {
+                                state = state.copy(
+                                    openedTaskFromPush = null,
+                                    error = res.message
+                                )
+                            }
                         }
                     }
                 }

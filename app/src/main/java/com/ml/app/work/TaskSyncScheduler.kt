@@ -6,6 +6,7 @@ import androidx.work.Data
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.OutOfQuotaPolicy
 import androidx.work.WorkManager
 
 object TaskSyncScheduler {
@@ -40,6 +41,7 @@ object TaskSyncScheduler {
         val req = OneTimeWorkRequestBuilder<CreateTaskWorker>()
             .setConstraints(networkConstraints())
             .setInputData(data)
+            .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
             .build()
 
         WorkManager.getInstance(context).enqueueUniqueWork(
@@ -60,6 +62,7 @@ object TaskSyncScheduler {
         val req = OneTimeWorkRequestBuilder<DeleteTaskWorker>()
             .setConstraints(networkConstraints())
             .setInputData(data)
+            .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
             .build()
 
         WorkManager.getInstance(context).enqueueUniqueWork(
