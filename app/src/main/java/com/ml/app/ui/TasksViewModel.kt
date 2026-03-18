@@ -853,6 +853,7 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
             when (val res = tasksRepo.deleteTask(taskId)) {
                 is AppResult.Success -> {
                     removeTaskLocally(taskId)
+                    UrgentTaskNotifier.cancel(getApplication<Application>().applicationContext, taskId)
                     state = state.copy(
                         loading = false,
                         error = null,

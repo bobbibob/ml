@@ -134,16 +134,26 @@ object UrgentTaskNotifier {
     }
 
     fun syncForTasks(context: Context, tasks: List<TaskDto>, currentUserId: String) {
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
         val urgentForMe = tasks.filter {
             it.status == "open" &&
             it.is_urgent == 1 &&
             it.assignee_user_id == currentUserId
         }
 
+        val keepIds = urgentForMe.map { notifId(it.task_id) }.toSet()
+
         urgentForMe.forEach { show(context, it, currentUserId) }
 
-        tasks.filter { task ->
-            task.task_id !in urgentForMe.map { it.task_id }.toSet()
-        }.forEach { cancel(context, it.task_id) }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            manager.activeNotifications
+                .filter { it.notification.channelId == CHANNEL_ID }
+                .forEach { sbn ->
+                    if (sbn.id !in keepIds) {
+                        manager.cancel(sbn.id)
+                    }
+                }
+        }
     }
 }
