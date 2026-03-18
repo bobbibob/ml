@@ -1191,6 +1191,9 @@ if (path === "/create_task" && request.method === "POST") {
         const reminderIntervalMinutes = body?.reminder_interval_minutes == null ? null : Number(body.reminder_interval_minutes)
         const reminderTimeOfDay = body?.reminder_time_of_day == null ? null : String(body.reminder_time_of_day).trim() || null
         const isUrgent = body?.is_urgent === true || body?.is_urgent === 1 || body?.is_urgent === "1"
+          const effectiveReminderType = isUrgent ? null : reminderType
+          const effectiveReminderIntervalMinutes = isUrgent ? null : (Number.isFinite(reminderIntervalMinutes) ? reminderIntervalMinutes : null)
+          const effectiveReminderTimeOfDay = isUrgent ? null : reminderTimeOfDay
         const clientRequestId = body?.client_request_id == null ? null : String(body.client_request_id).trim() || null
 
         if (!title || !assigneeUserId)
