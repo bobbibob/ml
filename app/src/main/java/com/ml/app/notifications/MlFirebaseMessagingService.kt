@@ -101,11 +101,12 @@ class MlFirebaseMessagingService : FirebaseMessagingService() {
             ?: "У вас новое уведомление"
 
         val taskId = message.data["task_id"]?.trim().orEmpty()
+        val type = message.data["type"]?.trim().orEmpty()
         val isUrgent = message.data["is_urgent"] == "1" ||
             title.contains("Срочная", ignoreCase = true) ||
             body.contains("Срочная", ignoreCase = true)
 
-        if (taskId.isNotBlank()) {
+        if (taskId.isNotBlank() && type != "task_deleted") {
             val session = PrefsSessionStorage(applicationContext)
             val api = ApiModule.createApi(
                 baseUrl = "https://ml-tasks-api.bboobb666.workers.dev/",
@@ -120,15 +121,21 @@ class MlFirebaseMessagingService : FirebaseMessagingService() {
             }
         }
 
+        if (type == "task_deleted" && taskId.isNotBlank()) {
+            UrgentTaskNotifier.cancel(applicationContext, taskId)
+        }
+
         sendBroadcast(
             Intent(ACTION_TASKS_REFRESH).apply {
                 `package` = packageName
                 putExtra("task_id", taskId)
+                putExtra("type", type)
             }
         )
 
-        showNotification(title, body, taskId)
-        showNotification(title, body, taskId)
+        if (type != "task_deleted") {
+            showNotification(title, body, taskId)
+        }
     }
 
     private fun showNotification(title: String, body: String, taskId: String?) {

@@ -506,16 +506,15 @@ async function runReminderScheduler(env: Env, ctx: ExecutionContext) {
 
     if (!due) continue
 
-    const devices = await env.DB.prepare(`
+    const device = await env.DB.prepare(`
       SELECT fcm_token
       FROM user_devices
       WHERE user_id = ?
       ORDER BY updated_at DESC
-    `).bind(task.assignee_user_id).all<{ fcm_token: string | null }>()
+      LIMIT 1
+    `).bind(task.assignee_user_id).first<{ fcm_token: string | null }>()
 
-    const tokens = Array.from(new Set((devices.results || [])
-      .map(x => String(x.fcm_token || "").trim())
-      .filter(Boolean)))
+    const tokens = [String(device?.fcm_token || "").trim()].filter(Boolean)
 
     if (tokens.length === 0) {
       console.log("reminder_scheduler_no_tokens", task.task_id, task.assignee_user_id)
@@ -1834,7 +1833,7 @@ if (path === "/delete_task" && request.method
         return json({ ok: false, error: "task_id required" }, 400)
 
         const task = await env.DB.prepare(`
-          SELECT task_id, created_by_user_id, title
+            SELECT task_id, created_by_user_id, assignee_user_id, title
           FROM tasks
           WHERE task_id = ?
           LIMIT 1
@@ -1857,6 +1856,38 @@ if (path === "/delete_task" && request.method
           DELETE FROM tasks
           WHERE task_id = ?
         `).bind(taskId).run()
+
+          if (task.assignee_user_id) {
+            const assigneeDevice = await env.DB.prepare(`
+              SELECT fcm_token
+              FROM user_devices
+              WHERE user_id = ?
+              ORDER BY updated_at DESC
+              LIMIT 1
+            `).bind(task.assignee_user_id).first<{ fcm_token: string | null }>()
+
+            const assigneeToken = String(assigneeDevice?.fcm_token || "").trim()
+            if (assigneeToken) {
+              ctx.waitUntil((async () => {
+                try {
+                  await sendPushToToken(
+                    env,
+                    assigneeToken,
+                    "Задача удалена",
+                    `Задача "${String(task.title || "")}" была удалена`,
+                    {
+                      type: "task_deleted",
+                      task_id: taskId,
+                      open_tasks: "true",
+                      task_title: String(task.title || "")
+                    }
+                  )
+                } catch (e) {
+                  console.log("task_deleted_push_error", taskId, String(e))
+                }
+              })())
+            }
+          }
 
         return json({ ok: true, task_id: taskId })
       }
