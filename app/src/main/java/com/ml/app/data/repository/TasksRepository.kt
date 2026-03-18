@@ -289,7 +289,7 @@ class TasksRepository(
     ): AppResult<Unit> {
         return try {
             val raw = api.updateTaskRaw(
-                mapOf(
+                mapOf<String, Any?>(
                     "task_id" to taskId,
                     "title" to title,
                     "description" to description,
@@ -314,7 +314,7 @@ class TasksRepository(
     suspend fun deleteTask(taskId: String): AppResult<Unit> {
         return try {
             val raw = api.deleteTaskRaw(
-                mapOf(
+                mapOf<String, Any?>(
                     "task_id" to taskId
                 )
             )

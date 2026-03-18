@@ -1285,7 +1285,6 @@ private fun EditTaskWizard(
     var isUrgent by remember(task.task_id) { mutableStateOf(task.is_urgent == 1) }
     var title by remember(task.task_id) { mutableStateOf(task.title) }
     var description by remember(task.task_id) { mutableStateOf(cleanTaskDescriptionForEdit(task.description)) }
-    var isUrgent by remember(task.task_id) { mutableStateOf(task.is_urgent == 1) }
 
     val selectedUser = users.firstOrNull { it.user_id == assigneeUserId }
 

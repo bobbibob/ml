@@ -361,8 +361,8 @@ async function getGoogleAccessToken(env: Env): Promise<string> {
   body.set("grant_type", "urn:ietf:params:oauth:grant-type:jwt-bearer")
   body.set("assertion", jwt)
 
-  const resp = await fetch("https://oauth2.googleapis.com/token", {
     console.log("FCM_REQUEST_SENT")
+  const resp = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: {
       "content-type": "application/x-www-form-urlencoded",
