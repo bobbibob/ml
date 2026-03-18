@@ -271,7 +271,8 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun syncUrgentNotifications(tasks: List<TaskDto>) {
         val ctx = getApplication<Application>().applicationContext
-        UrgentTaskNotifier.syncForTasks(ctx, tasks)
+        val currentUserId = state.currentUser?.user_id ?: return
+        UrgentTaskNotifier.syncForTasks(ctx, tasks, currentUserId)
     }
 
     private val pendingOperations = mutableListOf<suspend () -> Boolean>()
@@ -541,7 +542,7 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
                             kotlin.runCatching { tasksRepo.markTaskSeen(freshTask.task_id) }
                         }
                         if (freshTask.is_urgent == 1 && freshTask.assignee_user_id == me && freshTask.status == "open") {
-                            UrgentTaskNotifier.show(getApplication<Application>().applicationContext, freshTask)
+                            UrgentTaskNotifier.show(getApplication<Application>().applicationContext, freshTask, me)
                         }
                         return@launch
                     }
