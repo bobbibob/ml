@@ -45,9 +45,45 @@ object UrgentTaskNotifier {
 
     private fun notifId(taskId: String): Int = ("urgent_" + taskId).hashCode()
 
-    fun show(context: Context, task: TaskDto) {
+    fun showFromPush(context: Context, taskId: String, title: String, body: String) {
+        if (!canNotify(context)) return
+
+        ensureChannel(context)
+
+        val intent = Intent(context, MainActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
+            putExtra("open_tasks", true)
+            putExtra("task_id", taskId)
+        }
+
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            notifId(taskId),
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle(title)
+            .setContentText(body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setOngoing(true)
+            .setAutoCancel(false)
+            .setOnlyAlertOnce(true)
+            .setContentIntent(pendingIntent)
+            .build()
+
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.notify(notifId(taskId), notification)
+    }
+
+
+    fun show(context: Context, task: TaskDto, currentUserId: String) {
         if (!canNotify(context)) return
         if (task.status != "open" || task.is_urgent != 1) return
+        if (task.assignee_user_id != currentUserId) return
 
         ensureChannel(context)
 
@@ -97,17 +133,18 @@ object UrgentTaskNotifier {
         manager.cancel(notifId(taskId))
     }
 
-    fun syncForTasks(context: Context, tasks: List<TaskDto>) {
-        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        val activeIds = tasks
-            .filter { it.status == "open" && it.is_urgent == 1 }
-            .map { notifId(it.task_id) }
-            .toSet()
+    fun syncForTasks(context: Context, tasks: List<TaskDto>, currentUserId: String) {
+        val urgentForMe = tasks.filter {
+            it.status == "open" &&
+            it.is_urgent == 1 &&
+            it.assignee_user_id == currentUserId
+        }
 
-        tasks.filter { it.status == "open" && it.is_urgent == 1 }
-            .forEach { show(context, it) }
+        urgentForMe.forEach { show(context, it, currentUserId) }
 
-        tasks.filter { it.status != "open" || it.is_urgent != 1 }
-            .forEach { cancel(context, it.task_id) }
+        tasks.filter {
+            it.assignee_user_id == currentUserId &&
+            (it.status != "open" || it.is_urgent != 1)
+        }.forEach { cancel(context, it.task_id) }
     }
 }

@@ -1345,6 +1345,7 @@ await logAction(env, "task", taskId, "task_created", user.user_id, {
                   {
                     type: "task_created",
                     task_id: taskId,
+                      is_urgent: isUrgent ? "1" : "0",
                     open_tasks: "true",
                     task_title: title,
                     author_name: authorName

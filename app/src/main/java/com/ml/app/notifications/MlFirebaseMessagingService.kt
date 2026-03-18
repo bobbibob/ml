@@ -101,6 +101,9 @@ class MlFirebaseMessagingService : FirebaseMessagingService() {
             ?: "У вас новое уведомление"
 
         val taskId = message.data["task_id"]?.trim().orEmpty()
+        val isUrgent = message.data["is_urgent"] == "1" ||
+            title.contains("Срочная", ignoreCase = true) ||
+            body.contains("Срочная", ignoreCase = true)
 
         if (taskId.isNotBlank()) {
             val session = PrefsSessionStorage(applicationContext)
@@ -124,7 +127,16 @@ class MlFirebaseMessagingService : FirebaseMessagingService() {
             }
         )
 
-        showNotification(title, body, taskId)
+        if (isUrgent && taskId.isNotBlank()) {
+            UrgentTaskNotifier.showFromPush(this, taskId, title, body)
+        } else {
+            showNotification(title, body, taskId)
+        }
+        if (isUrgent && taskId.isNotBlank()) {
+            UrgentTaskNotifier.showFromPush(this, taskId, title, body)
+        } else {
+            showNotification(title, body, taskId)
+        }
     }
 
     private fun showNotification(title: String, body: String, taskId: String?) {
