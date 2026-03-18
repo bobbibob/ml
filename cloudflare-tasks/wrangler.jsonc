@@ -17,9 +17,10 @@
       "binding": "R2",
       "bucket_name": "ml-br"
     }
-  ]
-,
+  ],
   "triggers": {
-    "crons": ["*/10 * * * *"]
+    "crons": [
+      "* * * * *"
+    ]
   }
 }

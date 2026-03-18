@@ -732,7 +732,6 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
                                         is AppResult.Error -> false
                                     }
                                 }
-                                schedulePendingOperationsFlush()
 
                                 state = state.copy(
                                     creatingTask = false,
@@ -763,7 +762,6 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
                                 is AppResult.Error -> false
                             }
                         }
-                        schedulePendingOperationsFlush()
 
                         state = state.copy(
                             creatingTask = false,
@@ -833,7 +831,6 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
                             is AppResult.Error -> false
                         }
                     }
-                    schedulePendingOperationsFlush()
 
                     state = state.copy(
                         loading = false,
@@ -846,14 +843,19 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     
-    fun deleteTask(taskId: String) {
+      fun deleteTask(taskId: String) {
+        removeTaskLocally(taskId)
+        UrgentTaskNotifier.cancel(getApplication<Application>().applicationContext, taskId)
+
         viewModelScope.launch {
-            state = state.copy(loading = true, error = null, info = null)
+            state = state.copy(
+                loading = true,
+                error = null,
+                info = "Удаляю задачу..."
+            )
 
             when (val res = tasksRepo.deleteTask(taskId)) {
                 is AppResult.Success -> {
-                    removeTaskLocally(taskId)
-                    UrgentTaskNotifier.cancel(getApplication<Application>().applicationContext, taskId)
                     state = state.copy(
                         loading = false,
                         error = null,
@@ -863,10 +865,19 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
                 }
 
                 is AppResult.Error -> {
+                    enqueuePendingOperation {
+                        when (tasksRepo.deleteTask(taskId)) {
+                            is AppResult.Success -> true
+                            is AppResult.Error -> false
+                        }
+                    }
+
+                    schedulePendingOperationsFlush()
+
                     state = state.copy(
                         loading = false,
-                        error = res.message,
-                        info = null
+                        error = null,
+                        info = "Задача скрыта локально. Удалю на сервере при обновлении."
                     )
                 }
             }
