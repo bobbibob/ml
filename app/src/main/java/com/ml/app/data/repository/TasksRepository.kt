@@ -288,18 +288,21 @@ class TasksRepository(
         isUrgent: Boolean = false
     ): AppResult<Unit> {
         return try {
-            val raw = api.updateTaskRaw(
-                mapOf<String, Any?>(
-                    "task_id" to taskId,
-                    "title" to title,
-                    "description" to description,
-                    "assignee_user_id" to assigneeUserId,
-                    "reminder_type" to if (isUrgent) null else reminderType,
-                    "reminder_interval_minutes" to if (isUrgent) null else reminderIntervalMinutes,
-                    "reminder_time_of_day" to if (isUrgent) null else reminderTimeOfDay,
-                    "is_urgent" to if (isUrgent) 1 else 0
-                )
+            val payload = mutableMapOf<String, String>(
+                "task_id" to taskId,
+                "title" to title,
+                "description" to description,
+                "assignee_user_id" to assigneeUserId,
+                "is_urgent" to if (isUrgent) "1" else "0"
             )
+
+            if (!isUrgent) {
+                reminderType?.let { payload["reminder_type"] = it }
+                reminderIntervalMinutes?.let { payload["reminder_interval_minutes"] = it.toString() }
+                reminderTimeOfDay?.let { payload["reminder_time_of_day"] = it }
+            }
+
+            val raw = api.updateTaskRaw(payload)
             val json = JSONObject(raw.string())
             if (json.optBoolean("ok")) {
                 AppResult.Success(Unit)
