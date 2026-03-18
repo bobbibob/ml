@@ -462,7 +462,8 @@ async function runReminderScheduler(env: Env, ctx: ExecutionContext) {
       reminder_interval_minutes,
       reminder_time_of_day,
       created_at,
-      updated_at
+        updated_at,
+        last_reminder_at
     FROM tasks
     WHERE status = 'open'
       AND is_urgent = 0
@@ -479,16 +480,22 @@ async function runReminderScheduler(env: Env, ctx: ExecutionContext) {
   for (const task of tasks) {
     let due = false
 
-    if (task.reminder_type === "interval" && task.reminder_interval_minutes) {
-      const interval = Number(task.reminder_interval_minutes)
-      if (interval > 0 && interval % 10 === 0) {
-        const minute = Number(now.minute)
-        if (minute % interval === 0) {
-          const sentRecently = await wasIntervalReminderSentRecently(env, task.task_id, interval)
-          due = !sentRecently
+      if (task.reminder_type === "interval" && task.reminder_interval_minutes) {
+        const interval = Number(task.reminder_interval_minutes)
+        const referenceIso = task.last_reminder_at || task.created_at
+
+        if (interval > 0 && referenceIso) {
+          const row = await env.DB.prepare(`
+            SELECT
+              CASE
+                WHEN (unixepoch(?) - unixepoch(?)) >= (? * 60) THEN 1
+                ELSE 0
+              END AS due
+          `).bind(nowIso(), referenceIso, interval).first<{ due: number }>()
+
+          due = Number(row?.due || 0) === 1
         }
       }
-    }
 
     if (task.reminder_type === "daily_time" && task.reminder_time_of_day) {
       if (task.reminder_time_of_day === now.hhmm) {
@@ -541,6 +548,12 @@ async function runReminderScheduler(env: Env, ctx: ExecutionContext) {
       }
 
       if (sent > 0) {
+          await env.DB.prepare(`
+            UPDATE tasks
+            SET last_reminder_at = ?, updated_at = ?
+            WHERE task_id = ?
+          `).bind(nowIso(), nowIso(), task.task_id).run()
+
         await logAction(env, "task", task.task_id, "task_reminder_auto", task.assignee_user_id, {
           reminder_type: task.reminder_type,
           reminder_interval_minutes: task.reminder_interval_minutes,
