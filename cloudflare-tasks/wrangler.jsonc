@@ -18,4 +18,8 @@
       "bucket_name": "ml-br"
     }
   ]
+,
+  "triggers": {
+    "crons": ["*/10 * * * *"]
+  }
 }

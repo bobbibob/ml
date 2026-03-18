@@ -380,6 +380,179 @@ async function getGoogleAccessToken(env: Env): Promise<string> {
   return json.access_token
 }
 
+
+type ReminderTaskRow = {
+  task_id: string
+  title: string | null
+  description: string | null
+  assignee_user_id: string
+  reminder_type: string | null
+  reminder_interval_minutes: number | null
+  reminder_time_of_day: string | null
+  created_at: string | null
+  updated_at: string | null
+}
+
+function getMoscowNowParts() {
+  const parts = new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Europe/Moscow",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false
+  }).formatToParts(new Date())
+
+  const get = (type: string) => parts.find(p => p.type === type)?.value || "00"
+  return {
+    year: get("year"),
+    month: get("month"),
+    day: get("day"),
+    hour: get("hour"),
+    minute: get("minute"),
+    second: get("second"),
+    hhmm: `${get("hour")}:${get("minute")}`,
+    dayStartIso: `${get("year")}-${get("month")}-${get("day")}T00:00:00+03:00`,
+  }
+}
+
+async function wasIntervalReminderSentRecently(env: Env, taskId: string, intervalMinutes: number) {
+  const cutoff = new Date(Date.now() - intervalMinutes * 60 * 1000).toISOString()
+  const row = await env.DB.prepare(`
+    SELECT created_at
+    FROM action_log
+    WHERE entity_type = 'task'
+      AND entity_id = ?
+      AND action_type = 'task_reminder_auto'
+      AND created_at >= ?
+    ORDER BY created_at DESC
+    LIMIT 1
+  `).bind(taskId, cutoff).first<any>()
+
+  return !!row
+}
+
+async function wasDailyReminderSentToday(env: Env, taskId: string, dayStartIso: string) {
+  const row = await env.DB.prepare(`
+    SELECT created_at
+    FROM action_log
+    WHERE entity_type = 'task'
+      AND entity_id = ?
+      AND action_type = 'task_reminder_auto'
+      AND created_at >= ?
+    ORDER BY created_at DESC
+    LIMIT 1
+  `).bind(taskId, dayStartIso).first<any>()
+
+  return !!row
+}
+
+async function runReminderScheduler(env: Env, ctx: ExecutionContext) {
+  const now = getMoscowNowParts()
+
+  const rows = await env.DB.prepare(`
+    SELECT
+      task_id,
+      title,
+      description,
+      assignee_user_id,
+      reminder_type,
+      reminder_interval_minutes,
+      reminder_time_of_day,
+      created_at,
+      updated_at
+    FROM tasks
+    WHERE status = 'open'
+      AND is_urgent = 0
+      AND (
+        (reminder_type = 'interval' AND reminder_interval_minutes IS NOT NULL)
+        OR
+        (reminder_type = 'daily_time' AND reminder_time_of_day IS NOT NULL)
+      )
+  `).all<ReminderTaskRow>()
+
+  const tasks = rows.results || []
+  console.log("reminder_scheduler_scan", tasks.length, now.hhmm)
+
+  for (const task of tasks) {
+    let due = false
+
+    if (task.reminder_type === "interval" && task.reminder_interval_minutes) {
+      const interval = Number(task.reminder_interval_minutes)
+      if (interval > 0 && interval % 10 === 0) {
+        const minute = Number(now.minute)
+        if (minute % interval === 0) {
+          const sentRecently = await wasIntervalReminderSentRecently(env, task.task_id, interval)
+          due = !sentRecently
+        }
+      }
+    }
+
+    if (task.reminder_type === "daily_time" && task.reminder_time_of_day) {
+      if (task.reminder_time_of_day === now.hhmm) {
+        const sentToday = await wasDailyReminderSentToday(env, task.task_id, now.dayStartIso)
+        due = !sentToday
+      }
+    }
+
+    if (!due) continue
+
+    const devices = await env.DB.prepare(`
+      SELECT fcm_token
+      FROM user_devices
+      WHERE user_id = ?
+      ORDER BY updated_at DESC
+    `).bind(task.assignee_user_id).all<{ fcm_token: string | null }>()
+
+    const tokens = Array.from(new Set((devices.results || [])
+      .map(x => String(x.fcm_token || "").trim())
+      .filter(Boolean)))
+
+    if (tokens.length === 0) {
+      console.log("reminder_scheduler_no_tokens", task.task_id, task.assignee_user_id)
+      continue
+    }
+
+    const pushBody = task.description
+      ? `${String(task.title || "Задача")}\n${String(task.description || "")}`
+      : String(task.title || "Напоминание по задаче")
+
+    ctx.waitUntil((async () => {
+      let sent = 0
+      for (const token of tokens) {
+        try {
+          await sendPushToToken(
+            env,
+            token,
+            "Напоминание",
+            pushBody,
+            {
+              type: "task_reminder",
+              task_id: task.task_id,
+              open_tasks: "true",
+              task_title: String(task.title || ""),
+            }
+          )
+          sent++
+        } catch (e) {
+          console.log("task_reminder_auto_push_error", task.task_id, String(e))
+        }
+      }
+
+      if (sent > 0) {
+        await logAction(env, "task", task.task_id, "task_reminder_auto", task.assignee_user_id, {
+          reminder_type: task.reminder_type,
+          reminder_interval_minutes: task.reminder_interval_minutes,
+          reminder_time_of_day: task.reminder_time_of_day
+        })
+        console.log("task_reminder_auto_ok", task.task_id, sent)
+      }
+    })())
+  }
+}
+
 async function sendPushToToken(
   env: Env,
   token: string,
@@ -1847,6 +2020,10 @@ if (path === "/task_reminder" && request.method
 
         return json({ ok: false, error: e?.message || "internal error" }, 500)
     }
+  ,
+  async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    await ensureSchemaOnce(env)
+    await runReminderScheduler(env, ctx)
   }
 }
 
