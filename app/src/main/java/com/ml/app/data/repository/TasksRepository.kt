@@ -316,7 +316,7 @@ class TasksRepository(
     suspend fun deleteTask(taskId: String): AppResult<Unit> {
         return try {
             val raw = api.deleteTaskRaw(
-                mapOf<String, Any?>(
+                mutableMapOf<String, String>(
                     "task_id" to taskId
                 )
             )
