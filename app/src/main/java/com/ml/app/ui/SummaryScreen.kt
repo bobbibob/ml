@@ -89,7 +89,7 @@ fun SummaryScreen(
   initialTaskId: String? = null
 ) {
   val tasksVm: TasksViewModel = viewModel()
-  val showTasks = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+  val showTasks = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(true) }
   var accountMenuExpanded by remember { mutableStateOf(false) }
     var showEditNameDialog by remember { mutableStateOf(false) }
     var draftDisplayName by remember { mutableStateOf("") }
