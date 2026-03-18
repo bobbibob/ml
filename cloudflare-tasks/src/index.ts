@@ -426,7 +426,7 @@ async function wasIntervalReminderSentRecently(env: Env, taskId: string, interva
     WHERE entity_type = 'task'
       AND entity_id = ?
       AND action_type = 'task_reminder_auto'
-      AND created_at >= ?
+      AND unixepoch(created_at) >= unixepoch(?)
     ORDER BY created_at DESC
     LIMIT 1
   `).bind(taskId, cutoff).first<any>()
@@ -441,7 +441,7 @@ async function wasDailyReminderSentToday(env: Env, taskId: string, dayStartIso: 
     WHERE entity_type = 'task'
       AND entity_id = ?
       AND action_type = 'task_reminder_auto'
-      AND created_at >= ?
+      AND unixepoch(created_at) >= unixepoch(?)
     ORDER BY created_at DESC
     LIMIT 1
   `).bind(taskId, dayStartIso).first<any>()
