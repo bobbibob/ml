@@ -127,16 +127,8 @@ class MlFirebaseMessagingService : FirebaseMessagingService() {
             }
         )
 
-        if (isUrgent && taskId.isNotBlank()) {
-            UrgentTaskNotifier.showFromPush(this, taskId, title, body)
-        } else {
-            showNotification(title, body, taskId)
-        }
-        if (isUrgent && taskId.isNotBlank()) {
-            UrgentTaskNotifier.showFromPush(this, taskId, title, body)
-        } else {
-            showNotification(title, body, taskId)
-        }
+        showNotification(title, body, taskId)
+        showNotification(title, body, taskId)
     }
 
     private fun showNotification(title: String, body: String, taskId: String?) {
