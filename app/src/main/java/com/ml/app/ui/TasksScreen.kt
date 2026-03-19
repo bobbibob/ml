@@ -1,4 +1,6 @@
 package com.ml.app.ui
+
+import com.ml.app.BuildConfig
 import com.ml.app.notifications.MlFirebaseMessagingService
 import androidx.core.content.ContextCompat
 import android.content.IntentFilter
@@ -218,6 +220,8 @@ fun TasksScreen(
     }
 
     val state = vm.state
+    val visibleError = if (BuildConfig.ENABLE_ML) state.error else null
+    val visibleInfo = if (BuildConfig.ENABLE_ML) state.info else null
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -282,8 +286,8 @@ fun TasksScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.Top
         ) {
-            state.error?.let { Text("Ошибка: $it") }
-            state.info?.let {
+            visibleError?.let { Text("Ошибка: $it") }
+            visibleInfo?.let {
                 Text(
                     text = it,
                     modifier = Modifier.padding(top = 8.dp)
@@ -400,8 +404,8 @@ fun TasksScreen(
         "all" -> TasksListTab(
             titleWhenEmpty = "Задач пока нет",
             tasks = state.allTasks,
-            error = state.error,
-            info = state.info,
+            error = visibleError,
+            info = visibleInfo,
             currentUserId = state.currentUser.user_id,
             currentUserRole = state.currentUser.role,
             onComplete = { vm.completeTask(it) },
@@ -422,8 +426,8 @@ fun TasksScreen(
         else -> TasksListTab(
             titleWhenEmpty = "Задач пока нет",
             tasks = state.myTasks,
-            error = state.error,
-            info = state.info,
+            error = visibleError,
+            info = visibleInfo,
             currentUserId = state.currentUser.user_id,
             currentUserRole = state.currentUser.role,
             onComplete = { vm.completeTask(it) },
@@ -551,8 +555,8 @@ private fun CreateTaskWizard(
         CreateTaskStep.Assignee -> CreateTaskAssigneeStep(
             users = state.users,
             selectedUser = selectedAssigneeUser,
-            error = state.error,
-            info = state.info,
+            error = visibleError,
+            info = visibleInfo,
             onCancel = onCancel,
             onChoose = {
                 selectedAssigneeId = it
@@ -581,8 +585,8 @@ private fun CreateTaskWizard(
             selectedUser = selectedAssigneeUser,
             title = taskTitle,
             description = taskDescription,
-            error = state.error,
-            info = state.info,
+            error = visibleError,
+            info = visibleInfo,
             loading = state.creatingTask,
             onTitleChange = { taskTitle = it },
             onDescriptionChange = { taskDescription = it },
