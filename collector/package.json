@@ -1,0 +1,12 @@
+{
+  "name": "mercadolivre-collector",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "collect": "node collector.js"
+  },
+  "dependencies": {
+    "playwright": "^1.52.0"
+  }
+}

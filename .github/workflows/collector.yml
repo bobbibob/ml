@@ -1,0 +1,39 @@
+name: MercadoLivre Collector
+
+on:
+  push:
+    branches:
+      - stable_build
+    paths:
+      - "collector/**"
+      - ".github/workflows/collector.yml"
+  workflow_dispatch:
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install collector deps
+        working-directory: collector
+        run: npm install
+
+      - name: Install Playwright browser
+        working-directory: collector
+        run: npx playwright install chromium
+
+      - name: Run collector
+        working-directory: collector
+        env:
+          COLLECTOR_API_BASE: "https://ml-tasks-api.bboobb666.workers.dev"
+          ML_ORDERS_URL: ${{ secrets.ML_ORDERS_URL }}
+          ML_EMAIL: ${{ secrets.ML_EMAIL }}
+          ML_PASSWORD: ${{ secrets.ML_PASSWORD }}
+          HEADLESS: "true"
+        run: node collector.js
