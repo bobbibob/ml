@@ -95,6 +95,7 @@ fun SummaryScreen(
     var draftDisplayName by remember { mutableStateOf("") }
     var showAdminDialog by remember { mutableStateOf(false) }
     var showAdminScreen by remember { mutableStateOf(false) }
+    var showMlAuthScreen by remember { mutableStateOf(false) }
     var adminTab by remember { mutableStateOf("users") }
 
   val state by vm.state.collectAsState()
@@ -130,6 +131,14 @@ fun SummaryScreen(
       tasksVm.loadUsers()
       tasksVm.loadMyTasks()
     }
+  }
+
+  if (showMlAuthScreen) {
+    MlAuthScreen(
+      onClose = { showMlAuthScreen = false },
+      onSuccess = { showMlAuthScreen = false }
+    )
+    return
   }
 
 
@@ -374,6 +383,15 @@ Row(verticalAlignment = Alignment.CenterVertically) {
                         showEditNameDialog = true
                       }
                     )
+                    if (accountUser.role == "admin") {
+                      DropdownMenuItem(
+                        text = { Text("Авторизация ML") },
+                        onClick = {
+                          accountMenuExpanded = false
+                          showMlAuthScreen = true
+                        }
+                      )
+                    }
                     DropdownMenuItem(
                       text = { Text("Выйти") },
                       onClick = {
