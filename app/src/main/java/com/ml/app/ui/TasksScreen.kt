@@ -252,7 +252,8 @@ fun TasksScreen(
                 state.currentUser != null &&
                 state.selectedTab != "create"
             ) {
-                vm.refreshAllInBackground()
+                vm.loadMyTasks()
+                    vm.loadAllTasks()
             }
         }
 
@@ -293,7 +294,8 @@ fun TasksScreen(
         while (true) {
             delay(3000)
             if (state.selectedTab == "my" || state.selectedTab == "all") {
-                vm.refreshAllInBackground()
+                vm.loadMyTasks()
+                    vm.loadAllTasks()
             }
         }
     }
