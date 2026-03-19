@@ -1058,7 +1058,7 @@ private fun TasksListTab(
                                         color = Color(0xFFFFE3E3)
                                     ) {
                                         Text(
-                                            text = "СРОЧНО",
+                                            text = "ПРИОРИТЕТ",
                                             color = Color(0xFFB3261E),
                                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                                             fontWeight = FontWeight.Bold,
