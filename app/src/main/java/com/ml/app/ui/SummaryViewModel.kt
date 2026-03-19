@@ -240,7 +240,11 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
   }
 
   fun init() {
-    syncFcmTokenIfLoggedIn()
+    
+    if (!BuildConfig.ENABLE_ML) {
+      return
+    }
+syncFcmTokenIfLoggedIn()
     viewModelScope.launch(Dispatchers.IO) {
         try {
             val hasHealthyLocal = isLocalPackHealthy()
@@ -461,7 +465,7 @@ fun refreshTimeline() {
         }
 
         viewModelScope.launch(Dispatchers.Main) {
-          Toast.makeText(ctx, syncStatus, Toast.LENGTH_LONG).show()
+          if (BuildConfig.ENABLE_ML) Toast.makeText(ctx, syncStatus, Toast.LENGTH_LONG).show()
         }
       } catch (t: Throwable) {
         val msg = "SYNC ERROR: ${t.message}"
@@ -470,7 +474,7 @@ fun refreshTimeline() {
           status = msg
         )
         viewModelScope.launch(Dispatchers.Main) {
-          Toast.makeText(ctx, msg, Toast.LENGTH_LONG).show()
+          if (BuildConfig.ENABLE_ML) Toast.makeText(ctx, msg, Toast.LENGTH_LONG).show()
         }
       }
     }
@@ -617,7 +621,7 @@ fun refreshTimeline() {
         _state.value = _state.value.copy(status = "SYNC applied entries=${res.data.size} date=$date")
       }
       is com.ml.app.core.result.AppResult.Error -> {
-        _state.value = _state.value.copy(status = "SYNC error: ${res.message}")
+        if (BuildConfig.ENABLE_ML) _state.value = _state.value.copy(status = "SYNC error: ${res.message}")
       }
     }
   }
