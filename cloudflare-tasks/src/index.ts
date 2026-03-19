@@ -319,6 +319,81 @@ async function handleGenerateOrdersSummary(env: Env) {
   return json({ ok: true, summary: text })
 }
 
+
+
+async function handleSetIntegrationAuthState(request: Request, env: Env) {
+  const body = await request.json().catch(() => null) as {
+    source?: string
+    auth_state?: string
+    last_error?: string | null
+  } | null
+
+  const source = String(body?.source || "mercadolivre").trim() || "mercadolivre"
+  const authState = String(body?.auth_state || "").trim()
+  const lastError = body?.last_error == null ? null : String(body.last_error)
+
+  if (!authState) {
+    return json({ ok: false, error: "auth_state_required" }, 400)
+  }
+
+  const allowed = new Set(["active", "auth_required", "auth_in_progress", "error"])
+  if (!allowed.has(authState)) {
+    return json({ ok: false, error: "invalid_auth_state" }, 400)
+  }
+
+  await env.DB.prepare(`
+    INSERT INTO integration_state (
+      source, auth_state, last_success_at, last_run_at, last_error, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT(source) DO UPDATE SET
+      auth_state = excluded.auth_state,
+      last_success_at = CASE
+        WHEN excluded.auth_state = 'active' THEN excluded.last_success_at
+        ELSE integration_state.last_success_at
+      END,
+      last_run_at = excluded.last_run_at,
+      last_error = excluded.last_error,
+      updated_at = excluded.updated_at
+  `).bind(
+    source,
+    authState,
+    authState === "active" ? nowIso() : null,
+    nowIso(),
+    lastError,
+    nowIso()
+  ).run()
+
+  return json({ ok: true, source, auth_state: authState })
+}
+
+async function handleGetLatestOrdersSummary(env: Env) {
+  const row = await env.DB.prepare(`
+    SELECT id, source, report_type, period_start, period_end, summary_text, payload_json, created_at
+    FROM summary_reports
+    WHERE source = 'mercadolivre'
+    ORDER BY created_at DESC
+    LIMIT 1
+  `).first<any>()
+
+  if (!row) {
+    return json({ ok: false, error: "summary_not_found" }, 404)
+  }
+
+  return json({
+    ok: true,
+    report: {
+      id: row.id,
+      source: row.source,
+      report_type: row.report_type,
+      period_start: row.period_start,
+      period_end: row.period_end,
+      summary_text: row.summary_text,
+      payload_json: row.payload_json ? JSON.parse(row.payload_json) : null,
+      created_at: row.created_at
+    }
+  })
+}
+
 let schemaReadyPromise: Promise<void> | null = null
 
 async function ensureSchemaOnce(env: Env) {
@@ -2249,6 +2324,15 @@ if (path === "/task_reminder" && request.method
 
       if (path === "/internal/ml/generate-orders-summary" && request.method === "POST") {
         return await handleGenerateOrdersSummary(env)
+      }
+
+
+      if (path === "/internal/integrations/set-auth-state" && request.method === "POST") {
+        return await handleSetIntegrationAuthState(request, env)
+      }
+
+      if (path === "/internal/ml/orders-summary/latest" && request.method === "GET") {
+        return await handleGetLatestOrdersSummary(env)
       }
 
 return json({ ok: false, error: "not found" }, 404)
