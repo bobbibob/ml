@@ -61,4 +61,3 @@ CREATE TABLE IF NOT EXISTS action_log (
   created_at TEXT NOT NULL
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_user_devices_fcm_token ON user_devices(fcm_token) WHERE fcm_token IS NOT NULL;
