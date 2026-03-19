@@ -48,6 +48,9 @@ android {
 
   buildTypes {
     getByName("debug") {
+        applicationIdSuffix = ".dev"
+        versionNameSuffix = "-dev"
+        resValue("string", "app_name", "ML Tasks Dev")
       signingConfig = if ((System.getenv("KEYSTORE_PATH") ?: "").isNotBlank()) {
         signingConfigs.getByName("release")
       } else {
