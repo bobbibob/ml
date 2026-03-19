@@ -240,6 +240,7 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
   }
 
   fun init() {
+    if (!BuildConfig.ENABLE_ML) return
     
     if (!BuildConfig.ENABLE_ML) {
       return
@@ -465,16 +466,16 @@ fun refreshTimeline() {
         }
 
         viewModelScope.launch(Dispatchers.Main) {
-          if (BuildConfig.ENABLE_ML) Toast.makeText(ctx, syncStatus, Toast.LENGTH_LONG).show()
+          if (BuildConfig.ENABLE_ML) if (BuildConfig.ENABLE_ML) { /* toast disabled in release */ }
         }
       } catch (t: Throwable) {
-        val msg = "SYNC ERROR: ${t.message}"
+        val msg = if (BuildConfig.ENABLE_ML) "SYNC ERROR: ${t.message}" else ""
         _state.value = _state.value.copy(
           refreshing = false,
           status = msg
         )
         viewModelScope.launch(Dispatchers.Main) {
-          if (BuildConfig.ENABLE_ML) Toast.makeText(ctx, msg, Toast.LENGTH_LONG).show()
+          if (BuildConfig.ENABLE_ML) if (BuildConfig.ENABLE_ML) { /* toast disabled in release */ }
         }
       }
     }
@@ -621,7 +622,7 @@ fun refreshTimeline() {
         _state.value = _state.value.copy(status = "SYNC applied entries=${res.data.size} date=$date")
       }
       is com.ml.app.core.result.AppResult.Error -> {
-        if (BuildConfig.ENABLE_ML) _state.value = _state.value.copy(status = "SYNC error: ${res.message}")
+        if (BuildConfig.ENABLE_ML) // disabled in release
       }
     }
   }
