@@ -1,10 +1,15 @@
 const { chromium } = require("playwright");
-const { upsertOrders, generateSummary, setAuthState, API_BASE } = require("./backend");
+const {
+  getSession,
+  upsertOrders,
+  generateSummary,
+  setAuthState,
+  API_BASE
+} = require("./backend");
+
 const { parseOrdersFromPage, normalizeParsedOrders } = require("./parser");
 
 const ORDERS_URL = process.env.ML_ORDERS_URL || "";
-const ML_EMAIL = process.env.ML_EMAIL || "";
-const ML_PASSWORD = process.env.ML_PASSWORD || "";
 const HEADLESS = String(process.env.HEADLESS || "true") !== "false";
 
 function requireEnv(name, value) {
@@ -17,38 +22,11 @@ function looksLikeLogin(url, html) {
   const s = `${url}\n${html}`.toLowerCase();
   return (
     s.includes("login") ||
-    s.includes("iniciar sesión") ||
-    s.includes("iniciar sess") ||
-    s.includes("entrar") ||
-    s.includes("ingresar") ||
-    s.includes("mercado libre") && s.includes("continuar")
+    s.includes("código") ||
+    s.includes("codigo") ||
+    s.includes("verifica") ||
+    s.includes("security code")
   );
-}
-
-async function tryLogin(page) {
-  if (!ML_EMAIL || !ML_PASSWORD) {
-    throw new Error("Missing ML_EMAIL or ML_PASSWORD");
-  }
-
-  const emailInput = page.locator('input[type="email"], input[name="user_id"], input[name="login"], input[id*="user"]').first();
-  await emailInput.waitFor({ timeout: 15000 });
-  await emailInput.fill(ML_EMAIL);
-
-  const continueBtn = page.locator('button:has-text("Continuar"), button:has-text("Continue"), input[type="submit"]').first();
-  if (await continueBtn.count()) {
-    await continueBtn.click();
-  }
-
-  const passwordInput = page.locator('input[type="password"]').first();
-  await passwordInput.waitFor({ timeout: 15000 });
-  await passwordInput.fill(ML_PASSWORD);
-
-  const loginBtn = page.locator('button:has-text("Entrar"), button:has-text("Iniciar"), button:has-text("Login"), input[type="submit"]').first();
-  if (await loginBtn.count()) {
-    await loginBtn.click();
-  }
-
-  await page.waitForLoadState("networkidle", { timeout: 30000 }).catch(() => {});
 }
 
 async function main() {
@@ -56,7 +34,6 @@ async function main() {
 
   console.log("collector_start");
   console.log("api_base", API_BASE);
-  console.log("orders_url", ORDERS_URL);
 
   const browser = await chromium.launch({
     headless: HEADLESS
@@ -66,35 +43,35 @@ async function main() {
   const page = await context.newPage();
 
   try {
+    // 🔥 1. получаем session с backend
+    const session = await getSession();
+    const cookies = session?.session_payload?.cookies || [];
+
+    console.log("session_cookies", cookies.length);
+
+    if (!cookies.length) {
+      throw new Error("No session cookies")
+    }
+
+    // 🔥 2. применяем cookies
+    await context.addCookies(cookies);
+
+    // 🔥 3. открываем страницу заказов
     await page.goto(ORDERS_URL, {
       waitUntil: "domcontentloaded",
       timeout: 90000
     });
 
     await page.waitForLoadState("networkidle", { timeout: 30000 }).catch(() => {});
-    let html = await page.content();
-    let url = page.url();
+    const html = await page.content();
+    const url = page.url();
 
     if (looksLikeLogin(url, html)) {
-      console.log("login_detected_trying_auth");
-      await setAuthState("auth_in_progress", null);
-      await tryLogin(page);
-
-      await page.goto(ORDERS_URL, {
-        waitUntil: "domcontentloaded",
-        timeout: 90000
-      });
-
-      await page.waitForLoadState("networkidle", { timeout: 30000 }).catch(() => {});
-      html = await page.content();
-      url = page.url();
+      await setAuthState("auth_required", "Session expired");
+      throw new Error("Session expired");
     }
 
-    if (looksLikeLogin(url, html)) {
-      await setAuthState("auth_required", "Login required or login failed");
-      throw new Error("Login required");
-    }
-
+    // 🔥 4. парсим
     const parsedOrders = await parseOrdersFromPage(page);
     const orders = normalizeParsedOrders(parsedOrders);
 
@@ -104,22 +81,18 @@ async function main() {
       throw new Error("No orders parsed");
     }
 
-    const upsertResult = await upsertOrders(orders);
-    console.log("upsert_result", JSON.stringify(upsertResult));
-
-    const summaryResult = await generateSummary();
-    console.log("summary_result", JSON.stringify(summaryResult));
+    // 🔥 5. отправляем
+    await upsertOrders(orders);
+    await generateSummary();
 
     await setAuthState("active", null);
     console.log("collector_success");
+
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("collector_error", message);
 
-    if (
-      message.toLowerCase().includes("login") ||
-      message.toLowerCase().includes("auth")
-    ) {
+    if (message.toLowerCase().includes("session")) {
       await setAuthState("auth_required", message).catch(() => {});
     } else {
       await setAuthState("error", message).catch(() => {});
