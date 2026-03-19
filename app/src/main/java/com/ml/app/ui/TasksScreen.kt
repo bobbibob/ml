@@ -215,6 +215,23 @@ fun TasksScreen(
     initialOpenTaskId: String? = null,
     openSignal: Int = 0
 ) {
+
+    val context = LocalContext.current
+
+    DisposableEffect(Unit) {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(c: android.content.Context?, intent: android.content.Intent?) {
+                val taskId = intent?.getStringExtra("task_id")
+                vm.refreshTasks()
+                if (!taskId.isNullOrBlank()) {
+                    vm.openTask(taskId)
+                }
+            }
+        }
+        context.registerReceiver(receiver, IntentFilter("TASKS_UPDATED"))
+        onDispose { context.unregisterReceiver(receiver) }
+    }
+
     LaunchedEffect(Unit) {
         vm.init()
     }
