@@ -18,7 +18,7 @@ jobs:
           node-version: "20"
 
       - name: Install Wrangler
-        run: npm install -g wrangler@4.71.0
+        run: npm install -g wrangler
 
       - name: Apply schema to release D1
         env:
