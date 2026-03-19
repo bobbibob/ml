@@ -406,8 +406,8 @@ fun TasksScreen(
         "all" -> TasksListTab(
             titleWhenEmpty = "Задач пока нет",
             tasks = state.allTasks,
-            error = visibleError,
-            info = visibleInfo,
+            error = state.error,
+            info = state.info,
             currentUserId = state.currentUser.user_id,
             currentUserRole = state.currentUser.role,
             onComplete = { vm.completeTask(it) },
@@ -428,8 +428,8 @@ fun TasksScreen(
         else -> TasksListTab(
             titleWhenEmpty = "Задач пока нет",
             tasks = state.myTasks,
-            error = visibleError,
-            info = visibleInfo,
+            error = state.error,
+            info = state.info,
             currentUserId = state.currentUser.user_id,
             currentUserRole = state.currentUser.role,
             onComplete = { vm.completeTask(it) },
@@ -557,8 +557,8 @@ private fun CreateTaskWizard(
         CreateTaskStep.Assignee -> CreateTaskAssigneeStep(
             users = state.users,
             selectedUser = selectedAssigneeUser,
-            error = visibleError,
-            info = visibleInfo,
+            error = state.error,
+            info = state.info,
             onCancel = onCancel,
             onChoose = {
                 selectedAssigneeId = it
@@ -587,8 +587,8 @@ private fun CreateTaskWizard(
             selectedUser = selectedAssigneeUser,
             title = taskTitle,
             description = taskDescription,
-            error = visibleError,
-            info = visibleInfo,
+            error = state.error,
+            info = state.info,
             loading = state.creatingTask,
             onTitleChange = { taskTitle = it },
             onDescriptionChange = { taskDescription = it },
