@@ -54,6 +54,7 @@ android {
         signingConfigs.getByName("debug")
       }
       buildConfigField("String", "TASKS_API_BASE_URL", "\"https://ml-tasks-api.bboobb666.workers.dev/\"")
+      buildConfigField("boolean", "ENABLE_ML", "true")
     }
     getByName("release") {
       signingConfig = if ((System.getenv("KEYSTORE_PATH") ?: "").isNotBlank()) {
@@ -63,6 +64,7 @@ android {
       }
       isMinifyEnabled = false
       buildConfigField("String", "TASKS_API_BASE_URL", "\"https://ml-tasks-api-release.bboobb666.workers.dev/\"")
+      buildConfigField("boolean", "ENABLE_ML", "false")
     }
   }
 
