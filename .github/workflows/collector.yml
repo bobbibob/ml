@@ -36,3 +36,13 @@ jobs:
           ML_ORDERS_URL: ${{ secrets.ML_ORDERS_URL }}
           HEADLESS: "true"
         run: node collector.js
+
+      - name: Upload collector debug artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: collector-debug
+          path: |
+            collector/collector_debug.html
+            collector/collector_debug.png
+          if-no-files-found: ignore

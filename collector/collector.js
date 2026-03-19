@@ -75,6 +75,19 @@ async function main() {
     const parsedOrders = await parseOrdersFromPage(page);
     const orders = normalizeParsedOrders(parsedOrders);
 
+    console.log("final_url", page.url());
+    console.log("page_title", await page.title());
+
+    const bodyText = await page.locator("body").innerText().catch(() => "");
+    console.log("body_preview", bodyText.slice(0, 3000));
+
+    if (!orders.length) {
+      const fs = require("fs");
+      await page.screenshot({ path: "collector_debug.png", fullPage: true }).catch(() => {});
+      const html = await page.content().catch(() => "");
+      fs.writeFileSync("collector_debug.html", html || "", "utf8");
+    }
+
     console.log("parsed_orders", orders.length);
 
     if (!orders.length) {
