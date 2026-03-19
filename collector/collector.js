@@ -39,7 +39,15 @@ async function main() {
     headless: HEADLESS
   });
 
-  const context = await browser.newContext();
+  const context = await browser.newContext({
+    locale: "pt-BR",
+    timezoneId: "America/Sao_Paulo",
+    viewport: { width: 412, height: 915 },
+    isMobile: true,
+    hasTouch: true,
+    userAgent: "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Mobile Safari/537.36"
+  });
+
   const page = await context.newPage();
 
   try {
@@ -56,7 +64,13 @@ async function main() {
     // 🔥 2. применяем cookies
     await context.addCookies(cookies);
 
-    // 🔥 3. открываем страницу заказов
+    // 🔥 3. сначала открываем главную, потом страницу заказов
+    await page.goto("https://www.mercadolivre.com.br/", {
+      waitUntil: "domcontentloaded",
+      timeout: 90000
+    });
+    await page.waitForLoadState("networkidle", { timeout: 30000 }).catch(() => {});
+
     await page.goto(ORDERS_URL, {
       waitUntil: "domcontentloaded",
       timeout: 90000
