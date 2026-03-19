@@ -394,6 +394,143 @@ async function handleGetLatestOrdersSummary(env: Env) {
   })
 }
 
+
+
+async function ensureIntegrationSessionsTable(env: Env) {
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS integration_sessions (
+      source TEXT PRIMARY KEY,
+      session_payload TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      updated_by_user_id TEXT NOT NULL
+    )
+  `).run()
+}
+
+async function handleSaveMlSession(request: Request, env: Env) {
+  const user = await getCurrentUser(request, env)
+  if (!user) {
+    return json({ ok: false, error: "unauthorized" }, 401)
+  }
+
+  if (user.role !== "admin") {
+    return json({ ok: false, error: "forbidden" }, 403)
+  }
+
+  const body = await request.json().catch(() => null) as {
+    source?: string
+    session_payload?: string | Record<string, unknown>
+  } | null
+
+  const source = String(body?.source || "mercadolivre").trim() || "mercadolivre"
+  const rawPayload = body?.session_payload
+
+  if (!rawPayload) {
+    return json({ ok: false, error: "session_payload_required" }, 400)
+  }
+
+  const sessionPayload =
+    typeof rawPayload === "string" ? rawPayload : JSON.stringify(rawPayload)
+
+  const now = nowIso()
+
+  await env.DB.prepare(`
+    INSERT INTO integration_sessions (
+      source,
+      session_payload,
+      updated_at,
+      updated_by_user_id
+    ) VALUES (?, ?, ?, ?)
+    ON CONFLICT(source) DO UPDATE SET
+      session_payload = excluded.session_payload,
+      updated_at = excluded.updated_at,
+      updated_by_user_id = excluded.updated_by_user_id
+  `).bind(
+    source,
+    sessionPayload,
+    now,
+    user.user_id
+  ).run()
+
+  await env.DB.prepare(`
+    INSERT INTO integration_state (
+      source, auth_state, last_success_at, last_run_at, last_error, updated_at
+    ) VALUES (?, 'active', ?, ?, NULL, ?)
+    ON CONFLICT(source) DO UPDATE SET
+      auth_state = 'active',
+      last_success_at = excluded.last_success_at,
+      last_run_at = excluded.last_run_at,
+      last_error = NULL,
+      updated_at = excluded.updated_at
+  `).bind(source, now, now, now).run()
+
+  return json({ ok: true, source, auth_state: "active" })
+}
+
+async function handleGetMlStatus(_request: Request, env: Env) {
+  const row = await env.DB.prepare(`
+    SELECT source, auth_state, last_success_at, last_run_at, last_error, updated_at
+    FROM integration_state
+    WHERE source = 'mercadolivre'
+    LIMIT 1
+  `).first<any>()
+
+  if (!row) {
+    return json({
+      ok: true,
+      source: "mercadolivre",
+      auth_state: "active",
+      last_success_at: null,
+      last_run_at: null,
+      last_error: null,
+      updated_at: null
+    })
+  }
+
+  return json({
+    ok: true,
+    source: row.source,
+    auth_state: row.auth_state,
+    last_success_at: row.last_success_at,
+    last_run_at: row.last_run_at,
+    last_error: row.last_error,
+    updated_at: row.updated_at
+  })
+}
+
+async function handleGetMlSession(request: Request, env: Env) {
+  const internalToken = String(request.headers.get("x-internal-token") || "").trim()
+  const expectedToken = String((env as any).INTERNAL_API_TOKEN || "").trim()
+
+  if (!expectedToken || internalToken !== expectedToken) {
+    return json({ ok: false, error: "forbidden" }, 403)
+  }
+
+  const row = await env.DB.prepare(`
+    SELECT source, session_payload, updated_at, updated_by_user_id
+    FROM integration_sessions
+    WHERE source = 'mercadolivre'
+    LIMIT 1
+  `).first<any>()
+
+  if (!row) {
+    return json({ ok: false, error: "session_not_found" }, 404)
+  }
+
+  let payload: unknown = row.session_payload
+  try {
+    payload = JSON.parse(String(row.session_payload))
+  } catch {}
+
+  return json({
+    ok: true,
+    source: row.source,
+    session_payload: payload,
+    updated_at: row.updated_at,
+    updated_by_user_id: row.updated_by_user_id
+  })
+}
+
 let schemaReadyPromise: Promise<void> | null = null
 
 async function ensureSchemaOnce(env: Env) {
@@ -409,6 +546,7 @@ async function ensureSchemaOnce(env: Env) {
       await ensureUserDeviceTokenIndex(env)
       await ensureIndexes(env)
       await ensureOrdersTables(env)
+      await ensureIntegrationSessionsTable(env)
     })().catch((e) => {
       schemaReadyPromise = null
       throw e
@@ -2333,6 +2471,19 @@ if (path === "/task_reminder" && request.method
 
       if (path === "/internal/ml/orders-summary/latest" && request.method === "GET") {
         return await handleGetLatestOrdersSummary(env)
+      }
+
+
+      if (path === "/internal/integrations/ml/save-session" && request.method === "POST") {
+        return await handleSaveMlSession(request, env)
+      }
+
+      if (path === "/internal/integrations/ml/status" && request.method === "GET") {
+        return await handleGetMlStatus(request, env)
+      }
+
+      if (path === "/internal/integrations/ml/session" && request.method === "GET") {
+        return await handleGetMlSession(request, env)
       }
 
 return json({ ok: false, error: "not found" }, 404)
