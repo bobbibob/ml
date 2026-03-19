@@ -222,9 +222,9 @@ fun TasksScreen(
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(c: android.content.Context?, intent: android.content.Intent?) {
                 val taskId = intent?.getStringExtra("task_id")
-                vm.refreshTasks()
+                // refresh handled by reopen
                 if (!taskId.isNullOrBlank()) {
-                    vm.openTask(taskId)
+                    // open handled by activity
                 }
             }
         }

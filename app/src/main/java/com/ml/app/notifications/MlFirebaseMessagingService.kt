@@ -66,36 +66,7 @@ class MlFirebaseMessagingService : FirebaseMessagingService() {
         val authRepo = AuthRepository(api, session)
 
         CoroutineScope(Dispatchers.IO).launch {
-            try {
-                val sessionToken = session.getToken().orEmpty()
-                val cleanToken = token.trim()
-
-                if (sessionToken.isBlank()) {
-                    Log.d("ML_PUSH", "skip token sync: no session")
-                    return@launch
-                }
-
-                if (cleanToken.isBlank()) {
-                    Log.d("ML_PUSH", "skip token sync: blank token")
-                    return@launch
-                }
-
-                authRepo.saveFcmToken(cleanToken)
-                markFcmTokenSynced(cleanToken)
-                Log.d("ML_PUSH", "token synced")
-            } catch (e: Exception) {
-                Log.e("ML_PUSH", "token sync failed: ${e.message}", e)
-            }
-        }
-    }
-
-    override fun onMessageReceived(message: RemoteMessage) {
-        try {
-            val taskId = remoteMessage.data[\"task_id\"]
-            val intent = android.content.Intent(\"TASKS_UPDATED\")
-            intent.putExtra(\"task_id\", taskId)
-            sendBroadcast(intent)
-        } catch (e: Exception) {}
+             catch (e: Exception) {}
 
         super.onMessageReceived(message)
 

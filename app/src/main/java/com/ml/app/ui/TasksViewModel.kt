@@ -1052,7 +1052,4 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
 }
 
 
-fun refreshTasks() {
-    loadMyTasks()
-    loadAllTasks()
-}
+
