@@ -90,13 +90,6 @@ class MlFirebaseMessagingService : FirebaseMessagingService() {
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
-        try {
-            val taskId = remoteMessage.data[\"task_id\"]
-            val intent = android.content.Intent(\"TASKS_UPDATED\")
-            intent.putExtra(\"task_id\", taskId)
-            sendBroadcast(intent)
-        } catch (e: Exception) {}
-
         super.onMessageReceived(message)
 
         if (BuildConfig.ENABLE_ML) Log.d("ML_PUSH", "onMessageReceived data=${message.data} notification=${message.notification}")
