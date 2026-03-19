@@ -105,8 +105,8 @@ class MlFirebaseMessagingService : FirebaseMessagingService() {
         val taskId = message.data["task_id"]?.trim().orEmpty()
         val type = message.data["type"]?.trim().orEmpty()
         val isUrgent = message.data["is_urgent"] == "1" ||
-            title.contains("Срочная", ignoreCase = true) ||
-            body.contains("Срочная", ignoreCase = true)
+            title.contains("Приоритет", ignoreCase = true) ||
+            body.contains("Приоритет", ignoreCase = true)
 
         if (taskId.isNotBlank() && type != "task_deleted") {
             val session = PrefsSessionStorage(applicationContext)

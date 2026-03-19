@@ -17,7 +17,7 @@ import com.ml.app.data.remote.dto.TaskDto
 object UrgentTaskNotifier {
 
     private const val CHANNEL_ID = "ml_urgent_tasks_channel"
-    private const val CHANNEL_NAME = "Срочные задачи"
+    private const val CHANNEL_NAME = "Приоритетные задачи"
 
     private fun ensureChannel(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -27,7 +27,7 @@ object UrgentTaskNotifier {
                 CHANNEL_NAME,
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                description = "Постоянные уведомления по срочным задачам"
+                description = "Постоянные уведомления по приоритетным задачам"
                 setShowBadge(false)
             }
             manager.createNotificationChannel(channel)
@@ -101,7 +101,7 @@ object UrgentTaskNotifier {
         )
 
         val body = buildString {
-            append("Срочная задача")
+            append("Приоритетная задача")
             if (!task.created_by_name.isNullOrBlank()) {
                 append(" • от ")
                 append(task.created_by_name)

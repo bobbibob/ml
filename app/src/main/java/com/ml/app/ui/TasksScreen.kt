@@ -1399,7 +1399,7 @@ private fun EditTaskWizard(
                                   }
                               )
                               Text(
-                                  text = "Срочная задача",
+                                  text = "Приоритетная задача",
                                   modifier = Modifier
                                       .padding(start = 8.dp)
                                       .clickable {
