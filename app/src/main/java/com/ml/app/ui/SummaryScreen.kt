@@ -1,8 +1,8 @@
 @file:OptIn(androidx.compose.material.ExperimentalMaterialApi::class)
 
-import com.ml.app.BuildConfig
-
 package com.ml.app.ui
+
+import com.ml.app.BuildConfig
 
 import androidx.compose.runtime.rememberCoroutineScope
 
