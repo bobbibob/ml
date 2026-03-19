@@ -277,7 +277,7 @@ fun SummaryScreen(
             Button(
               onClick = { showTasks.value = false }
             ) {
-              Text("ml")
+              if (BuildConfig.ENABLE_ML) Text("ml")
             }
 
             Spacer(Modifier.width(24.dp))
@@ -289,7 +289,7 @@ fun SummaryScreen(
             )
           } else {
             Text(
-              text = "ml",
+              text = if (BuildConfig.ENABLE_ML) "ml" else "",
               style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Black),
               color = TextBlack
             )
@@ -440,7 +440,11 @@ Row(verticalAlignment = Alignment.CenterVertically) {
             )
         } else if (showTasks.value) {
           TasksScreen(
-              onBack = { showTasks.value = false },
+              onBack = {
+                if (BuildConfig.ENABLE_ML) {
+                  showTasks.value = false
+                }
+              },
               vm = tasksVm,
               initialOpenTaskId = initialTaskId,
               openSignal = openTasksSignal
