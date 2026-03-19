@@ -136,7 +136,10 @@ fun SummaryScreen(
   if (showMlAuthScreen) {
     MlAuthScreen(
       onClose = { showMlAuthScreen = false },
-      onSuccess = { showMlAuthScreen = false }
+      onSuccess = {
+        showMlAuthScreen = false
+        vm.refreshMlStatus()
+      }
     )
     return
   }
@@ -363,6 +366,16 @@ Row(verticalAlignment = Alignment.CenterVertically) {
                     }
                   }
 
+                  if (accountUser.role == "admin" && state.mlAuthState != null && state.mlAuthState != "active") {
+                    Box(
+                      modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .size(10.dp)
+                        .clip(CircleShape)
+                        .background(Color.Red)
+                    )
+                  }
+
                   DropdownMenu(
                     expanded = accountMenuExpanded,
                     onDismissRequest = { accountMenuExpanded = false }
@@ -385,7 +398,28 @@ Row(verticalAlignment = Alignment.CenterVertically) {
                     )
                     if (accountUser.role == "admin") {
                       DropdownMenuItem(
-                        text = { Text("Авторизация ML") },
+                        text = {
+                          Column {
+                            Text("Авторизация ML")
+                            val mlInfo = when {
+                              state.mlAuthState == null -> "Статус неизвестен"
+                              state.mlAuthState == "active" && !state.mlUpdatedByName.isNullOrBlank() ->
+                                "Активно · ${state.mlUpdatedByName}"
+                              state.mlAuthState == "active" ->
+                                "Активно"
+                              state.mlAuthState == "auth_required" ->
+                                "Требуется вход"
+                              state.mlAuthState == "error" && !state.mlLastError.isNullOrBlank() ->
+                                "Ошибка: ${state.mlLastError}"
+                              else -> state.mlAuthState ?: ""
+                            }
+                            Text(
+                              text = mlInfo,
+                              style = MaterialTheme.typography.bodySmall,
+                              color = Color.Gray
+                            )
+                          }
+                        },
                         onClick = {
                           accountMenuExpanded = false
                           showMlAuthScreen = true

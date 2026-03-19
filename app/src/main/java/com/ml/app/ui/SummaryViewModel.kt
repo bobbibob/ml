@@ -25,6 +25,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import org.json.JSONObject
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import com.google.firebase.messaging.FirebaseMessaging
 import com.ml.app.core.network.ApiModule
 import com.ml.app.data.repository.AuthRepository
@@ -48,7 +50,11 @@ data class SummaryState(
   val loading: Boolean = false,
   val refreshing: Boolean = false,
   val syncingPack: Boolean = false,
-  val hasPack: Boolean = false
+  val hasPack: Boolean = false,
+  val mlAuthState: String? = null,
+  val mlUpdatedByName: String? = null,
+  val mlUpdatedAt: String? = null,
+  val mlLastError: String? = null
 )
 
 class SummaryViewModel(app: Application) : AndroidViewModel(app) {
@@ -61,8 +67,43 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
   private val _state = MutableStateFlow(SummaryState())
   val state: StateFlow<SummaryState> = _state
 
+  fun refreshMlStatus() {
+    viewModelScope.launch(Dispatchers.IO) {
+      runCatching {
+        val session = PrefsSessionStorage(ctx)
+        val token = session.getToken().orEmpty()
+        if (token.isBlank()) return@runCatching
+
+        val client = OkHttpClient()
+        val request = Request.Builder()
+          .url(BuildConfig.TASKS_API_BASE_URL + "internal/integrations/ml/status")
+          .addHeader("Authorization", "Bearer $token")
+          .get()
+          .build()
+
+        client.newCall(request).execute().use { resp ->
+          if (!resp.isSuccessful) return@use
+          val body = resp.body?.string().orEmpty()
+          if (body.isBlank()) return@use
+
+          val json = JSONObject(body)
+          _state.value = _state.value.copy(
+            mlAuthState = json.optString("auth_state").ifBlank { null },
+            mlUpdatedByName = json.optString("updated_by_name").ifBlank { null },
+            mlUpdatedAt = json.optString("updated_at").ifBlank { null },
+            mlLastError = json.optString("last_error").ifBlank { null }
+          )
+        }
+      }
+    }
+  }
 
 
+
+
+  init {
+    refreshMlStatus()
+  }
 
   private fun syncFcmTokenIfLoggedIn() {
     val session = PrefsSessionStorage(ctx)
