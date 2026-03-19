@@ -226,6 +226,16 @@ fun SummaryScreen(
     return
   }
 
+  if (!BuildConfig.ENABLE_ML) {
+    TasksScreen(
+      onBack = {},
+      vm = tasksVm,
+      initialOpenTaskId = initialTaskId,
+      openSignal = openTasksSignal
+    )
+    return
+  }
+
   BackHandler {
     if (showAdminScreen) {
       showAdminScreen = false
