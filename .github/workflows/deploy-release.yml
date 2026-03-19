@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - release_build
+    paths:
+      - "cloudflare-tasks/**"
+      - ".github/workflows/deploy-release.yml"
   workflow_dispatch:
 
 jobs:
