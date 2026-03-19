@@ -164,11 +164,6 @@ fun SummaryScreen(
             }
           }
         ) {
-    if (!BuildConfig.ENABLE_ML) {
-        TasksScreen(onBack = {})
-        return
-    }
-
           Text("Удалить")
         }
       },
