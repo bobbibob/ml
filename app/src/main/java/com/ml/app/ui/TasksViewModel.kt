@@ -271,6 +271,57 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun handlePushRefresh(taskId: String?, type: String?) {
+        val user = state.currentUser ?: return
+
+        if (!taskId.isNullOrBlank() && type == "task_deleted") {
+            removeTaskLocally(taskId)
+            UrgentTaskNotifier.cancel(getApplication<Application>().applicationContext, taskId)
+        }
+
+        viewModelScope.launch {
+            delay(250)
+            state = state.copy(error = null, info = null)
+
+            kotlin.runCatching {
+                when (val myRes = withTimeout(30000) { tasksRepo.getMyTasks() }) {
+                    is AppResult.Success -> {
+                        val optimisticMyTasks = state.myTasks.filter { it.task_id.startsWith("local_") }
+                        val mergedMyTasks = optimisticMyTasks + myRes.data.filterNot { serverTask ->
+                            optimisticMyTasks.any { it.task_id == serverTask.task_id }
+                        }
+                        state = state.copy(
+                            myTasks = mergedMyTasks,
+                            error = null,
+                            info = null
+                        )
+                        syncUrgentNotifications(mergedMyTasks)
+                    }
+                    is AppResult.Error -> Unit
+                }
+            }
+
+            if (user.role == "plus" || user.role == "admin") {
+                kotlin.runCatching {
+                    when (val allRes = withTimeout(30000) { tasksRepo.getAllTasks() }) {
+                        is AppResult.Success -> {
+                            val optimisticAllTasks = state.allTasks.filter { it.task_id.startsWith("local_") }
+                            val mergedAllTasks = optimisticAllTasks + allRes.data.filterNot { serverTask ->
+                                optimisticAllTasks.any { it.task_id == serverTask.task_id }
+                            }
+                            state = state.copy(
+                                allTasks = mergedAllTasks,
+                                error = null,
+                                info = null
+                            )
+                        }
+                        is AppResult.Error -> Unit
+                    }
+                }
+            }
+        }
+    }
+
 
     private fun syncUrgentNotifications(tasks: List<TaskDto>) {
         val ctx = getApplication<Application>().applicationContext

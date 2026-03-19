@@ -250,10 +250,12 @@ fun TasksScreen(
             onDispose { }
         } else {
             val receiver = object : BroadcastReceiver() {
-                override fun onReceive(context: Context?, intent: Intent?) {
-                    vm.refreshAllInBackground()
-                }
-            }
+                  override fun onReceive(context: Context?, intent: Intent?) {
+                      val taskId = intent?.getStringExtra("task_id")?.trim()
+                      val type = intent?.getStringExtra("type")?.trim()
+                      vm.handlePushRefresh(taskId, type)
+                  }
+              }
 
             ContextCompat.registerReceiver(
                 ctx,
