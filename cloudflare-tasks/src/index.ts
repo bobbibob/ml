@@ -204,6 +204,121 @@ async function ensureIndexes(env: Env) {
   }
 }
 
+
+
+async function ensureOrdersTables(env: Env) {
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS orders (
+      external_order_id TEXT PRIMARY KEY,
+      source TEXT NOT NULL,
+      title TEXT,
+      buyer_name TEXT,
+      status TEXT,
+      substatus TEXT,
+      amount REAL,
+      currency TEXT DEFAULT 'BRL',
+      created_at TEXT,
+      updated_at TEXT,
+      last_seen_at TEXT NOT NULL,
+      raw_json TEXT NOT NULL
+    )
+  `).run()
+
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS integration_state (
+      source TEXT PRIMARY KEY,
+      auth_state TEXT NOT NULL,
+      last_success_at TEXT,
+      last_run_at TEXT,
+      last_error TEXT,
+      updated_at TEXT NOT NULL
+    )
+  `).run()
+
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS summary_reports (
+      id TEXT PRIMARY KEY,
+      source TEXT NOT NULL,
+      report_type TEXT NOT NULL,
+      period_start TEXT NOT NULL,
+      period_end TEXT NOT NULL,
+      summary_text TEXT NOT NULL,
+      payload_json TEXT,
+      created_at TEXT NOT NULL
+    )
+  `).run()
+}
+
+async function handleOrdersUpsertBulk(request: Request, env: Env) {
+  const body = await request.json().catch(() => null)
+  const orders = body?.orders || []
+
+  if (!orders.length) {
+    return json({ ok: false, error: "orders_required" }, 400)
+  }
+
+  const now = nowIso()
+
+  for (const o of orders) {
+    const id = String(o.external_order_id || "").trim()
+    if (!id) continue
+
+    await env.DB.prepare(`
+      INSERT INTO orders (
+        external_order_id, source, title, buyer_name,
+        status, substatus, amount, currency,
+        created_at, updated_at, last_seen_at, raw_json
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(external_order_id) DO UPDATE SET
+        status = excluded.status,
+        amount = excluded.amount,
+        last_seen_at = excluded.last_seen_at,
+        raw_json = excluded.raw_json
+    `).bind(
+      id,
+      "mercadolivre",
+      o.title || null,
+      o.buyer_name || null,
+      o.status || null,
+      o.substatus || null,
+      o.amount || null,
+      o.currency || "BRL",
+      o.created_at || null,
+      o.updated_at || null,
+      now,
+      JSON.stringify(o)
+    ).run()
+  }
+
+  return json({ ok: true, count: orders.length })
+}
+
+async function handleGenerateOrdersSummary(env: Env) {
+  const row = await env.DB.prepare(`
+    SELECT COUNT(*) as total, COALESCE(SUM(amount),0) as sum
+    FROM orders
+  `).first<any>()
+
+  const text = `Заказов: ${row.total}, сумма: ${row.sum}`
+
+  await env.DB.prepare(`
+    INSERT INTO summary_reports (
+      id, source, report_type, period_start, period_end,
+      summary_text, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    crypto.randomUUID(),
+    "mercadolivre",
+    "daily",
+    nowIso(),
+    nowIso(),
+    text,
+    nowIso()
+  ).run()
+
+  return json({ ok: true, summary: text })
+}
+
 let schemaReadyPromise: Promise<void> | null = null
 
 async function ensureSchemaOnce(env: Env) {
@@ -218,6 +333,7 @@ async function ensureSchemaOnce(env: Env) {
       await ensureClientRequestIdColumn(env)
       await ensureUserDeviceTokenIndex(env)
       await ensureIndexes(env)
+      await ensureOrdersTables(env)
     })().catch((e) => {
       schemaReadyPromise = null
       throw e
@@ -2126,7 +2242,16 @@ if (path === "/task_reminder" && request.method
         return json({ ok: true, task_id: taskId })
       }
 
-        return json({ ok: false, error: "not found" }, 404)
+        
+      if (path === "/internal/orders/upsert-bulk" && request.method === "POST") {
+        return await handleOrdersUpsertBulk(request, env)
+      }
+
+      if (path === "/internal/ml/generate-orders-summary" && request.method === "POST") {
+        return await handleGenerateOrdersSummary(env)
+      }
+
+return json({ ok: false, error: "not found" }, 404)
     } catch (e: any) {
 
         return json({ ok: false, error: e?.message || "internal error" }, 500)
