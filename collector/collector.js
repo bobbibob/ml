@@ -42,10 +42,10 @@ async function main() {
   const context = await browser.newContext({
     locale: "pt-BR",
     timezoneId: "America/Sao_Paulo",
-    viewport: { width: 1440, height: 1200 },
-    isMobile: false,
-    hasTouch: false,
-    userAgent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
+    viewport: { width: 412, height: 915 },
+    isMobile: true,
+    hasTouch: true,
+    userAgent: "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Mobile Safari/537.36"
   });
 
   const page = await context.newPage();
@@ -70,10 +70,6 @@ async function main() {
       timeout: 90000
     });
     await page.waitForLoadState("networkidle", { timeout: 30000 }).catch(() => {});
-
-    await page.addInitScript(() => {
-      Object.defineProperty(navigator, "webdriver", { get: () => undefined });
-    });
 
     await page.goto(ORDERS_URL, {
       waitUntil: "domcontentloaded",
