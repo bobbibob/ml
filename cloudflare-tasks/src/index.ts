@@ -469,9 +469,19 @@ async function handleSaveMlSession(request: Request, env: Env) {
 
 async function handleGetMlStatus(_request: Request, env: Env) {
   const row = await env.DB.prepare(`
-    SELECT source, auth_state, last_success_at, last_run_at, last_error, updated_at
-    FROM integration_state
-    WHERE source = 'mercadolivre'
+    SELECT
+      s.source,
+      s.auth_state,
+      s.last_success_at,
+      s.last_run_at,
+      s.last_error,
+      s.updated_at,
+      sess.updated_by_user_id,
+      u.display_name AS updated_by_name
+    FROM integration_state s
+    LEFT JOIN integration_sessions sess ON sess.source = s.source
+    LEFT JOIN users u ON u.user_id = sess.updated_by_user_id
+    WHERE s.source = 'mercadolivre'
     LIMIT 1
   `).first<any>()
 
@@ -483,7 +493,9 @@ async function handleGetMlStatus(_request: Request, env: Env) {
       last_success_at: null,
       last_run_at: null,
       last_error: null,
-      updated_at: null
+      updated_at: null,
+      updated_by_user_id: null,
+      updated_by_name: null
     })
   }
 
@@ -494,7 +506,9 @@ async function handleGetMlStatus(_request: Request, env: Env) {
     last_success_at: row.last_success_at,
     last_run_at: row.last_run_at,
     last_error: row.last_error,
-    updated_at: row.updated_at
+    updated_at: row.updated_at,
+    updated_by_user_id: row.updated_by_user_id,
+    updated_by_name: row.updated_by_name
   })
 }
 
