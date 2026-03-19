@@ -107,3 +107,4 @@ async function main() {
 
 main();
 // trigger
+// retrigger collector after session saved
