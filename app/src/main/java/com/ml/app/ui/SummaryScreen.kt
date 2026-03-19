@@ -230,8 +230,12 @@ fun SummaryScreen(
     if (showAdminScreen) {
       showAdminScreen = false
     } else if (showTasks.value) {
-      showTasks.value = false
-    } else {
+        if (BuildConfig.ENABLE_ML) {
+          showTasks.value = false
+        } else {
+          showExitAppDialog = true
+        }
+      } else {
       when (state.mode) {
         is ScreenMode.Details -> vm.backToTimeline()
         is ScreenMode.ArticleEditor -> vm.backFromArticleEditor()
@@ -274,13 +278,15 @@ fun SummaryScreen(
           verticalAlignment = Alignment.CenterVertically
         ) {
           if (showTasks.value) {
-            Button(
-              onClick = { showTasks.value = false }
-            ) {
-              if (BuildConfig.ENABLE_ML) Text("ml")
-            }
+              if (BuildConfig.ENABLE_ML) {
+                Button(
+                  onClick = { showTasks.value = false }
+                ) {
+                  Text("ml")
+                }
 
-            Spacer(Modifier.width(24.dp))
+                Spacer(Modifier.width(24.dp))
+              }
 
             Text(
               text = "Задачи",
