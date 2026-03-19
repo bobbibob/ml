@@ -38,6 +38,13 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: wrangler whoami
 
+      - name: Set INTERNAL_API_TOKEN
+        working-directory: cloudflare-tasks
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          echo "${{ secrets.INTERNAL_API_TOKEN }}" | wrangler secret put INTERNAL_API_TOKEN
+
       - name: Apply D1 schema DEV
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
