@@ -173,10 +173,6 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-        if (!com.ml.app.BuildConfig.ENABLE_ML) {
-            com.ml.app.ui.TasksScreen(onBack = {})
-            return@setContent
-        }
             MaterialTheme {
                 Surface {
                     SummaryScreen(
