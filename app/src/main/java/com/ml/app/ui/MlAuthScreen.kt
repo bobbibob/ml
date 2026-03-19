@@ -111,6 +111,119 @@ fun MlAuthScreen(
             ) {
                 Text("Сохранить сессию")
             }
+
+            Button(
+                onClick = {
+                    val webView = webViewRef ?: return@Button
+                    statusText = "Читаем заказы со страницы..."
+
+                    val js = """
+                        (function() {
+                          function txt(el) {
+                            return ((el && (el.innerText || el.textContent)) || "").trim();
+                          }
+
+                          const nodes = Array.from(document.querySelectorAll("tr, [role='row'], article, li, .andes-card"));
+                          const orders = [];
+
+                          for (const node of nodes) {
+                            const raw = txt(node);
+                            if (!raw) continue;
+
+                            const idMatch = raw.match(/\b\d{6,}\b/);
+                            if (!idMatch) continue;
+
+                            const amountMatch = raw.match(/R\$\s*([\d\.,]+)/i);
+                            let amount = null;
+                            if (amountMatch) {
+                              amount = Number(amountMatch[1].replace(/\./g, "").replace(",", "."));
+                              if (!Number.isFinite(amount)) amount = null;
+                            }
+
+                            const parts = raw.split("\n").map(s => s.trim()).filter(Boolean);
+
+                            orders.push({
+                              external_order_id: idMatch[0],
+                              title: parts[0] || null,
+                              buyer_name: null,
+                              status: parts.find(x => /cancel|pago|entreg|envio|pendente|pronto/i.test(x)) || null,
+                              substatus: null,
+                              amount: amount,
+                              currency: "BRL"
+                            });
+                          }
+
+                          return JSON.stringify({
+                            url: location.href,
+                            title: document.title,
+                            count: orders.length,
+                            orders: orders.slice(0, 100)
+                          });
+                        })();
+                    """.trimIndent()
+
+                    webView.evaluateJavascript(js) { result ->
+                        Thread {
+                            try {
+                                val raw = result
+                                    ?.removePrefix(""")
+                                    ?.removeSuffix(""")
+                                    ?.replace("\\n", "
+")
+                                    ?.replace("\\"", """)
+                                    ?.replace("\\/", "/")
+                                    ?: ""
+
+                                val json = JSONObject(raw)
+                                val orders = json.optJSONArray("orders") ?: JSONArray()
+
+                                if (orders.length() == 0) {
+                                    statusText = "Заказы не найдены. Проверь, что открыт список продаж."
+                                    return@Thread
+                                }
+
+                                val client = OkHttpClient()
+
+                                val upsertBody = JSONObject().apply {
+                                    put("orders", orders)
+                                }
+
+                                val upsertReq = Request.Builder()
+                                    .url(BuildConfig.TASKS_API_BASE_URL + "internal/orders/upsert-bulk")
+                                    .addHeader("Authorization", "Bearer $token")
+                                    .post(upsertBody.toString().toRequestBody("application/json".toMediaType()))
+                                    .build()
+
+                                client.newCall(upsertReq).execute().use { resp ->
+                                    if (!resp.isSuccessful) {
+                                        statusText = "Ошибка отправки заказов: ${resp.code}"
+                                        return@Thread
+                                    }
+                                }
+
+                                val summaryReq = Request.Builder()
+                                    .url(BuildConfig.TASKS_API_BASE_URL + "internal/ml/generate-orders-summary")
+                                    .addHeader("Authorization", "Bearer $token")
+                                    .post("{}".toRequestBody("application/json".toMediaType()))
+                                    .build()
+
+                                client.newCall(summaryReq).execute().use { resp ->
+                                    if (!resp.isSuccessful) {
+                                        statusText = "Заказы отправлены, но summary не создан: ${resp.code}"
+                                        return@Thread
+                                    }
+                                }
+
+                                statusText = "Синхронизация ML завершена: ${orders.length()} заказов."
+                            } catch (t: Throwable) {
+                                statusText = "Ошибка синхронизации: ${t.message}"
+                            }
+                        }.start()
+                    }
+                }
+            ) {
+                Text("Синхронизировать ML")
+            }
         }
 
         Text(
