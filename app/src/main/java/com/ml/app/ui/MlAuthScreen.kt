@@ -56,6 +56,7 @@ fun MlAuthScreen(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .height(220.dp)
                 .verticalScroll(rememberScrollState())
         ) {
         
@@ -609,7 +610,7 @@ fun MlAuthScreen(
         )
 
         AndroidView(
-            modifier = Modifier.fillMaxWidth().height(520.dp),
+            modifier = Modifier.fillMaxWidth().height(360.dp),
             factory = {
                 buildMlWebView(
                     context = context,
