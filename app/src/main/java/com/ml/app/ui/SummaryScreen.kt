@@ -133,8 +133,19 @@ fun SummaryScreen(
     }
   }
 
-  Box(modifier = Modifier.fillMaxSize()) {
-    pendingDeleteDate?.let { dateToDelete ->
+  if (showMlAuthScreen) {
+    MlAuthScreen(
+      onClose = { showMlAuthScreen = false },
+      onSuccess = {
+        showMlAuthScreen = false
+        vm.refreshMlStatus()
+      }
+    )
+  }
+
+
+
+  pendingDeleteDate?.let { dateToDelete ->
     AlertDialog(
       onDismissRequest = { pendingDeleteDate = null },
       title = { Text("Удалить сводку") },
@@ -652,15 +663,6 @@ Row(verticalAlignment = Alignment.CenterVertically) {
       state = pullState,
       modifier = Modifier.align(Alignment.TopCenter)
     )
-    if (showMlAuthScreen) {
-      MlAuthScreen(
-        onClose = { showMlAuthScreen = false },
-        onSuccess = {
-          showMlAuthScreen = false
-          vm.refreshMlStatus()
-        }
-      )
-    }
   }
 }
 
