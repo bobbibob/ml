@@ -346,6 +346,20 @@ fun MlAuthScreen(
                                     }
                                 }
 
+                                val authStateBody = JSONObject().apply {
+                                    put("source", "mercadolivre")
+                                    put("auth_state", "active")
+                                    put("last_error", JSONObject.NULL)
+                                }
+
+                                val authStateReq = Request.Builder()
+                                    .url(BuildConfig.TASKS_API_BASE_URL + "internal/integrations/set-auth-state")
+                                    .addHeader("Authorization", "Bearer $token")
+                                    .post(authStateBody.toString().toRequestBody("application/json".toMediaType()))
+                                    .build()
+
+                                client.newCall(authStateReq).execute().use { }
+
                                 statusText = "Синхронизация ML завершена: ${orders.length()} заказов."
                             } catch (t: Throwable) {
                                 statusText = "Ошибка синхронизации: ${t.message}"
