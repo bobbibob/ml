@@ -189,34 +189,102 @@ fun MlAuthScreen(
                             return ((el && (el.innerText || el.textContent)) || "").trim();
                           }
 
-                          const nodes = Array.from(document.querySelectorAll("tr, [role='row'], article, li, .andes-card"));
+                          function norm(s) {
+                            return (s || "").replace(/\s+/g, " ").trim();
+                          }
+
+                          function amountFrom(raw) {
+                            const m = raw.match(/R\$\s*([\d\.,]+)/i);
+                            if (!m) return null;
+                            const v = Number(m[1].replace(/\./g, "").replace(",", "."));
+                            return Number.isFinite(v) ? v : null;
+                          }
+
+                          function colorFrom(raw) {
+                            const m = raw.match(/cor\s*:?\s*([^|\n]+)/i);
+                            return m ? norm(m[1]) : null;
+                          }
+
+                          function dateTimeFrom(raw) {
+                            const m = raw.match(/(\d{1,2}\s+[a-zç]{3})\s+(\d{1,2}:\d{2})\s*hs/i);
+                            return {
+                              date_text: m ? norm(m[1]) : null,
+                              time_text: m ? norm(m[2]) : null
+                            };
+                          }
+
+                          function titleFrom(parts) {
+                            const candidates = parts.filter(x =>
+                              x.length > 12 &&
+                              !/^#?\d{6,}/.test(x) &&
+                              !/R\$/.test(x) &&
+                              !/\d{1,2}\s+[a-zç]{3}/i.test(x) &&
+                              !/não afeta|reputa|cancel|pago|entreg|envio|pendente|pronto|prepar|aguard|tr.nsito|a caminho|enviado/i.test(x)
+                            );
+                            return candidates[0] || null;
+                          }
+
+                          function buyerFrom(parts) {
+                            const candidates = parts.filter(x =>
+                              x.length > 3 &&
+                              !/^#?\d{6,}/.test(x) &&
+                              !/R\$/.test(x) &&
+                              !/\d{1,2}\s+[a-zç]{3}/i.test(x) &&
+                              !/não afeta|reputa|cancel|pago|entreg|envio|pendente|pronto|prepar|aguard|tr.nsito|a caminho|enviado/i.test(x)
+                            );
+                            return candidates[1] || null;
+                          }
+
+                          function statusFrom(raw) {
+                            const parts = raw.split("\n").map(x => norm(x)).filter(Boolean);
+                            return parts.find(x =>
+                              /não afeta|reputa|cancel|pago|entreg|envio|pendente|pronto|prepar|aguard|tr.nsito|a caminho|enviado/i.test(x)
+                            ) || null;
+                          }
+
+                          function firstImg(root) {
+                            const img = root.querySelector("img");
+                            if (!img) return null;
+                            return img.getAttribute("src") || img.getAttribute("data-src") || null;
+                          }
+
+                          const cards = Array.from(document.querySelectorAll(".andes-card, li"));
+                          const seen = new Set();
                           const orders = [];
 
-                          for (const node of nodes) {
-                            const raw = txt(node);
+                          for (const card of cards) {
+                            const raw = txt(card);
                             if (!raw) continue;
+                            if (!/#\d{10,}|R\$|\d{1,2}\s+[a-zç]{3}\s+\d{1,2}:\d{2}\s*hs/i.test(raw)) continue;
 
-                            const idMatch = raw.match(/\b\d{6,}\b/);
+                            const idMatch =
+                              raw.match(/#(\d{10,})/) ||
+                              raw.match(/\b(\d{10,})\b/);
+
                             if (!idMatch) continue;
 
-                            const amountMatch = raw.match(/R\$\s*([\d\.,]+)/i);
-                            let amount = null;
-                            if (amountMatch) {
-                              amount = Number(amountMatch[1].replace(/\./g, "").replace(",", "."));
-                              if (!Number.isFinite(amount)) amount = null;
-                            }
+                            const externalId = idMatch[1];
+                            if (seen.has(externalId)) continue;
 
-                            const parts = raw.split("\n").map(s => s.trim()).filter(Boolean);
+                            const parts = raw.split("\n").map(x => norm(x)).filter(Boolean);
+                            const dt = dateTimeFrom(raw);
 
                             orders.push({
-                              external_order_id: idMatch[0],
-                              title: parts[0] || null,
-                              buyer_name: null,
-                              status: parts.find(x => /cancel|pago|entreg|envio|pendente|pronto/i.test(x)) || null,
+                              external_order_id: externalId,
+                              title: titleFrom(parts),
+                              buyer_name: buyerFrom(parts),
+                              status: statusFrom(raw),
                               substatus: null,
-                              amount: amount,
-                              currency: "BRL"
+                              amount: amountFrom(raw),
+                              currency: "BRL",
+                              date_text: dt.date_text,
+                              time_text: dt.time_text,
+                              color: colorFrom(raw),
+                              photo_url: firstImg(card),
+                              raw_text: norm(raw).slice(0, 4000)
                             });
+
+                            seen.add(externalId);
                           }
 
                           return JSON.stringify({
