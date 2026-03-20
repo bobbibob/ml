@@ -141,7 +141,6 @@ fun SummaryScreen(
         vm.refreshMlStatus()
       }
     )
-    return
   }
 
 
