@@ -165,16 +165,14 @@ fun MlAuthScreen(
                     webView.evaluateJavascript(js) { result ->
                         Thread {
                             try {
-                                val raw = result
-                                    ?.removePrefix(""")
-                                    ?.removeSuffix(""")
-                                    ?.replace("\\n", "
-")
-                                    ?.replace("\\"", """)
-                                    ?.replace("\\/", "/")
-                                    ?: ""
+                                val raw = result ?: ""
+                                val cleaned = if (raw.startsWith("\"") && raw.endsWith("\"")) {
+                                    JSONObject("{\"v\":$raw}").getString("v")
+                                } else {
+                                    raw
+                                }
 
-                                val json = JSONObject(raw)
+                                val json = JSONObject(cleaned)
                                 val orders = json.optJSONArray("orders") ?: JSONArray()
 
                                 if (orders.length() == 0) {
