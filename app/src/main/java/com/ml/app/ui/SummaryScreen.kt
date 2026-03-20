@@ -39,6 +39,8 @@ import androidx.compose.material.icons.filled.Close
 
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.material3.Icon
@@ -134,13 +136,20 @@ fun SummaryScreen(
   }
 
   if (showMlAuthScreen) {
-    MlAuthScreen(
-      onClose = { showMlAuthScreen = false },
-      onSuccess = {
-        showMlAuthScreen = false
-        vm.refreshMlStatus()
+    Dialog(
+      onDismissRequest = { showMlAuthScreen = false },
+      properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+      Surface(modifier = Modifier.fillMaxSize()) {
+        MlAuthScreen(
+          onClose = { showMlAuthScreen = false },
+          onSuccess = {
+            showMlAuthScreen = false
+            vm.refreshMlStatus()
+          }
+        )
       }
-    )
+    }
   }
 
 
