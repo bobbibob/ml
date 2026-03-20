@@ -224,6 +224,17 @@ async function ensureOrdersTables(env: Env) {
     )
   `).run()
 
+  try { await env.DB.prepare("ALTER TABLE orders ADD COLUMN date_text TEXT").run() } catch {}
+  try { await env.DB.prepare("ALTER TABLE orders ADD COLUMN time_text TEXT").run() } catch {}
+  try { await env.DB.prepare("ALTER TABLE orders ADD COLUMN order_datetime_sort TEXT").run() } catch {}
+  try { await env.DB.prepare("ALTER TABLE orders ADD COLUMN color TEXT").run() } catch {}
+  try { await env.DB.prepare("ALTER TABLE orders ADD COLUMN photo_url TEXT").run() } catch {}
+
+  await env.DB.prepare(`
+    CREATE INDEX IF NOT EXISTS idx_orders_order_datetime_sort
+    ON orders(order_datetime_sort)
+  `).run()
+
   await env.DB.prepare(`
     CREATE TABLE IF NOT EXISTS integration_state (
       source TEXT PRIMARY KEY,
@@ -267,13 +278,24 @@ async function handleOrdersUpsertBulk(request: Request, env: Env) {
       INSERT INTO orders (
         external_order_id, source, title, buyer_name,
         status, substatus, amount, currency,
-        created_at, updated_at, last_seen_at, raw_json
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        created_at, updated_at, last_seen_at, raw_json,
+        date_text, time_text, order_datetime_sort, color, photo_url
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(external_order_id) DO UPDATE SET
+        title = excluded.title,
+        buyer_name = excluded.buyer_name,
         status = excluded.status,
+        substatus = excluded.substatus,
         amount = excluded.amount,
+        currency = excluded.currency,
+        updated_at = excluded.updated_at,
         last_seen_at = excluded.last_seen_at,
-        raw_json = excluded.raw_json
+        raw_json = excluded.raw_json,
+        date_text = excluded.date_text,
+        time_text = excluded.time_text,
+        order_datetime_sort = excluded.order_datetime_sort,
+        color = excluded.color,
+        photo_url = excluded.photo_url
     `).bind(
       id,
       "mercadolivre",
@@ -286,7 +308,12 @@ async function handleOrdersUpsertBulk(request: Request, env: Env) {
       o.created_at || null,
       o.updated_at || null,
       now,
-      JSON.stringify(o)
+      JSON.stringify(o),
+      o.date_text || null,
+      o.time_text || null,
+      o.order_datetime_sort || null,
+      o.color || null,
+      o.photo_url || null
     ).run()
   }
 
@@ -509,6 +536,24 @@ async function handleGetMlStatus(_request: Request, env: Env) {
     updated_at: row.updated_at,
     updated_by_user_id: row.updated_by_user_id,
     updated_by_name: row.updated_by_name
+  })
+}
+
+
+async function handleGetMlSyncState(_request: Request, env: Env) {
+  const row = await env.DB.prepare(`
+    SELECT
+      MAX(order_datetime_sort) AS last_synced_order_datetime
+    FROM orders
+    WHERE source = 'mercadolivre'
+      AND order_datetime_sort IS NOT NULL
+      AND order_datetime_sort >= '2025-08-30T00:00:00'
+  `).first<any>()
+
+  return json({
+    ok: true,
+    min_allowed_datetime: "2025-08-30T00:00:00",
+    last_synced_order_datetime: row?.last_synced_order_datetime || null
   })
 }
 
@@ -2498,6 +2543,10 @@ if (path === "/task_reminder" && request.method
 
       if (path === "/internal/integrations/ml/session" && request.method === "GET") {
         return await handleGetMlSession(request, env)
+      }
+
+      if (path === "/internal/integrations/ml/sync-state" && request.method === "GET") {
+        return await handleGetMlSyncState(request, env)
       }
 
 return json({ ok: false, error: "not found" }, 404)
