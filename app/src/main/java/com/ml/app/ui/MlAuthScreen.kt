@@ -614,8 +614,6 @@ fun MlAuthScreen(
             }
         )
     }
-}
-
 @SuppressLint("SetJavaScriptEnabled")
 private fun buildMlWebView(
     context: android.content.Context,
