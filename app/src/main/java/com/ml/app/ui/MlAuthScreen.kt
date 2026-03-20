@@ -50,15 +50,80 @@ fun MlAuthScreen(
     BackHandler { onClose() }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        
+Column(
+    modifier = Modifier
+        .fillMaxWidth()
+        .padding(12.dp),
+    verticalArrangement = Arrangement.spacedBy(8.dp)
+) {
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Button(onClick = onClose, modifier = Modifier.weight(1f)) {
+            Text("Назад")
+        }
+
+        Button(
+            onClick = {
+                val url = currentUrl
+                val cookiesRaw = cookieManager.getCookie(url).orEmpty()
+                // оставляем как есть
+            },
+            modifier = Modifier.weight(1f)
         ) {
-            Button(onClick = onClose) {
-                Text("Назад")
-            }
+            Text("Сессия")
+        }
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Button(
+            onClick = { webViewRef?.loadUrl(ML_START_URL) },
+            modifier = Modifier.weight(1f)
+        ) {
+            Text("Заказы")
+        }
+
+        Button(
+            onClick = { webViewRef?.loadUrl(ML_STOCK_URL) },
+            modifier = Modifier.weight(1f)
+        ) {
+            Text("Остатки")
+        }
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Button(
+            onClick = { /* DOM */ },
+            modifier = Modifier.weight(1f)
+        ) {
+            Text("DOM")
+        }
+
+        Button(
+            onClick = { /* cards */ },
+            modifier = Modifier.weight(1f)
+        ) {
+            Text("Карточки")
+        }
+    }
+
+    Button(
+        onClick = { /* sync */ },
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text("Синхро ML")
+    }
+}
+
 
             Button(
                 onClick = {
