@@ -31,6 +31,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 private const val ML_START_URL = "https://www.mercadolivre.com.br/vendas/omni/lista?filters=TAB_TODAY"
+private const val ML_STOCK_URL = "https://www.mercadolivre.com.br/anuncios/lista/space_management?filters=on-sale%2Cin-transfer"
 
 @Composable
 fun MlAuthScreen(
@@ -176,6 +177,115 @@ fun MlAuthScreen(
                 }
             ) {
                 Text("Показать DOM")
+            }
+
+            Button(
+                onClick = {
+                    val webView = webViewRef ?: return@Button
+                    statusText = "Снимаем карточки товаров..."
+
+                    val js = """
+                        (function() {
+                          function txt(el) {
+                            return ((el && (el.innerText || el.textContent)) || "").trim();
+                          }
+
+                          function norm(s) {
+                            return (s || "").replace(/\s+/g, " ").trim();
+                          }
+
+                          function parseIntLoose(s) {
+                            if (!s) return null;
+                            const only = String(s).replace(/[^\d]/g, "");
+                            if (!only) return null;
+                            const n = Number(only);
+                            return Number.isFinite(n) ? n : null;
+                          }
+
+                          function lineIntByLabel(lines, labelRegex) {
+                            const line = lines.find(x => labelRegex.test(x));
+                            return line ? parseIntLoose(line) : null;
+                          }
+
+                          function extractMlCode(raw) {
+                            const m = raw.match(/Код\s+ML\s*:?\s*([A-Z0-9]+)/i);
+                            return m ? m[1] : null;
+                          }
+
+                          function extractWeeks(raw) {
+                            const m = raw.match(/До\s+(\d+)\s+нед/i);
+                            return m ? Number(m[1]) : null;
+                          }
+
+                          function extractTitle(lines) {
+                            const filtered = lines.filter(x =>
+                              x.length > 8 &&
+                              !/^Код\s+ML/i.test(x) &&
+                              !/^\+\s*\d+/.test(x) &&
+                              !/единиц/i.test(x) &&
+                              !/недел/i.test(x) &&
+                              !/Варианты просмотра/i.test(x)
+                            );
+                            return filtered[0] || null;
+                          }
+
+                          const cards = Array.from(document.querySelectorAll("li, .andes-card, [class*='card'], [class*='row']"));
+                          const items = [];
+                          const seen = new Set();
+
+                          for (const card of cards) {
+                            const raw = norm(txt(card));
+                            if (!raw) continue;
+                            if (!/Код\s+ML/i.test(raw)) continue;
+
+                            const lines = raw.split("\n").map(x => norm(x)).filter(Boolean);
+                            const mlCode = extractMlCode(raw);
+                            if (!mlCode || seen.has(mlCode)) continue;
+
+                            const img = card.querySelector("img");
+                            items.push({
+                              ml_code: mlCode,
+                              title: extractTitle(lines),
+                              stock_in_transfer: lineIntByLabel(lines, /^В\s*пути/i),
+                              stock_not_fit_for_sale: lineIntByLabel(lines, /^Не\s*подходит/i),
+                              stock_fit_for_sale: lineIntByLabel(lines, /^Подходит\s*для\s*продажи/i),
+                              sales_30d: lineIntByLabel(lines, /^Продажи/i),
+                              weeks_to_stockout: extractWeeks(raw),
+                              stock_with_incoming: lineIntByLabel(lines, /^С\s*учетом\s*времени/i),
+                              photo_url: img ? (img.getAttribute("src") || img.getAttribute("data-src") || null) : null,
+                              raw_text: raw.slice(0, 2000)
+                            });
+
+                            seen.add(mlCode);
+                          }
+
+                          return JSON.stringify({
+                            url: location.href,
+                            title: document.title,
+                            count: items.length,
+                            items: items.slice(0, 10)
+                          });
+                        })();
+                    """.trimIndent()
+
+                    webView.evaluateJavascript(js) { result ->
+                        try {
+                            val raw = result ?: ""
+                            val cleaned = if (raw.startsWith("\"") && raw.endsWith("\"")) {
+                                JSONObject("{\"v\":$raw}").getString("v")
+                            } else {
+                                raw
+                            }
+
+                            val json = JSONObject(cleaned)
+                            statusText = json.toString(2).take(7000)
+                        } catch (t: Throwable) {
+                            statusText = "Cards debug error: ${t.message}"
+                        }
+                    }
+                }
+            ) {
+                Text("Показать карточки")
             }
 
             Button(
