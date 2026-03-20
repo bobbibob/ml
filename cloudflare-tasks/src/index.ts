@@ -206,6 +206,41 @@ async function ensureIndexes(env: Env) {
 
 
 
+
+async function ensureArticlesTable(env: Env) {
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS articles (
+      sku TEXT PRIMARY KEY,
+      ml_code TEXT,
+      title TEXT,
+      color TEXT,
+      photo_url TEXT,
+      stock_in_transfer INTEGER,
+      stock_not_fit_for_sale INTEGER,
+      stock_fit_for_sale INTEGER,
+      sales_30d INTEGER,
+      weeks_to_stockout INTEGER,
+      stock_with_incoming INTEGER,
+      is_excluded INTEGER NOT NULL DEFAULT 0,
+      excluded_at TEXT,
+      excluded_by_user_id TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      raw_json TEXT
+    )
+  `).run()
+
+  await env.DB.prepare(`
+    CREATE INDEX IF NOT EXISTS idx_articles_ml_code
+    ON articles(ml_code)
+  `).run()
+
+  await env.DB.prepare(`
+    CREATE INDEX IF NOT EXISTS idx_articles_is_excluded
+    ON articles(is_excluded)
+  `).run()
+}
+
 async function ensureOrdersTables(env: Env) {
   await env.DB.prepare(`
     CREATE TABLE IF NOT EXISTS orders (
@@ -540,6 +575,138 @@ async function handleGetMlStatus(_request: Request, env: Env) {
 }
 
 
+
+async function handleArticlesUpsertBulk(request: Request, env: Env) {
+  const user = await getCurrentUser(request, env)
+  if (!user) {
+    return json({ ok: false, error: "unauthorized" }, 401)
+  }
+
+  const body = await request.json().catch(() => null) as { items?: any[] } | null
+  const items = Array.isArray(body?.items) ? body!.items : []
+
+  if (!items.length) {
+    return json({ ok: false, error: "items_required" }, 400)
+  }
+
+  const now = nowIso()
+  let saved = 0
+
+  for (const item of items) {
+    const sku = String(item?.sku || "").trim()
+    if (!sku) continue
+
+    await env.DB.prepare(`
+      INSERT INTO articles (
+        sku, ml_code, title, color, photo_url,
+        stock_in_transfer, stock_not_fit_for_sale, stock_fit_for_sale,
+        sales_30d, weeks_to_stockout, stock_with_incoming,
+        created_at, updated_at, raw_json
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(sku) DO UPDATE SET
+        ml_code = excluded.ml_code,
+        title = excluded.title,
+        color = excluded.color,
+        photo_url = excluded.photo_url,
+        stock_in_transfer = excluded.stock_in_transfer,
+        stock_not_fit_for_sale = excluded.stock_not_fit_for_sale,
+        stock_fit_for_sale = excluded.stock_fit_for_sale,
+        sales_30d = excluded.sales_30d,
+        weeks_to_stockout = excluded.weeks_to_stockout,
+        stock_with_incoming = excluded.stock_with_incoming,
+        updated_at = excluded.updated_at,
+        raw_json = excluded.raw_json
+    `).bind(
+      sku,
+      String(item?.ml_code || "").trim() || null,
+      String(item?.title || "").trim() || null,
+      String(item?.color || "").trim() || null,
+      String(item?.photo_url || "").trim() || null,
+      item?.stock_in_transfer ?? null,
+      item?.stock_not_fit_for_sale ?? null,
+      item?.stock_fit_for_sale ?? null,
+      item?.sales_30d ?? null,
+      item?.weeks_to_stockout ?? null,
+      item?.stock_with_incoming ?? null,
+      now,
+      now,
+      JSON.stringify(item)
+    ).run()
+
+    saved++
+  }
+
+  return json({ ok: true, saved })
+}
+
+async function handleGetArticles(request: Request, env: Env) {
+  const user = await getCurrentUser(request, env)
+  if (!user) {
+    return json({ ok: false, error: "unauthorized" }, 401)
+  }
+
+  const rows = await env.DB.prepare(`
+    SELECT
+      sku,
+      ml_code,
+      title,
+      color,
+      photo_url,
+      stock_in_transfer,
+      stock_not_fit_for_sale,
+      stock_fit_for_sale,
+      sales_30d,
+      weeks_to_stockout,
+      stock_with_incoming,
+      is_excluded,
+      excluded_at,
+      excluded_by_user_id,
+      created_at,
+      updated_at
+    FROM articles
+    ORDER BY updated_at DESC, sku ASC
+  `).all<any>()
+
+  return json({
+    ok: true,
+    items: rows.results || []
+  })
+}
+
+async function handleExcludeArticle(request: Request, env: Env) {
+  const user = await getCurrentUser(request, env)
+  if (!user) {
+    return json({ ok: false, error: "unauthorized" }, 401)
+  }
+
+  const body = await request.json().catch(() => null) as { sku?: string; is_excluded?: boolean } | null
+  const sku = String(body?.sku || "").trim()
+  if (!sku) {
+    return json({ ok: false, error: "sku_required" }, 400)
+  }
+
+  const isExcluded = body?.is_excluded !== false
+  const now = nowIso()
+
+  await env.DB.prepare(`
+    UPDATE articles
+    SET
+      is_excluded = ?,
+      excluded_at = ?,
+      excluded_by_user_id = ?,
+      updated_at = ?
+    WHERE sku = ?
+  `).bind(
+    isExcluded ? 1 : 0,
+    isExcluded ? now : null,
+    isExcluded ? user.user_id : null,
+    now,
+    sku
+  ).run()
+
+  return json({ ok: true, sku, is_excluded: isExcluded })
+}
+
 async function handleGetMlSyncState(_request: Request, env: Env) {
   const row = await env.DB.prepare(`
     SELECT
@@ -605,6 +772,7 @@ async function ensureSchemaOnce(env: Env) {
       await ensureUserDeviceTokenIndex(env)
       await ensureIndexes(env)
       await ensureOrdersTables(env)
+      await ensureArticlesTable(env)
       await ensureIntegrationSessionsTable(env)
     })().catch((e) => {
       schemaReadyPromise = null
@@ -2547,6 +2715,18 @@ if (path === "/task_reminder" && request.method
 
       if (path === "/internal/integrations/ml/sync-state" && request.method === "GET") {
         return await handleGetMlSyncState(request, env)
+      }
+
+      if (path === "/internal/articles/upsert-bulk" && request.method === "POST") {
+        return await handleArticlesUpsertBulk(request, env)
+      }
+
+      if (path === "/internal/articles" && request.method === "GET") {
+        return await handleGetArticles(request, env)
+      }
+
+      if (path === "/internal/articles/exclude" && request.method === "POST") {
+        return await handleExcludeArticle(request, env)
       }
 
 return json({ ok: false, error: "not found" }, 404)
