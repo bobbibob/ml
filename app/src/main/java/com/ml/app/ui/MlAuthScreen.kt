@@ -239,7 +239,7 @@ fun MlAuthScreen(
                             const parsedMonth = parseInt(month, 10);
 
                             const year = parsedMonth > currentMonth ? currentYear - 1 : currentYear;
-                            const orderDateTimeSort = `${year}-${month}-${day}T${time}:00`;
+                            const orderDateTimeSort = year + "-" + month + "-" + day + "T" + time + ":00";
 
                             return {
                               date_text: norm(m[1] + " " + m[2]),
