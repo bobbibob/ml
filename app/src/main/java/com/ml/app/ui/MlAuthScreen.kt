@@ -216,9 +216,8 @@ fun MlAuthScreen(
                             return Number.isFinite(n) ? n : null;
                           }
 
-                          function lineIntByLabel(lines, labelRegex) {
-                            const line = lines.find(x => labelRegex.test(x));
-                            return line ? parseIntLoose(line) : null;
+                          function linesOf(el) {
+                            return txt(el).split("\n").map(x => norm(x)).filter(Boolean);
                           }
 
                           function extractMlCode(raw) {
@@ -231,41 +230,71 @@ fun MlAuthScreen(
                             return m ? Number(m[1]) : null;
                           }
 
+                          function findMetric(lines, headerRegex) {
+                            const idx = lines.findIndex(x => headerRegex.test(x));
+                            if (idx < 0) return null;
+                            for (let j = idx + 1; j < Math.min(idx + 4, lines.length); j++) {
+                              const n = parseIntLoose(lines[j]);
+                              if (n !== null) return n;
+                            }
+                            return null;
+                          }
+
                           function extractTitle(lines) {
-                            const filtered = lines.filter(x =>
+                            const idx = lines.findIndex(x => /^Код\s+ML/i.test(x));
+                            if (idx < 0) return null;
+                            const candidates = lines.slice(idx + 1).filter(x =>
                               x.length > 8 &&
-                              !/^Код\s+ML/i.test(x) &&
                               !/^\+\s*\d+/.test(x) &&
                               !/единиц/i.test(x) &&
                               !/недел/i.test(x) &&
-                              !/Варианты просмотра/i.test(x)
+                              !/Варианты просмотра/i.test(x) &&
+                              !/^Код\s+ML/i.test(x)
                             );
-                            return filtered[0] || null;
+                            return candidates[0] || null;
                           }
 
-                          const cards = Array.from(document.querySelectorAll("li, .andes-card, [class*='card'], [class*='row']"));
+                          const rowSelectors = [
+                            "[role='row']",
+                            "tr",
+                            ".andes-table__row",
+                            "[class*='table-row']",
+                            "[class*='row']"
+                          ];
+
+                          let rows = [];
+                          for (const sel of rowSelectors) {
+                            const found = Array.from(document.querySelectorAll(sel));
+                            if (found.length > rows.length) rows = found;
+                          }
+
+                          if (rows.length === 0) {
+                            rows = Array.from(document.querySelectorAll("div"));
+                          }
+
                           const items = [];
                           const seen = new Set();
 
-                          for (const card of cards) {
-                            const raw = norm(txt(card));
+                          for (const row of rows) {
+                            const raw = norm(txt(row));
                             if (!raw) continue;
                             if (!/Код\s+ML/i.test(raw)) continue;
 
-                            const lines = raw.split("\n").map(x => norm(x)).filter(Boolean);
                             const mlCode = extractMlCode(raw);
                             if (!mlCode || seen.has(mlCode)) continue;
 
-                            const img = card.querySelector("img");
+                            const lines = linesOf(row);
+                            const img = row.querySelector("img");
+
                             items.push({
                               ml_code: mlCode,
                               title: extractTitle(lines),
-                              stock_in_transfer: lineIntByLabel(lines, /^В\s*пути/i),
-                              stock_not_fit_for_sale: lineIntByLabel(lines, /^Не\s*подходит/i),
-                              stock_fit_for_sale: lineIntByLabel(lines, /^Подходит\s*для\s*продажи/i),
-                              sales_30d: lineIntByLabel(lines, /^Продажи/i),
+                              stock_in_transfer: findMetric(lines, /^В\s*пути/i),
+                              stock_not_fit_for_sale: findMetric(lines, /^Не\s*подходит/i),
+                              stock_fit_for_sale: findMetric(lines, /^Подходит\s*для\s*продажи/i),
+                              sales_30d: findMetric(lines, /^Продажи/i),
                               weeks_to_stockout: extractWeeks(raw),
-                              stock_with_incoming: lineIntByLabel(lines, /^С\s*учетом\s*времени/i),
+                              stock_with_incoming: findMetric(lines, /^С\s*учетом\s*времени/i),
                               photo_url: img ? (img.getAttribute("src") || img.getAttribute("data-src") || null) : null,
                               raw_text: raw.slice(0, 2000)
                             });
@@ -276,6 +305,7 @@ fun MlAuthScreen(
                           return JSON.stringify({
                             url: location.href,
                             title: document.title,
+                            rowsFound: rows.length,
                             count: items.length,
                             items: items.slice(0, 10)
                           });
