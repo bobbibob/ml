@@ -707,3 +707,5 @@ private fun handleSpecialUrl(
     }
 
     return !(lower.startsWith("http://") || lower.startsWith("https://"))
+
+}
