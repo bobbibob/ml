@@ -638,7 +638,6 @@ fun MlAuthScreen(
         )
 
         AndroidView(
-            modifier = Modifier.fillMaxWidth().weight(1f),
             factory = {
                 buildMlWebView(
                     context = context,
