@@ -101,7 +101,7 @@ fun MlAuthScreen(
                     }.start()
                 }
             ) {
-                Text("Сохранить сессию")
+                Text("Сессия")
             }
 
             Button(
@@ -167,7 +167,7 @@ fun MlAuthScreen(
                     }
                 }
             ) {
-                Text("Показать DOM")
+                Text("DOM")
             }
 
             Button(
@@ -177,7 +177,7 @@ fun MlAuthScreen(
                     webView.loadUrl(ML_STOCK_URL)
                 }
             ) {
-                Text("Остатки")
+                Text("Склад")
             }
 
             Button(
@@ -320,7 +320,7 @@ fun MlAuthScreen(
                     }
                 }
             ) {
-                Text("Показать карточки")
+                Text("Карточки")
             }
 
             Button(
@@ -588,7 +588,7 @@ fun MlAuthScreen(
                     }
                 }
             ) {
-                Text("Синхронизировать ML")
+                Text("Синхро")
             }
         }
 
