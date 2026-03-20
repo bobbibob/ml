@@ -182,6 +182,20 @@ fun MlAuthScreen(
             Button(
                 onClick = {
                     val webView = webViewRef ?: return@Button
+                    statusText = "Открываем страницу остатков..."
+                    webView.loadUrl(ML_STOCK_URL)
+                }
+            ) {
+                Text("Остатки")
+            }
+
+            Button(
+                onClick = {
+                    val webView = webViewRef ?: return@Button
+                    if (!currentUrl.contains("/anuncios/lista/space_management")) {
+                        statusText = "Сначала открой страницу Остатки."
+                        return@Button
+                    }
                     statusText = "Снимаем карточки товаров..."
 
                     val js = """
