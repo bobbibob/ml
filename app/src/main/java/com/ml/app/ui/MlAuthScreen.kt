@@ -206,10 +206,45 @@ fun MlAuthScreen(
                           }
 
                           function dateTimeFrom(raw) {
-                            const m = raw.match(/(\d{1,2}\s+[a-zç]{3})\s+(\d{1,2}:\d{2})\s*hs/i);
+                            const m = raw.match(/(\d{1,2})\s+([a-zç]{3})\s+(\d{1,2}:\d{2})\s*hs/i);
+                            if (!m) {
+                              return {
+                                date_text: null,
+                                time_text: null,
+                                order_datetime_sort: null
+                              };
+                            }
+
+                            const day = String(parseInt(m[1], 10)).padStart(2, "0");
+                            const monStr = m[2].toLowerCase();
+                            const time = m[3];
+
+                            const months = {
+                              jan:"01", fev:"02", mar:"03", abr:"04", mai:"05", jun:"06",
+                              jul:"07", ago:"08", set:"09", out:"10", nov:"11", dez:"12"
+                            };
+
+                            const month = months[monStr];
+                            if (!month) {
+                              return {
+                                date_text: norm(m[1] + " " + m[2]),
+                                time_text: time,
+                                order_datetime_sort: null
+                              };
+                            }
+
+                            const now = new Date();
+                            const currentYear = now.getFullYear();
+                            const currentMonth = now.getMonth() + 1;
+                            const parsedMonth = parseInt(month, 10);
+
+                            const year = parsedMonth > currentMonth ? currentYear - 1 : currentYear;
+                            const orderDateTimeSort = `${year}-${month}-${day}T${time}:00`;
+
                             return {
-                              date_text: m ? norm(m[1]) : null,
-                              time_text: m ? norm(m[2]) : null
+                              date_text: norm(m[1] + " " + m[2]),
+                              time_text: time,
+                              order_datetime_sort: orderDateTimeSort
                             };
                           }
 
@@ -279,6 +314,7 @@ fun MlAuthScreen(
                               currency: "BRL",
                               date_text: dt.date_text,
                               time_text: dt.time_text,
+                              order_datetime_sort: dt.order_datetime_sort,
                               color: colorFrom(raw),
                               photo_url: firstImg(card),
                               raw_text: norm(raw).slice(0, 4000)
@@ -316,8 +352,47 @@ fun MlAuthScreen(
 
                                 val client = OkHttpClient()
 
+                                val syncStateReq = Request.Builder()
+                                    .url(BuildConfig.TASKS_API_BASE_URL + "internal/integrations/ml/sync-state")
+                                    .addHeader("Authorization", "Bearer $token")
+                                    .get()
+                                    .build()
+
+                                val syncStateJson = client.newCall(syncStateReq).execute().use { resp ->
+                                    if (!resp.isSuccessful) {
+                                        statusText = "Ошибка sync-state: ${resp.code}"
+                                        return@Thread
+                                    }
+                                    JSONObject(resp.body?.string().orEmpty())
+                                }
+
+                                val minAllowed = syncStateJson.optString("min_allowed_datetime").ifBlank { "2025-08-30T00:00:00" }
+                                val lastSynced = syncStateJson.optString("last_synced_order_datetime").ifBlank { null }
+
+                                val filteredOrders = JSONArray()
+                                for (i in 0 until orders.length()) {
+                                    val obj = orders.optJSONObject(i) ?: continue
+                                    val sort = obj.optString("order_datetime_sort").ifBlank { null }
+
+                                    val allowed = when {
+                                        sort == null -> true
+                                        sort < minAllowed -> false
+                                        lastSynced != null && sort <= lastSynced -> false
+                                        else -> true
+                                    }
+
+                                    if (allowed) {
+                                        filteredOrders.put(obj)
+                                    }
+                                }
+
+                                if (filteredOrders.length() == 0) {
+                                    statusText = "Новых заказов после фильтра нет."
+                                    return@Thread
+                                }
+
                                 val upsertBody = JSONObject().apply {
-                                    put("orders", orders)
+                                    put("orders", filteredOrders)
                                 }
 
                                 val upsertReq = Request.Builder()
@@ -360,7 +435,7 @@ fun MlAuthScreen(
 
                                 client.newCall(authStateReq).execute().use { }
 
-                                statusText = "Синхронизация ML завершена: ${orders.length()} заказов."
+                                statusText = "Синхронизация ML завершена: ${filteredOrders.length()} новых заказов."
                             } catch (t: Throwable) {
                                 statusText = "Ошибка синхронизации: ${t.message}"
                             }
