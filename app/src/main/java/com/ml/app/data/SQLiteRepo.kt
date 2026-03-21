@@ -2230,4 +2230,412 @@ class SQLiteRepo(private val context: Context) {
   }
 
 
+
+
+  private fun ensureDeletedArticlesTableV2(db: SQLiteDatabase) {
+    db.execSQL(
+      """
+      CREATE TABLE IF NOT EXISTS deleted_articles(
+        article_id TEXT PRIMARY KEY,
+        deleted_at INTEGER NOT NULL,
+        reason TEXT
+      );
+      """.trimIndent()
+    )
+  }
+
+  private fun ensureBagMlVariantsTableV2(db: SQLiteDatabase) {
+    db.execSQL(
+      """
+      CREATE TABLE IF NOT EXISTS bag_ml_variants(
+        article_id TEXT NOT NULL,
+        sku TEXT NOT NULL,
+        color TEXT,
+        size TEXT,
+        material TEXT,
+        image_url TEXT,
+        attr_json TEXT NOT NULL DEFAULT '{}',
+        raw_json TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        PRIMARY KEY(article_id, sku)
+      );
+      """.trimIndent()
+    )
+  }
+
+  private fun ensureMlColumnsV2(db: SQLiteDatabase) {
+    val cols = mutableSetOf<String>()
+    db.rawQuery("PRAGMA table_info(bag_user)", null).use { c ->
+      while (c.moveToNext()) cols.add(c.getString(1))
+    }
+    fun add(name: String, type: String) {
+      if (!cols.contains(name)) kotlin.runCatching { db.execSQL("ALTER TABLE bag_user ADD COLUMN $name $type") }
+    }
+    add("ml_listing_id", "TEXT")
+    add("ml_listing_code", "TEXT")
+    add("ml_title", "TEXT")
+    add("ml_status", "TEXT")
+    add("ml_price", "REAL")
+    add("ml_promo_price", "REAL")
+    add("ml_currency", "TEXT")
+    add("ml_stock_total", "INTEGER")
+    add("ml_visits", "INTEGER")
+    add("ml_sold_total", "INTEGER")
+    add("ml_sale_fee_type", "TEXT")
+    add("ml_sale_fee_percent", "REAL")
+    add("ml_sale_fee_amount", "REAL")
+    add("ml_shipping_mode", "TEXT")
+    add("ml_shipping_cost", "REAL")
+    add("ml_shipping_paid_by", "TEXT")
+    add("ml_net_amount", "REAL")
+    add("ml_quality_score", "INTEGER")
+    add("ml_quality_level", "TEXT")
+    add("ml_experience_score", "INTEGER")
+    add("ml_experience_level", "TEXT")
+    add("ml_bulk_price_enabled", "INTEGER")
+    add("ml_bulk_price_min_qty", "INTEGER")
+    add("ml_bulk_price_amount", "REAL")
+    add("ml_synced_at", "INTEGER")
+  }
+
+  private fun parseArticleCodeFromSkuV2(sku: String?): String? {
+    val v = sku?.trim().orEmpty()
+    if (v.isBlank()) return null
+    val i = v.lastIndexOf('-')
+    return if (i > 0) v.substring(0, i) else v
+  }
+
+  private fun extractSkusFromRawV2(raw: String): List<String> {
+    val out = LinkedHashSet<String>()
+    Regex("""\bSKU\s+([A-Z0-9-]+)\b""").findAll(raw).forEach { m ->
+      val sku = m.groupValues.getOrNull(1).orEmpty().trim()
+      if (sku.isNotBlank()) out.add(sku)
+    }
+    return out.toList()
+  }
+
+  private fun firstImageFromVariantV2(v: JSONObject?): String? {
+    if (v == null) return null
+    val direct = if (!v.isNull("image_main_url")) v.optString("image_main_url", null) else null
+    if (!direct.isNullOrBlank()) return direct
+    val arr = v.optJSONArray("images")
+    if (arr != null) {
+      for (i in 0 until arr.length()) {
+        val o = arr.optJSONObject(i) ?: continue
+        val u = if (!o.isNull("image_url")) o.optString("image_url", null) else null
+        if (!u.isNullOrBlank()) return u
+      }
+    }
+    return null
+  }
+
+  private fun chooseMainVariantIndexV2(variants: JSONArray?): Int {
+    if (variants == null || variants.length() == 0) return -1
+    for (i in 0 until variants.length()) {
+      val v = variants.optJSONObject(i) ?: continue
+      val color = v.optString("color", "").trim().lowercase()
+      if (
+        color.contains("preto") ||
+        color.contains("preta") ||
+        color.contains("black") ||
+        color.contains("negro") ||
+        color.contains("negra")
+      ) return i
+    }
+    return 0
+  }
+
+  suspend fun listBagPickerRowsV2(): List<BagPickerRow> = withContext(Dispatchers.IO) {
+    openDbReadWrite().use { db ->
+      ensureDeletedArticlesTableV2(db)
+      val out = ArrayList<BagPickerRow>()
+      db.rawQuery(
+        """
+        SELECT
+          u.bag_id AS bag_id,
+          COALESCE(NULLIF(u.name,''), u.bag_id) AS bag_name,
+          u.photo_path AS photo_path,
+          (
+            SELECT GROUP_CONCAT(color, ', ')
+            FROM (
+              SELECT DISTINCT color
+              FROM bag_user_colors c
+              WHERE c.bag_id = u.bag_id
+              ORDER BY color COLLATE NOCASE
+            )
+          ) AS colors_text
+        FROM bag_user u
+        WHERE u.bag_id IS NOT NULL
+          AND u.bag_id != ''
+          AND u.bag_id NOT IN (SELECT article_id FROM deleted_articles)
+        ORDER BY bag_name COLLATE NOCASE
+        """.trimIndent(),
+        null
+      ).use { c ->
+        val iBagId = c.getColumnIndexOrThrow("bag_id")
+        val iBagName = c.getColumnIndexOrThrow("bag_name")
+        val iPhoto = c.getColumnIndexOrThrow("photo_path")
+        val iColors = c.getColumnIndexOrThrow("colors_text")
+
+        while (c.moveToNext()) {
+          out.add(
+            BagPickerRow(
+              bagId = c.getString(iBagId),
+              bagName = c.getString(iBagName),
+              photoPath = if (c.isNull(iPhoto)) null else c.getString(iPhoto),
+              colorsText = if (c.isNull(iColors)) null else c.getString(iColors)
+            )
+          )
+        }
+      }
+      out
+    }
+  }
+
+  suspend fun softDeleteArticleV2(articleId: String, reason: String? = null) = withContext(Dispatchers.IO) {
+    openDbReadWrite().use { db ->
+      ensureDeletedArticlesTableV2(db)
+      ensureBagMlVariantsTableV2(db)
+      db.beginTransaction()
+      try {
+        db.execSQL(
+          "INSERT OR REPLACE INTO deleted_articles(article_id, deleted_at, reason) VALUES(?,?,?)",
+          arrayOf(articleId, System.currentTimeMillis(), reason)
+        )
+        kotlin.runCatching { db.execSQL("DELETE FROM bag_ml_variants WHERE article_id=?", arrayOf(articleId)) }
+        kotlin.runCatching { db.execSQL("DELETE FROM bag_user_colors WHERE bag_id=?", arrayOf(articleId)) }
+        kotlin.runCatching { db.execSQL("DELETE FROM bag_user WHERE bag_id=?", arrayOf(articleId)) }
+        db.setTransactionSuccessful()
+      } finally {
+        db.endTransaction()
+      }
+    }
+  }
+
+  fun importMlListingsJsonToArticlesV2(json: String): Int {
+    val root = try {
+      JSONObject(json)
+    } catch (_: Throwable) {
+      return 0
+    }
+
+    val items = root.optJSONArray("items") ?: return 0
+    val syncedAt = if (!root.isNull("captured_at")) root.optLong("captured_at", System.currentTimeMillis()) else System.currentTimeMillis()
+
+    openDbReadWrite().use { db ->
+      ensureDeletedArticlesTableV2(db)
+      ensureBagMlVariantsTableV2(db)
+      ensureMlColumnsV2(db)
+
+      db.beginTransaction()
+      try {
+        var saved = 0
+
+        for (i in 0 until items.length()) {
+          val item = items.optJSONObject(i) ?: continue
+
+          val listingId = if (!item.isNull("listing_id")) item.optString("listing_id", null) else null
+          val listingCode = if (!item.isNull("listing_code")) item.optString("listing_code", null) else null
+          val title = if (!item.isNull("title")) item.optString("title", null) else null
+          val status = if (!item.isNull("status")) item.optString("status", null) else null
+          val price = if (!item.isNull("price")) item.optDouble("price") else Double.NaN
+          val promoPrice = if (!item.isNull("promo_price")) item.optDouble("promo_price") else Double.NaN
+          val currency = if (!item.isNull("currency")) item.optString("currency", null) else null
+          val stockTotal = if (!item.isNull("stock_total")) item.optInt("stock_total") else null
+          val visits = if (!item.isNull("visits")) item.optInt("visits") else null
+          val soldTotal = if (!item.isNull("sold_total")) item.optInt("sold_total") else null
+          val saleFeeType = if (!item.isNull("sale_fee_type")) item.optString("sale_fee_type", null) else null
+          val saleFeePercent = if (!item.isNull("sale_fee_percent")) item.optDouble("sale_fee_percent") else Double.NaN
+          val saleFeeAmount = if (!item.isNull("sale_fee_amount")) item.optDouble("sale_fee_amount") else Double.NaN
+          val shippingMode = if (!item.isNull("shipping_mode")) item.optString("shipping_mode", null) else null
+          val shippingCost = if (!item.isNull("shipping_cost")) item.optDouble("shipping_cost") else Double.NaN
+          val shippingPaidBy = if (!item.isNull("shipping_paid_by")) item.optString("shipping_paid_by", null) else null
+          val netAmount = if (!item.isNull("net_amount")) item.optDouble("net_amount") else Double.NaN
+          val qualityScore = if (!item.isNull("quality_score")) item.optInt("quality_score") else null
+          val qualityLevel = if (!item.isNull("quality_level")) item.optString("quality_level", null) else null
+          val experienceScore = if (!item.isNull("experience_score")) item.optInt("experience_score") else null
+          val experienceLevel = if (!item.isNull("experience_level")) item.optString("experience_level", null) else null
+          val bulkPriceEnabled = if (item.optBoolean("bulk_price_enabled", false)) 1 else 0
+          val bulkPriceMinQty = if (!item.isNull("bulk_price_min_qty")) item.optInt("bulk_price_min_qty") else null
+          val bulkPriceAmount = if (!item.isNull("bulk_price_amount")) item.optDouble("bulk_price_amount") else Double.NaN
+          val rawText = if (!item.isNull("raw_text")) item.optString("raw_text", "") else ""
+          val variants = item.optJSONArray("variants")
+
+          val skuSet = LinkedHashSet<String>()
+          if (variants != null) {
+            for (j in 0 until variants.length()) {
+              val v = variants.optJSONObject(j) ?: continue
+              val sku = if (!v.isNull("sku")) v.optString("sku", null) else null
+              if (!sku.isNullOrBlank()) skuSet.add(sku.trim())
+            }
+          }
+          extractSkusFromRawV2(rawText).forEach { skuSet.add(it) }
+
+          val articleCode = skuSet.asSequence()
+            .map { parseArticleCodeFromSkuV2(it) }
+            .firstOrNull { !it.isNullOrBlank() }
+            ?: continue
+
+          if (isDeletedArticle(db, articleCode)) continue
+
+          kotlin.runCatching { db.execSQL("DELETE FROM bag_ml_variants WHERE article_id=?", arrayOf(articleCode)) }
+          kotlin.runCatching { db.execSQL("DELETE FROM bag_user_colors WHERE bag_id=?", arrayOf(articleCode)) }
+
+          val mainIdx = chooseMainVariantIndexV2(variants)
+          var mainImageUrl: String? = null
+          if (mainIdx >= 0) {
+            mainImageUrl = firstImageFromVariantV2(variants?.optJSONObject(mainIdx))
+          }
+
+          if (skuSet.isEmpty()) continue
+
+          for (sku in skuSet) {
+            var color: String? = null
+            var size: String? = null
+            var material: String? = null
+            var imageUrl: String? = null
+            var attrJson = "{}"
+            var rawJson: String? = null
+
+            if (variants != null) {
+              for (j in 0 until variants.length()) {
+                val v = variants.optJSONObject(j) ?: continue
+                val vSku = if (!v.isNull("sku")) v.optString("sku", null) else null
+                if (vSku == sku) {
+                  color = if (!v.isNull("color")) v.optString("color", null) else null
+                  size = if (!v.isNull("size")) v.optString("size", null) else null
+                  material = if (!v.isNull("material")) v.optString("material", null) else null
+                  imageUrl = firstImageFromVariantV2(v)
+                  attrJson = if (v.has("attributes") && !v.isNull("attributes")) v.getJSONObject("attributes").toString() else "{}"
+                  rawJson = v.toString()
+                  break
+                }
+              }
+            }
+
+            if (mainImageUrl.isNullOrBlank() && !imageUrl.isNullOrBlank()) mainImageUrl = imageUrl
+
+            db.execSQL(
+              """
+              INSERT OR REPLACE INTO bag_ml_variants(
+                article_id,sku,color,size,material,image_url,attr_json,raw_json,created_at,updated_at
+              ) VALUES(?,?,?,?,?,?,?,?,?,?)
+              """.trimIndent(),
+              arrayOf(articleCode, sku, color, size, material, imageUrl, attrJson, rawJson, syncedAt, syncedAt)
+            )
+
+            if (!color.isNullOrBlank()) {
+              db.execSQL(
+                "INSERT OR IGNORE INTO bag_user_colors(bag_id,color) VALUES(?,?)",
+                arrayOf(articleCode, color)
+              )
+            }
+          }
+
+          val effectivePrice: Any? = when {
+            !promoPrice.isNaN() -> promoPrice
+            !price.isNaN() -> price
+            else -> null
+          }
+
+          db.execSQL(
+            """
+            INSERT INTO bag_user(
+              bag_id,name,hypothesis,price,cogs,card_type,photo_path,
+              ml_listing_id,ml_listing_code,ml_title,ml_status,ml_price,ml_promo_price,ml_currency,
+              ml_stock_total,ml_visits,ml_sold_total,
+              ml_sale_fee_type,ml_sale_fee_percent,ml_sale_fee_amount,
+              ml_shipping_mode,ml_shipping_cost,ml_shipping_paid_by,
+              ml_net_amount,ml_quality_score,ml_quality_level,
+              ml_experience_score,ml_experience_level,
+              ml_bulk_price_enabled,ml_bulk_price_min_qty,ml_bulk_price_amount,
+              ml_synced_at
+            ) VALUES(?,?,?,?,?,?,?,
+                     ?,?,?,?,?,?,?,?,
+                     ?,?,
+                     ?,?,?,
+                     ?,?,?,
+                     ?,?,?,
+                     ?,?,
+                     ?,?,?,
+                     ?)
+            ON CONFLICT(bag_id) DO UPDATE SET
+              name=excluded.name,
+              price=excluded.price,
+              photo_path=COALESCE(excluded.photo_path, bag_user.photo_path),
+              ml_listing_id=excluded.ml_listing_id,
+              ml_listing_code=excluded.ml_listing_code,
+              ml_title=excluded.ml_title,
+              ml_status=excluded.ml_status,
+              ml_price=excluded.ml_price,
+              ml_promo_price=excluded.ml_promo_price,
+              ml_currency=excluded.ml_currency,
+              ml_stock_total=excluded.ml_stock_total,
+              ml_visits=excluded.ml_visits,
+              ml_sold_total=excluded.ml_sold_total,
+              ml_sale_fee_type=excluded.ml_sale_fee_type,
+              ml_sale_fee_percent=excluded.ml_sale_fee_percent,
+              ml_sale_fee_amount=excluded.ml_sale_fee_amount,
+              ml_shipping_mode=excluded.ml_shipping_mode,
+              ml_shipping_cost=excluded.ml_shipping_cost,
+              ml_shipping_paid_by=excluded.ml_shipping_paid_by,
+              ml_net_amount=excluded.ml_net_amount,
+              ml_quality_score=excluded.ml_quality_score,
+              ml_quality_level=excluded.ml_quality_level,
+              ml_experience_score=excluded.ml_experience_score,
+              ml_experience_level=excluded.ml_experience_level,
+              ml_bulk_price_enabled=excluded.ml_bulk_price_enabled,
+              ml_bulk_price_min_qty=excluded.ml_bulk_price_min_qty,
+              ml_bulk_price_amount=excluded.ml_bulk_price_amount,
+              ml_synced_at=excluded.ml_synced_at
+            """.trimIndent(),
+            arrayOf(
+              articleCode,
+              articleCode,
+              null,
+              effectivePrice,
+              null,
+              null,
+              mainImageUrl,
+              listingId,
+              listingCode,
+              title,
+              status,
+              if (!price.isNaN()) price else null,
+              if (!promoPrice.isNaN()) promoPrice else null,
+              currency,
+              stockTotal,
+              visits,
+              soldTotal,
+              saleFeeType,
+              if (!saleFeePercent.isNaN()) saleFeePercent else null,
+              if (!saleFeeAmount.isNaN()) saleFeeAmount else null,
+              shippingMode,
+              if (!shippingCost.isNaN()) shippingCost else null,
+              shippingPaidBy,
+              if (!netAmount.isNaN()) netAmount else null,
+              qualityScore,
+              qualityLevel,
+              experienceScore,
+              experienceLevel,
+              bulkPriceEnabled,
+              bulkPriceMinQty,
+              if (!bulkPriceAmount.isNaN()) bulkPriceAmount else null,
+              syncedAt
+            )
+          )
+
+          saved++
+        }
+
+        db.setTransactionSuccessful()
+        return saved
+      } finally {
+        db.endTransaction()
+      }
+    }
+  }
+
+
 }
