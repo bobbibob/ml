@@ -9,6 +9,7 @@ import java.time.LocalDate
 import java.time.Instant
 import org.json.JSONObject
 import org.json.JSONArray
+import org.json.JSONException
 import java.io.File
 import kotlin.math.roundToInt
 
@@ -351,6 +352,306 @@ class SQLiteRepo(private val context: Context) {
     val db = SQLiteDatabase.openDatabase(dbFile.absolutePath, null, SQLiteDatabase.OPEN_READWRITE)
     kotlin.runCatching { db.execSQL("ALTER TABLE bag_user ADD COLUMN delivery_fee REAL") }
     return db
+  }
+
+
+  private fun ensureMlArticleColumns(db: SQLiteDatabase) {
+    val cols = mutableSetOf<String>()
+    db.rawQuery("PRAGMA table_info(bag_user)", null).use { c ->
+      while (c.moveToNext()) cols.add(c.getString(1))
+    }
+
+    fun add(name: String, type: String) {
+      if (!cols.contains(name)) kotlin.runCatching { db.execSQL("ALTER TABLE bag_user ADD COLUMN $name $type") }
+    }
+
+    add("ml_listing_id", "TEXT")
+    add("ml_listing_code", "TEXT")
+    add("ml_status", "TEXT")
+    add("ml_price", "REAL")
+    add("ml_promo_price", "REAL")
+    add("ml_currency", "TEXT")
+    add("ml_stock_total", "INTEGER")
+    add("ml_visits", "INTEGER")
+    add("ml_sold_total", "INTEGER")
+    add("ml_sale_fee_type", "TEXT")
+    add("ml_sale_fee_percent", "REAL")
+    add("ml_sale_fee_amount", "REAL")
+    add("ml_shipping_mode", "TEXT")
+    add("ml_shipping_cost", "REAL")
+    add("ml_shipping_paid_by", "TEXT")
+    add("ml_net_amount", "REAL")
+    add("ml_quality_score", "INTEGER")
+    add("ml_quality_level", "TEXT")
+    add("ml_experience_score", "INTEGER")
+    add("ml_experience_level", "TEXT")
+    add("ml_bulk_price_enabled", "INTEGER")
+    add("ml_bulk_price_min_qty", "INTEGER")
+    add("ml_bulk_price_amount", "REAL")
+    add("ml_variant_id", "TEXT")
+    add("ml_color", "TEXT")
+    add("ml_size", "TEXT")
+    add("ml_material", "TEXT")
+    add("ml_attr_json", "TEXT")
+    add("ml_image_main_url", "TEXT")
+    add("ml_listing_raw_json", "TEXT")
+    add("ml_variant_raw_json", "TEXT")
+    add("ml_synced_at", "INTEGER")
+  }
+
+  private fun jstr(o: JSONObject, key: String): String? =
+    if (!o.has(key) || o.isNull(key)) null else o.optString(key, null)
+
+  private fun jint(o: JSONObject, key: String): Int? =
+    if (!o.has(key) || o.isNull(key)) null else when (val v = o.opt(key)) {
+      is Number -> v.toInt()
+      is String -> v.toIntOrNull()
+      else -> null
+    }
+
+  private fun jdbl(o: JSONObject, key: String): Double? =
+    if (!o.has(key) || o.isNull(key)) null else when (val v = o.opt(key)) {
+      is Number -> v.toDouble()
+      is String -> v.replace(",", ".").toDoubleOrNull()
+      else -> null
+    }
+
+  fun importMlListingsJsonToArticles(json: String): Int {
+    val root = try {
+      JSONObject(json)
+    } catch (_: JSONException) {
+      return 0
+    }
+
+    val items = root.optJSONArray("items") ?: return 0
+    val sourceUrl = root.optString("url", "")
+    val syncedAt = root.optLong("captured_at", System.currentTimeMillis())
+
+    openDbReadWrite().use { db ->
+      ensureMlArticleColumns(db)
+
+      db.beginTransaction()
+      try {
+        var saved = 0
+
+        for (i in 0 until items.length()) {
+          val item = items.optJSONObject(i) ?: continue
+
+          val listingId = jstr(item, "listing_id")
+          val listingCode = jstr(item, "listing_code")
+          val title = jstr(item, "title")
+          val status = jstr(item, "status")
+          val price = jdbl(item, "price")
+          val promoPrice = jdbl(item, "promo_price")
+          val currency = jstr(item, "currency")
+          val stockTotal = jint(item, "stock_total")
+          val visits = jint(item, "visits")
+          val soldTotal = jint(item, "sold_total")
+          val saleFeeType = jstr(item, "sale_fee_type")
+          val saleFeePercent = jdbl(item, "sale_fee_percent")
+          val saleFeeAmount = jdbl(item, "sale_fee_amount")
+          val shippingMode = jstr(item, "shipping_mode")
+          val shippingCost = jdbl(item, "shipping_cost")
+          val shippingPaidBy = jstr(item, "shipping_paid_by")
+          val netAmount = jdbl(item, "net_amount")
+          val qualityScore = jint(item, "quality_score")
+          val qualityLevel = jstr(item, "quality_level")
+          val experienceScore = jint(item, "experience_score")
+          val experienceLevel = jstr(item, "experience_level")
+          val bulkPriceEnabled = if (item.optBoolean("bulk_price_enabled", false)) 1 else 0
+          val bulkPriceMinQty = jint(item, "bulk_price_min_qty")
+          val bulkPriceAmount = jdbl(item, "bulk_price_amount")
+          val listingRaw = item.toString()
+
+          val variants = item.optJSONArray("variants")
+          if (variants != null && variants.length() > 0) {
+            for (j in 0 until variants.length()) {
+              val v = variants.optJSONObject(j) ?: continue
+              val sku = jstr(v, "sku")
+              val color = jstr(v, "color")
+              val size = jstr(v, "size")
+              val material = jstr(v, "material")
+              val variantId = jstr(v, "variant_id")
+              val imageMainUrl = jstr(v, "image_main_url")
+              val attrJson = if (v.has("attributes") && !v.isNull("attributes")) {
+                v.getJSONObject("attributes").toString()
+              } else {
+                "{}"
+              }
+              val variantRaw = v.toString()
+
+              val bagId = when {
+                !sku.isNullOrBlank() -> sku
+                !listingId.isNullOrBlank() && !color.isNullOrBlank() -> "$listingId:$color"
+                !listingId.isNullOrBlank() -> listingId
+                else -> continue
+              }
+
+              val displayName = buildString {
+                if (!title.isNullOrBlank()) append(title)
+                if (!color.isNullOrBlank()) {
+                  if (isNotEmpty()) append(" — ")
+                  append(color)
+                }
+              }.ifBlank { bagId }
+
+              db.execSQL(
+                """
+                INSERT INTO bag_user(
+                  bag_id,name,hypothesis,price,cogs,card_type,photo_path,
+                  ml_listing_id,ml_listing_code,ml_status,ml_price,ml_promo_price,ml_currency,
+                  ml_stock_total,ml_visits,ml_sold_total,
+                  ml_sale_fee_type,ml_sale_fee_percent,ml_sale_fee_amount,
+                  ml_shipping_mode,ml_shipping_cost,ml_shipping_paid_by,
+                  ml_net_amount,ml_quality_score,ml_quality_level,
+                  ml_experience_score,ml_experience_level,
+                  ml_bulk_price_enabled,ml_bulk_price_min_qty,ml_bulk_price_amount,
+                  ml_variant_id,ml_color,ml_size,ml_material,ml_attr_json,ml_image_main_url,
+                  ml_listing_raw_json,ml_variant_raw_json,ml_synced_at
+                ) VALUES(?,?,?,?,?,?,?,
+                         ?,?,?,?,?,?,
+                         ?,?,?,
+                         ?,?,?,
+                         ?,?,?,
+                         ?,?,?,
+                         ?,?,
+                         ?,?,?,
+                         ?,?,?,?,?,?,
+                         ?,?,?)
+                ON CONFLICT(bag_id) DO UPDATE SET
+                  name=excluded.name,
+                  price=excluded.price,
+                  ml_listing_id=excluded.ml_listing_id,
+                  ml_listing_code=excluded.ml_listing_code,
+                  ml_status=excluded.ml_status,
+                  ml_price=excluded.ml_price,
+                  ml_promo_price=excluded.ml_promo_price,
+                  ml_currency=excluded.ml_currency,
+                  ml_stock_total=excluded.ml_stock_total,
+                  ml_visits=excluded.ml_visits,
+                  ml_sold_total=excluded.ml_sold_total,
+                  ml_sale_fee_type=excluded.ml_sale_fee_type,
+                  ml_sale_fee_percent=excluded.ml_sale_fee_percent,
+                  ml_sale_fee_amount=excluded.ml_sale_fee_amount,
+                  ml_shipping_mode=excluded.ml_shipping_mode,
+                  ml_shipping_cost=excluded.ml_shipping_cost,
+                  ml_shipping_paid_by=excluded.ml_shipping_paid_by,
+                  ml_net_amount=excluded.ml_net_amount,
+                  ml_quality_score=excluded.ml_quality_score,
+                  ml_quality_level=excluded.ml_quality_level,
+                  ml_experience_score=excluded.ml_experience_score,
+                  ml_experience_level=excluded.ml_experience_level,
+                  ml_bulk_price_enabled=excluded.ml_bulk_price_enabled,
+                  ml_bulk_price_min_qty=excluded.ml_bulk_price_min_qty,
+                  ml_bulk_price_amount=excluded.ml_bulk_price_amount,
+                  ml_variant_id=excluded.ml_variant_id,
+                  ml_color=excluded.ml_color,
+                  ml_size=excluded.ml_size,
+                  ml_material=excluded.ml_material,
+                  ml_attr_json=excluded.ml_attr_json,
+                  ml_image_main_url=excluded.ml_image_main_url,
+                  ml_listing_raw_json=excluded.ml_listing_raw_json,
+                  ml_variant_raw_json=excluded.ml_variant_raw_json,
+                  ml_synced_at=excluded.ml_synced_at
+                """.trimIndent(),
+                arrayOf(
+                  bagId, displayName, null, price, null, null, null,
+                  listingId, listingCode, status, price, promoPrice, currency,
+                  stockTotal, visits, soldTotal,
+                  saleFeeType, saleFeePercent, saleFeeAmount,
+                  shippingMode, shippingCost, shippingPaidBy,
+                  netAmount, qualityScore, qualityLevel,
+                  experienceScore, experienceLevel,
+                  bulkPriceEnabled, bulkPriceMinQty, bulkPriceAmount,
+                  variantId, color, size, material, attrJson, imageMainUrl,
+                  listingRaw, variantRaw, syncedAt
+                )
+              )
+
+              if (!color.isNullOrBlank()) {
+                db.execSQL("INSERT OR IGNORE INTO bag_user_colors(bag_id,color) VALUES(?,?)", arrayOf(bagId, color))
+              }
+              saved++
+            }
+          } else {
+            val bagId = listingId ?: continue
+            val displayName = title ?: bagId
+
+            db.execSQL(
+              """
+              INSERT INTO bag_user(
+                bag_id,name,hypothesis,price,cogs,card_type,photo_path,
+                ml_listing_id,ml_listing_code,ml_status,ml_price,ml_promo_price,ml_currency,
+                ml_stock_total,ml_visits,ml_sold_total,
+                ml_sale_fee_type,ml_sale_fee_percent,ml_sale_fee_amount,
+                ml_shipping_mode,ml_shipping_cost,ml_shipping_paid_by,
+                ml_net_amount,ml_quality_score,ml_quality_level,
+                ml_experience_score,ml_experience_level,
+                ml_bulk_price_enabled,ml_bulk_price_min_qty,ml_bulk_price_amount,
+                ml_variant_id,ml_color,ml_size,ml_material,ml_attr_json,ml_image_main_url,
+                ml_listing_raw_json,ml_variant_raw_json,ml_synced_at
+              ) VALUES(?,?,?,?,?,?,?,
+                       ?,?,?,?,?,?,
+                       ?,?,?,
+                       ?,?,?,
+                       ?,?,?,
+                       ?,?,?,
+                       ?,?,
+                       ?,?,?,
+                       ?,?,?,?,?,?,
+                       ?,?,?)
+              ON CONFLICT(bag_id) DO UPDATE SET
+                name=excluded.name,
+                price=excluded.price,
+                ml_listing_id=excluded.ml_listing_id,
+                ml_listing_code=excluded.ml_listing_code,
+                ml_status=excluded.ml_status,
+                ml_price=excluded.ml_price,
+                ml_promo_price=excluded.ml_promo_price,
+                ml_currency=excluded.ml_currency,
+                ml_stock_total=excluded.ml_stock_total,
+                ml_visits=excluded.ml_visits,
+                ml_sold_total=excluded.ml_sold_total,
+                ml_sale_fee_type=excluded.ml_sale_fee_type,
+                ml_sale_fee_percent=excluded.ml_sale_fee_percent,
+                ml_sale_fee_amount=excluded.ml_sale_fee_amount,
+                ml_shipping_mode=excluded.ml_shipping_mode,
+                ml_shipping_cost=excluded.ml_shipping_cost,
+                ml_shipping_paid_by=excluded.ml_shipping_paid_by,
+                ml_net_amount=excluded.ml_net_amount,
+                ml_quality_score=excluded.ml_quality_score,
+                ml_quality_level=excluded.ml_quality_level,
+                ml_experience_score=excluded.ml_experience_score,
+                ml_experience_level=excluded.ml_experience_level,
+                ml_bulk_price_enabled=excluded.ml_bulk_price_enabled,
+                ml_bulk_price_min_qty=excluded.ml_bulk_price_min_qty,
+                ml_bulk_price_amount=excluded.ml_bulk_price_amount,
+                ml_listing_raw_json=excluded.ml_listing_raw_json,
+                ml_synced_at=excluded.ml_synced_at
+              """.trimIndent(),
+              arrayOf(
+                bagId, displayName, null, price, null, null, null,
+                listingId, listingCode, status, price, promoPrice, currency,
+                stockTotal, visits, soldTotal,
+                saleFeeType, saleFeePercent, saleFeeAmount,
+                shippingMode, shippingCost, shippingPaidBy,
+                netAmount, qualityScore, qualityLevel,
+                experienceScore, experienceLevel,
+                bulkPriceEnabled, bulkPriceMinQty, bulkPriceAmount,
+                null, null, null, null, "{}", null,
+                listingRaw, null, syncedAt
+              )
+            )
+            saved++
+          }
+        }
+
+        db.setTransactionSuccessful()
+        return saved
+      } finally {
+        db.endTransaction()
+      }
+    }
   }
 
   data class BagUserRow(

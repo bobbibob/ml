@@ -35,6 +35,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.ml.app.BuildConfig
+import com.ml.app.data.SQLiteRepo
 import com.ml.app.data.session.PrefsSessionStorage
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -170,6 +171,39 @@ fun MlAuthScreen(
                     }
                 ) {
                     Text("JSON карточки")
+                }
+
+                Button(
+                    onClick = {
+                        val webView = webViewRef ?: return@Button
+                        if (!currentUrl.contains("/anuncios/lista") || currentUrl.contains("space_management")) {
+                            statusText = "Сначала открой Карточки."
+                            return@Button
+                        }
+                        statusText = "Сохраняем карточки в артикулы..."
+                        webView.evaluateJavascript(listingsExtractorJs()) { result ->
+                            try {
+                                val raw = result ?: ""
+                                val cleaned = if (raw.startsWith("\"") && raw.endsWith("\"")) {
+                                    JSONObject("{\"v\":$raw}").getString("v")
+                                } else raw
+
+                                Thread {
+                                    try {
+                                        val repo = SQLiteRepo(context)
+                                        val saved = repo.importMlListingsJsonToArticles(cleaned)
+                                        statusText = "Сохранено в артикулы: $saved"
+                                    } catch (t: Throwable) {
+                                        statusText = "Ошибка сохранения в артикулы: ${t.message}"
+                                    }
+                                }.start()
+                            } catch (t: Throwable) {
+                                statusText = "Listings save error: ${t.message}"
+                            }
+                        }
+                    }
+                ) {
+                    Text("В артикулы")
                 }
 
                 Button(
