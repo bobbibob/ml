@@ -399,6 +399,14 @@ class SQLiteRepo(private val context: Context) {
     add("ml_synced_at", "INTEGER")
   }
 
+
+  private fun mlArticleFromSku(sku: String?): String? {
+    val v = sku?.trim().orEmpty()
+    if (v.isBlank()) return null
+    val i = v.lastIndexOf('-')
+    return if (i > 0) v.substring(0, i) else v
+  }
+
   private fun jstr(o: JSONObject, key: String): String? =
     if (!o.has(key) || o.isNull(key)) null else o.optString(key, null)
 
@@ -480,20 +488,14 @@ class SQLiteRepo(private val context: Context) {
               }
               val variantRaw = v.toString()
 
+              val articleCode = mlArticleFromSku(sku)
               val bagId = when {
-                !sku.isNullOrBlank() -> sku
-                !listingId.isNullOrBlank() && !color.isNullOrBlank() -> "$listingId:$color"
+                !articleCode.isNullOrBlank() -> articleCode
                 !listingId.isNullOrBlank() -> listingId
                 else -> continue
               }
 
-              val displayName = buildString {
-                if (!title.isNullOrBlank()) append(title)
-                if (!color.isNullOrBlank()) {
-                  if (isNotEmpty()) append(" — ")
-                  append(color)
-                }
-              }.ifBlank { bagId }
+              val displayName = bagId
 
               db.execSQL(
                 """
@@ -575,7 +577,7 @@ class SQLiteRepo(private val context: Context) {
             }
           } else {
             val bagId = listingId ?: continue
-            val displayName = title ?: bagId
+            val displayName = bagId
 
             db.execSQL(
               """
