@@ -454,8 +454,60 @@ private fun listingsExtractorJs(): String = """
     const qualityScoreMatch = block.match(/(\d+)\s+Qualidade do anúncio/i);
     const quality_score = qualityScoreMatch ? Number(qualityScoreMatch[1]) : null;
 
+    const qualityLevelMatch = block.match(/Qualidade do anúncio\s+([A-Za-zÀ-ÿ]+)/i);
+    const quality_level = qualityLevelMatch ? qualityLevelMatch[1] : null;
+
     const experienceScoreMatch = block.match(/(\d+)\s+Experiência de compra/i);
     const experience_score = experienceScoreMatch ? Number(experienceScoreMatch[1]) : null;
+
+    const experienceLevelMatch = block.match(/Experiência de compra\s+([A-Za-zÀ-ÿ]+)/i);
+    const experience_level = experienceLevelMatch ? experienceLevelMatch[1] : null;
+
+    const saleFeeTypeMatch =
+      block.match(/Tarifa de venda\s+([A-Za-zÀ-ÿ]+)/i) ||
+      block.match(/\n(Clássico|Premium)\n/i);
+    const sale_fee_type = saleFeeTypeMatch ? saleFeeTypeMatch[1] : null;
+
+    const saleFeePercentMatch = block.match(/Tarifa de venda\s+(\d+)%/i);
+    const sale_fee_percent = saleFeePercentMatch ? Number(saleFeePercentMatch[1]) : null;
+
+    let sale_fee_amount = null;
+    const saleFeeAmountMatch =
+      block.match(/A pagar R\$\s*([\d\.\,]+)\s+Oferecer parcelamento/i) ||
+      block.match(/Tarifa de venda[^\n]*\n(?:[A-Za-zÀ-ÿ]+\n)?-?R\$\s*([\d\.\,]+)/i);
+    if (saleFeeAmountMatch) {
+      const v = saleFeeAmountMatch[1].replace(/\./g, "").replace(",", ".");
+      const n = Number(v);
+      sale_fee_amount = Number.isFinite(n) ? n : null;
+    }
+
+    let shipping_mode = null;
+    if (/Frete grátis/i.test(block)) shipping_mode = "Frete grátis";
+    else if (/Por conta do comprador/i.test(block)) shipping_mode = "Por conta do comprador";
+    else if (/Custo de envio Full/i.test(block)) shipping_mode = "Full";
+
+    let shipping_paid_by = null;
+    if (/Grátis para o comprador/i.test(block) || /Frete grátis/i.test(block)) shipping_paid_by = "seller";
+    else if (/Por conta do comprador/i.test(block)) shipping_paid_by = "buyer";
+
+    let shipping_cost = null;
+    const shippingCostMatch =
+      block.match(/Frete grátis\s+A pagar R\$\s*([\d\.\,]+)/i) ||
+      block.match(/Por conta do comprador\s+-?R\$\s*([\d\.\,]+)/i) ||
+      block.match(/Custo de envio Full[^\n]*\n(?:Grátis para o comprador|Por conta do comprador)?\n-?R\$\s*([\d\.\,]+)/i);
+    if (shippingCostMatch) {
+      const v = shippingCostMatch[1].replace(/\./g, "").replace(",", ".");
+      const n = Number(v);
+      shipping_cost = Number.isFinite(n) ? n : null;
+    }
+
+    let net_amount = null;
+    const netMatches = [...block.matchAll(/Você recebe\s+R\$\s*([\d\.\,]+)/gi)];
+    if (netMatches.length) {
+      const v = netMatches[netMatches.length - 1][1].replace(/\./g, "").replace(",", ".");
+      const n = Number(v);
+      net_amount = Number.isFinite(n) ? n : null;
+    }
 
     const variants = [];
     const variantRegex = /Cor:\s*([^\n]+)\n+\s*SKU\s+([A-Z0-9-]+)/gi;
@@ -487,16 +539,17 @@ private fun listingsExtractorJs(): String = """
       stock_total,
       visits,
       sold_total,
-      sale_fee_type: null,
-      sale_fee_amount: null,
-      shipping_mode: null,
-      shipping_cost: null,
-      shipping_paid_by: null,
-      net_amount: null,
+      sale_fee_type,
+      sale_fee_percent,
+      sale_fee_amount,
+      shipping_mode,
+      shipping_cost,
+      shipping_paid_by,
+      net_amount,
       quality_score,
-      quality_level: null,
+      quality_level,
       experience_score,
-      experience_level: null,
+      experience_level,
       bulk_price_enabled: /preço de atacado/i.test(block),
       bulk_price_min_qty: parseIntLoose((block.match(/(\d+)\s+unidades\s*\n\s*R\$\s*[\d\.\,]+\/u/i) || [])[1]),
       bulk_price_amount: parseMoney((block.match(/(\bR\$\s*[\d\.\,]+\/u\b)/i) || [])[1]),
