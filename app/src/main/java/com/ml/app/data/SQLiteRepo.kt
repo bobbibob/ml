@@ -2081,4 +2081,65 @@ class SQLiteRepo(private val context: Context) {
   }
 
 
+
+  suspend fun clearImportedMlDataRobust(): Int = withContext(Dispatchers.IO) {
+    openDbReadWrite().use { db ->
+      var deleted = 0
+
+      fun tableExists(name: String): Boolean {
+        db.rawQuery(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+          arrayOf(name)
+        ).use { c ->
+          return c.moveToFirst()
+        }
+      }
+
+      db.beginTransaction()
+      try {
+        val mlBagIds = ArrayList<String>()
+
+        if (tableExists("bag_user")) {
+          db.rawQuery(
+            "SELECT bag_id FROM bag_user WHERE ml_listing_id IS NOT NULL AND ml_listing_id != ''",
+            null
+          ).use { c ->
+            while (c.moveToNext()) {
+              val id = c.getString(0)
+              if (!id.isNullOrBlank()) mlBagIds.add(id)
+            }
+          }
+        }
+
+        if (tableExists("bag_ml_variants")) {
+          kotlin.runCatching { db.execSQL("DELETE FROM bag_ml_variants") }
+        }
+
+        if (tableExists("bag_user_colors")) {
+          for (id in mlBagIds.distinct()) {
+            kotlin.runCatching {
+              db.execSQL("DELETE FROM bag_user_colors WHERE bag_id=?", arrayOf(id))
+            }
+          }
+        }
+
+        if (tableExists("bag_user")) {
+          for (id in mlBagIds.distinct()) {
+            kotlin.runCatching {
+              db.execSQL("DELETE FROM bag_user WHERE bag_id=?", arrayOf(id))
+              deleted++
+            }
+          }
+        }
+
+        db.setTransactionSuccessful()
+      } finally {
+        db.endTransaction()
+      }
+
+      deleted
+    }
+  }
+
+
 }
