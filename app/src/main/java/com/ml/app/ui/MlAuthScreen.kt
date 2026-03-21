@@ -45,6 +45,7 @@ import org.json.JSONObject
 
 private const val ML_START_URL = "https://www.mercadolivre.com.br/vendas/omni/lista?filters=TAB_TODAY"
 private const val ML_STOCK_URL = "https://www.mercadolivre.com.br/anuncios/lista/space_management?filters=on-sale%2Cin-transfer"
+private const val ML_LISTINGS_URL = "https://www.mercadolivre.com.br/anuncios/lista?filters=OMNI_ACTIVE|OMNI_INACTIVE|CHANNEL_NO_PROXIMITY_AND_NO_MP_MERCHANTS&page=1&sort=DEFAULT"
 
 @Composable
 fun MlAuthScreen(
@@ -145,6 +146,34 @@ fun MlAuthScreen(
                 Button(
                     onClick = {
                         val webView = webViewRef ?: return@Button
+                        if (!currentUrl.contains("/anuncios/lista") || currentUrl.contains("space_management")) {
+                            statusText = "Сначала открой страницу Карточки."
+                            return@Button
+                        }
+                        statusText = "Парсим карточки товаров..."
+
+                        webView.evaluateJavascript(listingsExtractorJs()) { result ->
+                            try {
+                                val raw = result ?: ""
+                                val cleaned = if (raw.startsWith("\"") && raw.endsWith("\"")) {
+                                    JSONObject("{\"v\":$raw}").getString("v")
+                                } else {
+                                    raw
+                                }
+                                val json = JSONObject(cleaned)
+                                statusText = json.toString(2).take(12000)
+                            } catch (t: Throwable) {
+                                statusText = "Listings parse error: ${t.message}"
+                            }
+                        }
+                    }
+                ) {
+                    Text("JSON карточки")
+                }
+
+                Button(
+                    onClick = {
+                        val webView = webViewRef ?: return@Button
                         statusText = "Снимаем DOM..."
 
                         val js = """
@@ -225,6 +254,16 @@ fun MlAuthScreen(
 
                 Button(
                     onClick = {
+                        val webView = webViewRef ?: return@Button
+                        statusText = "Открываем карточки товаров..."
+                        webView.loadUrl(ML_LISTINGS_URL)
+                    }
+                ) {
+                    Text("Карточки")
+                }
+
+                Button(
+                    onClick = {
                         webViewRef?.reload()
                     }
                 ) {
@@ -264,6 +303,134 @@ fun MlAuthScreen(
         )
     }
 }
+
+
+private fun listingsExtractorJs(): String = """
+(function() {
+  function norm(s) {
+    return (s || "").replace(/\r/g, "").replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
+  }
+
+  function parseIntLoose(s) {
+    if (!s) return null;
+    const only = String(s).replace(/[^\d]/g, "");
+    if (!only) return null;
+    const n = Number(only);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  function parseMoney(s) {
+    if (!s) return null;
+    const m = String(s).match(/R\$\s*([\d\.\,]+)/);
+    if (!m) return null;
+    const v = m[1].replace(/\./g, "").replace(",", ".");
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  const bodyText = norm(document.body ? (document.body.innerText || document.body.textContent || "") : "");
+  const parts = bodyText
+    .split(/Selecionar anúncio/gi)
+    .map(x => norm(x))
+    .filter(x => /#\d{6,}/.test(x));
+
+  const items = parts.map(block => {
+    const lines = block.split("\n").map(x => x.trim()).filter(Boolean);
+
+    const listingIdMatch = block.match(/#(\d{6,})/);
+    const listing_id = listingIdMatch ? listingIdMatch[1] : null;
+    const listing_code = listing_id ? "#" + listing_id : null;
+
+    let title = null;
+    if (listing_code) {
+      const idx = lines.findIndex(x => x === listing_code);
+      if (idx >= 0) {
+        for (let i = idx + 1; i < lines.length; i++) {
+          const line = lines[i];
+          if (/^\d+\s+unidades$/i.test(line)) break;
+          if (/^SKU\s+/i.test(line)) continue;
+          if (/^Cor:/i.test(line)) continue;
+          if (/^I D /i.test(line)) continue;
+          if (!/^#\d+$/.test(line)) {
+            title = line;
+            break;
+          }
+        }
+      }
+    }
+
+    const stock_total = parseIntLoose((block.match(/(\d+)\s+unidades/i) || [])[1]);
+    const visits = parseIntLoose((block.match(/([\d\.]+)\s+visitas/i) || [])[1]);
+    const sold_total = parseIntLoose((block.match(/(\d+)\s+unidades vendidas/i) || [])[1]);
+    const price = parseMoney((block.match(/R\$\s*[\d\.\,]+/) || [])[0]);
+
+    let status = null;
+    const statusHits = block.match(/\b(Ativo|Pausado|Inativo)\b/gi);
+    if (statusHits && statusHits.length) status = statusHits[statusHits.length - 1];
+
+    const qualityScoreMatch = block.match(/(\d+)\s+Qualidade do anúncio/i);
+    const quality_score = qualityScoreMatch ? Number(qualityScoreMatch[1]) : null;
+
+    const experienceScoreMatch = block.match(/(\d+)\s+Experiência de compra/i);
+    const experience_score = experienceScoreMatch ? Number(experienceScoreMatch[1]) : null;
+
+    const variants = [];
+    const variantRegex = /Cor:\s*([^\n]+)\n+\s*SKU\s+([A-Z0-9-]+)/gi;
+    let vm;
+    while ((vm = variantRegex.exec(block)) !== null) {
+      const color = (vm[1] || "").trim();
+      const sku = (vm[2] || "").trim();
+      variants.push({
+        variant_id: listing_id && sku ? listing_id + ":" + sku : null,
+        sku: sku || null,
+        variant_title: null,
+        color: color || null,
+        size: null,
+        material: null,
+        attributes: color ? { "Cor": color } : {},
+        image_main_url: null,
+        images: []
+      });
+    }
+
+    return {
+      listing_id,
+      listing_code,
+      title,
+      status,
+      price,
+      promo_price: null,
+      currency: "BRL",
+      stock_total,
+      visits,
+      sold_total,
+      sale_fee_type: null,
+      sale_fee_amount: null,
+      shipping_mode: null,
+      shipping_cost: null,
+      shipping_paid_by: null,
+      net_amount: null,
+      quality_score,
+      quality_level: null,
+      experience_score,
+      experience_level: null,
+      bulk_price_enabled: /preço de atacado/i.test(block),
+      bulk_price_min_qty: parseIntLoose((block.match(/(\d+)\s+unidades\s*\n\s*R\$\s*[\d\.\,]+\/u/i) || [])[1]),
+      bulk_price_amount: parseMoney((block.match(/(\bR\$\s*[\d\.\,]+\/u\b)/i) || [])[1]),
+      variants,
+      raw_text: block
+    };
+  });
+
+  return JSON.stringify({
+    source: "listings",
+    url: location.href,
+    captured_at: Date.now(),
+    total: items.length,
+    items: items
+  });
+})();
+""".trimIndent()
 
 @SuppressLint("SetJavaScriptEnabled")
 private fun buildMlWebView(
