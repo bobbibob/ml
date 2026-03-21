@@ -78,6 +78,7 @@ private fun copyImageToInternalStorage(context: Context, uri: Uri): String? {
 @Composable
 fun AddEditArticleScreen(
     bagId: String? = null,
+    isAdmin: Boolean = false,
     onDone: (() -> Unit)? = null
 ) {
     val ctx = LocalContext.current
@@ -96,8 +97,9 @@ fun AddEditArticleScreen(
     }
 
     var selectedBagId by remember { mutableStateOf(bagId) }
-    var tab by remember { mutableStateOf(if (bagId.isNullOrBlank()) 0 else 1) }
+    var tab by remember { mutableStateOf(1) }
     var bagItems by remember { mutableStateOf<List<BagPickerRow>>(emptyList()) }
+    var pendingDeleteBagId by remember { mutableStateOf<String?>(null) }
 
     var name by remember { mutableStateOf("") }
     var hypothesis by remember { mutableStateOf("") }

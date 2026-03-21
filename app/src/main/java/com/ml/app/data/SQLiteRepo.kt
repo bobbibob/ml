@@ -424,6 +424,23 @@ class SQLiteRepo(private val context: Context) {
       else -> null
     }
 
+
+  fun normalizeImportedMlArticleNames() {
+    openDbReadWrite().use { db ->
+      ensureMlArticleColumns(db)
+      db.execSQL(
+        """
+        UPDATE bag_user
+        SET name = bag_id
+        WHERE ml_listing_id IS NOT NULL
+          AND ml_listing_id != ''
+          AND bag_id IS NOT NULL
+          AND bag_id != ''
+        """.trimIndent()
+      )
+    }
+  }
+
   fun importMlListingsJsonToArticles(json: String): Int {
     val root = try {
       JSONObject(json)
@@ -491,7 +508,6 @@ class SQLiteRepo(private val context: Context) {
               val articleCode = mlArticleFromSku(sku)
               val bagId = when {
                 !articleCode.isNullOrBlank() -> articleCode
-                !sku.isNullOrBlank() -> sku
                 !listingId.isNullOrBlank() -> listingId
                 else -> continue
               }
