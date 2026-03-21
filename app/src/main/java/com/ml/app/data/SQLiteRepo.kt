@@ -2062,4 +2062,23 @@ class SQLiteRepo(private val context: Context) {
   }
 
 
+
+
+  suspend fun clearAllMlDataSafe() = withContext(Dispatchers.IO) {
+    kotlin.runCatching {
+      openDbReadWrite().use { db ->
+        db.beginTransaction()
+        try {
+          kotlin.runCatching { db.execSQL("DELETE FROM bag_ml_variants") }
+          kotlin.runCatching { db.execSQL("DELETE FROM bag_user_colors") }
+          kotlin.runCatching { db.execSQL("DELETE FROM bag_user") }
+          db.setTransactionSuccessful()
+        } finally {
+          db.endTransaction()
+        }
+      }
+    }
+  }
+
+
 }
