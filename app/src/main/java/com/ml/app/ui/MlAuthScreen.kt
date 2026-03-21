@@ -445,6 +445,73 @@ private fun listingsExtractorJs(): String = """
     return Number.isFinite(n) ? n : null;
   }
 
+  function txt(el) {
+    return norm((el && (el.innerText || el.textContent)) || "");
+  }
+
+  function absUrl(url) {
+    if (!url) return null;
+    try { return new URL(url, location.href).toString(); } catch (_) { return url; }
+  }
+
+  function imgUrl(img) {
+    if (!img) return null;
+    const src = img.getAttribute("src") || img.getAttribute("data-src") || img.currentSrc || "";
+    if (src && !src.startsWith("data:")) return absUrl(src);
+    const srcset = img.getAttribute("srcset") || "";
+    if (srcset) {
+      const first = srcset.split(",")[0].trim().split(" ")[0];
+      if (first) return absUrl(first);
+    }
+    return null;
+  }
+
+  function smallestListingContainer(listingId) {
+    const all = Array.from(document.querySelectorAll("tr,div,section,article,li"));
+    const target = "#" + listingId;
+    const candidates = all.filter(el => {
+      const t = txt(el);
+      return t.includes(target) && (
+        t.includes("Qualidade do anúncio") ||
+        t.includes("Experiência de compra") ||
+        t.includes("unidades vendidas")
+      );
+    }).sort((a,b) => txt(a).length - txt(b).length);
+    return candidates[0] || null;
+  }
+
+  function extractContainerImages(container) {
+    if (!container) return [];
+    const out = [];
+    const seen = new Set();
+    for (const img of Array.from(container.querySelectorAll("img"))) {
+      const u = imgUrl(img);
+      if (!u) continue;
+      if (seen.has(u)) continue;
+      seen.add(u);
+      out.push(u);
+    }
+    return out;
+  }
+
+  function variantImage(container, sku, color, fallbackImages) {
+    if (!container) return fallbackImages[0] || null;
+    const all = Array.from(container.querySelectorAll("tr,div,section,article,li"));
+    const candidates = all.filter(el => {
+      const t = txt(el);
+      return (
+        (sku && t.includes("SKU " + sku)) ||
+        (color && t.includes("Cor: " + color))
+      );
+    }).sort((a,b) => txt(a).length - txt(b).length);
+
+    for (const el of candidates) {
+      const imgs = extractContainerImages(el);
+      if (imgs.length) return imgs[0];
+    }
+    return fallbackImages[0] || null;
+  }
+
   const bodyText = norm(document.body ? (document.body.innerText || document.body.textContent || "") : "");
   const parts = bodyText
     .split(/Selecionar anúncio/gi)
@@ -479,7 +546,16 @@ private fun listingsExtractorJs(): String = """
     const stock_total = parseIntLoose((block.match(/(\d+)\s+unidades/i) || [])[1]);
     const visits = parseIntLoose((block.match(/([\d\.]+)\s+visitas/i) || [])[1]);
     const sold_total = parseIntLoose((block.match(/(\d+)\s+unidades vendidas/i) || [])[1]);
-    const price = parseMoney((block.match(/R\$\s*[\d\.\,]+/) || [])[0]);
+
+    const headlinePriceMatch =
+      block.match(/\nR\$\s*([\d\.\,]+)\n\n(?:Você oferece|Você vende|Clássico|Premium)/i) ||
+      block.match(/\bR\$\s*([\d\.\,]+)\b/);
+    const price = headlinePriceMatch ? parseMoney(headlinePriceMatch[0]) : null;
+
+    const promoPriceMatch =
+      block.match(/Você vende por\s*R\$\s*([\d\.\,]+)\s+na promoção/i) ||
+      block.match(/Preço\*?\s*\n\s*R\$\s*([\d\.\,]+)/i);
+    const promo_price = promoPriceMatch ? parseMoney(promoPriceMatch[0]) : null;
 
     let status = null;
     const statusHits = block.match(/\b(Ativo|Pausado|Inativo)\b/gi);
@@ -543,12 +619,16 @@ private fun listingsExtractorJs(): String = """
       net_amount = Number.isFinite(n) ? n : null;
     }
 
+    const listingContainer = listing_id ? smallestListingContainer(listing_id) : null;
+    const listingImages = extractContainerImages(listingContainer);
+
     const variants = [];
     const variantRegex = /Cor:\s*([^\n]+)\n+\s*SKU\s+([A-Z0-9-]+)/gi;
     let vm;
     while ((vm = variantRegex.exec(block)) !== null) {
       const color = (vm[1] || "").trim();
       const sku = (vm[2] || "").trim();
+      const mainImage = variantImage(listingContainer, sku, color, listingImages);
       variants.push({
         variant_id: listing_id && sku ? listing_id + ":" + sku : null,
         sku: sku || null,
@@ -557,8 +637,8 @@ private fun listingsExtractorJs(): String = """
         size: null,
         material: null,
         attributes: color ? { "Cor": color } : {},
-        image_main_url: null,
-        images: []
+        image_main_url: mainImage,
+        images: mainImage ? [{ image_url: mainImage, sort_order: 0, is_primary: true }] : []
       });
     }
 
@@ -568,7 +648,7 @@ private fun listingsExtractorJs(): String = """
       title,
       status,
       price,
-      promo_price: null,
+      promo_price,
       currency: "BRL",
       stock_total,
       visits,

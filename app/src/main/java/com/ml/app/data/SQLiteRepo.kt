@@ -496,6 +496,7 @@ class SQLiteRepo(private val context: Context) {
               }
 
               val displayName = bagId
+              val effectivePrice = promoPrice ?: price
 
               db.execSQL(
                 """
@@ -557,7 +558,7 @@ class SQLiteRepo(private val context: Context) {
                   ml_synced_at=excluded.ml_synced_at
                 """.trimIndent(),
                 arrayOf(
-                  bagId, displayName, null, price, null, null, null,
+                  bagId, displayName, null, effectivePrice, null, null, null,
                   listingId, listingCode, status, price, promoPrice, currency,
                   stockTotal, visits, soldTotal,
                   saleFeeType, saleFeePercent, saleFeeAmount,
@@ -578,6 +579,7 @@ class SQLiteRepo(private val context: Context) {
           } else {
             val bagId = listingId ?: continue
             val displayName = bagId
+            val effectivePrice = promoPrice ?: price
 
             db.execSQL(
               """
@@ -632,7 +634,7 @@ class SQLiteRepo(private val context: Context) {
                 ml_synced_at=excluded.ml_synced_at
               """.trimIndent(),
               arrayOf(
-                bagId, displayName, null, price, null, null, null,
+                bagId, displayName, null, effectivePrice, null, null, null,
                 listingId, listingCode, status, price, promoPrice, currency,
                 stockTotal, visits, soldTotal,
                 saleFeeType, saleFeePercent, saleFeeAmount,
