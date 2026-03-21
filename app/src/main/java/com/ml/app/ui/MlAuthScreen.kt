@@ -467,6 +467,14 @@ private fun listingsExtractorJs(): String = """
     return null;
   }
 
+  function bgImageUrl(el) {
+    if (!el) return null;
+    const style = (el.getAttribute("style") || "") + " " + (((el.style || {}).backgroundImage) || "");
+    const m = style.match(/url\((['"]?)(.*?)\1\)/i);
+    if (m && m[2]) return absUrl(m[2]);
+    return null;
+  }
+
   function smallestListingContainer(listingId) {
     const all = Array.from(document.querySelectorAll("tr,div,section,article,li"));
     const target = "#" + listingId;
@@ -485,13 +493,22 @@ private fun listingsExtractorJs(): String = """
     if (!container) return [];
     const out = [];
     const seen = new Set();
-    for (const img of Array.from(container.querySelectorAll("img"))) {
-      const u = imgUrl(img);
-      if (!u) continue;
-      if (seen.has(u)) continue;
+
+    function push(u) {
+      if (!u) return;
+      if (seen.has(u)) return;
       seen.add(u);
       out.push(u);
     }
+
+    for (const img of Array.from(container.querySelectorAll("img"))) {
+      push(imgUrl(img));
+    }
+
+    for (const el of Array.from(container.querySelectorAll("*"))) {
+      push(bgImageUrl(el));
+    }
+
     return out;
   }
 

@@ -425,6 +425,24 @@ class SQLiteRepo(private val context: Context) {
     }
 
 
+
+  private fun deleteImportedMlRowsForListing(db: SQLiteDatabase, listingId: String?) {
+    if (listingId.isNullOrBlank()) return
+
+    val ids = ArrayList<String>()
+    db.rawQuery(
+      "SELECT bag_id FROM bag_user WHERE ml_listing_id=?",
+      arrayOf(listingId)
+    ).use { c ->
+      while (c.moveToNext()) ids.add(c.getString(0))
+    }
+
+    for (id in ids.distinct()) {
+      db.execSQL("DELETE FROM bag_user_colors WHERE bag_id=?", arrayOf(id))
+      db.execSQL("DELETE FROM bag_user WHERE bag_id=?", arrayOf(id))
+    }
+  }
+
   fun normalizeImportedMlArticleNames() {
     openDbReadWrite().use { db ->
       ensureMlArticleColumns(db)
@@ -463,6 +481,7 @@ class SQLiteRepo(private val context: Context) {
           val item = items.optJSONObject(i) ?: continue
 
           val listingId = jstr(item, "listing_id")
+          deleteImportedMlRowsForListing(db, listingId)
           val listingCode = jstr(item, "listing_code")
           val title = jstr(item, "title")
           val status = jstr(item, "status")
@@ -541,6 +560,7 @@ class SQLiteRepo(private val context: Context) {
                 ON CONFLICT(bag_id) DO UPDATE SET
                   name=excluded.name,
                   price=excluded.price,
+                  photo_path=COALESCE(excluded.photo_path, bag_user.photo_path),
                   ml_listing_id=excluded.ml_listing_id,
                   ml_listing_code=excluded.ml_listing_code,
                   ml_status=excluded.ml_status,
@@ -575,7 +595,7 @@ class SQLiteRepo(private val context: Context) {
                   ml_synced_at=excluded.ml_synced_at
                 """.trimIndent(),
                 arrayOf(
-                  bagId, displayName, null, effectivePrice, null, null, null,
+                  bagId, displayName, null, effectivePrice, null, null, imageMainUrl,
                   listingId, listingCode, status, price, promoPrice, currency,
                   stockTotal, visits, soldTotal,
                   saleFeeType, saleFeePercent, saleFeeAmount,
