@@ -177,7 +177,7 @@ fun AddEditArticleScreen(
 
     LaunchedEffect(tab) {
         if (tab == 1) {
-            bagItems = kotlin.runCatching { repo.listBagPickerRowsV2() }.getOrDefault(emptyList())
+            bagItems = kotlin.runCatching { repo.listBagPickerRowsV3() }.getOrDefault(emptyList())
         }
     }
 

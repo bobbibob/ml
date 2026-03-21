@@ -2638,4 +2638,120 @@ class SQLiteRepo(private val context: Context) {
   }
 
 
+
+
+  private fun ensureDeletedArticlesTableV3(db: SQLiteDatabase) {
+    db.execSQL(
+      """
+      CREATE TABLE IF NOT EXISTS deleted_articles(
+        article_id TEXT PRIMARY KEY,
+        deleted_at INTEGER NOT NULL,
+        reason TEXT
+      );
+      """.trimIndent()
+    )
+  }
+
+  suspend fun listBagPickerRowsV3(): List<BagPickerRow> = withContext(Dispatchers.IO) {
+    openDbReadWrite().use { db ->
+      ensureDeletedArticlesTableV3(db)
+      val out = ArrayList<BagPickerRow>()
+      db.rawQuery(
+        """
+        SELECT
+          u.bag_id AS bag_id,
+          u.bag_id AS bag_name,
+          COALESCE(
+            NULLIF(u.photo_path, ''),
+            (
+              SELECT v.image_url
+              FROM bag_ml_variants v
+              WHERE v.article_id = u.bag_id
+                AND v.image_url IS NOT NULL
+                AND v.image_url != ''
+              ORDER BY
+                CASE
+                  WHEN LOWER(COALESCE(v.color, '')) LIKE '%preto%' THEN 0
+                  WHEN LOWER(COALESCE(v.color, '')) LIKE '%preta%' THEN 0
+                  WHEN LOWER(COALESCE(v.color, '')) LIKE '%black%' THEN 0
+                  WHEN LOWER(COALESCE(v.color, '')) LIKE '%negro%' THEN 0
+                  WHEN LOWER(COALESCE(v.color, '')) LIKE '%negra%' THEN 0
+                  ELSE 1
+                END,
+                v.sku COLLATE NOCASE
+              LIMIT 1
+            )
+          ) AS photo_path,
+          COALESCE(
+            (
+              SELECT GROUP_CONCAT(color, ', ')
+              FROM (
+                SELECT DISTINCT color
+                FROM bag_user_colors c
+                WHERE c.bag_id = u.bag_id
+                  AND c.color IS NOT NULL
+                  AND c.color != ''
+                ORDER BY color COLLATE NOCASE
+              )
+            ),
+            (
+              SELECT GROUP_CONCAT(color, ', ')
+              FROM (
+                SELECT DISTINCT color
+                FROM bag_ml_variants v2
+                WHERE v2.article_id = u.bag_id
+                  AND v2.color IS NOT NULL
+                  AND v2.color != ''
+                ORDER BY color COLLATE NOCASE
+              )
+            )
+          ) AS colors_text
+        FROM bag_user u
+        WHERE u.bag_id IS NOT NULL
+          AND u.bag_id != ''
+          AND u.bag_id NOT IN (SELECT article_id FROM deleted_articles)
+        ORDER BY u.bag_id COLLATE NOCASE
+        """.trimIndent(),
+        null
+      ).use { c ->
+        val iBagId = c.getColumnIndexOrThrow("bag_id")
+        val iBagName = c.getColumnIndexOrThrow("bag_name")
+        val iPhoto = c.getColumnIndexOrThrow("photo_path")
+        val iColors = c.getColumnIndexOrThrow("colors_text")
+
+        while (c.moveToNext()) {
+          out.add(
+            BagPickerRow(
+              bagId = c.getString(iBagId),
+              bagName = c.getString(iBagName),
+              photoPath = if (c.isNull(iPhoto)) null else c.getString(iPhoto),
+              colorsText = if (c.isNull(iColors)) null else c.getString(iColors)
+            )
+          )
+        }
+      }
+      out
+    }
+  }
+
+  suspend fun softDeleteArticleV3(articleId: String, reason: String? = null) = withContext(Dispatchers.IO) {
+    openDbReadWrite().use { db ->
+      ensureDeletedArticlesTableV3(db)
+      db.beginTransaction()
+      try {
+        db.execSQL(
+          "INSERT OR REPLACE INTO deleted_articles(article_id, deleted_at, reason) VALUES(?,?,?)",
+          arrayOf(articleId, System.currentTimeMillis(), reason)
+        )
+        kotlin.runCatching { db.execSQL("DELETE FROM bag_user_colors WHERE bag_id=?", arrayOf(articleId)) }
+        kotlin.runCatching { db.execSQL("DELETE FROM bag_ml_variants WHERE article_id=?", arrayOf(articleId)) }
+        kotlin.runCatching { db.execSQL("DELETE FROM bag_user WHERE bag_id=?", arrayOf(articleId)) }
+        db.setTransactionSuccessful()
+      } finally {
+        db.endTransaction()
+      }
+    }
+  }
+
+
 }
