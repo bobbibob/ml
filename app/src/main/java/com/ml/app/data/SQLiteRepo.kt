@@ -491,6 +491,7 @@ class SQLiteRepo(private val context: Context) {
               val articleCode = mlArticleFromSku(sku)
               val bagId = when {
                 !articleCode.isNullOrBlank() -> articleCode
+                !sku.isNullOrBlank() -> sku
                 !listingId.isNullOrBlank() -> listingId
                 else -> continue
               }
