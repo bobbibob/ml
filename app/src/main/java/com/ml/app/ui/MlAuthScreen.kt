@@ -46,6 +46,7 @@ import org.json.JSONObject
 private const val ML_START_URL = "https://www.mercadolivre.com.br/vendas/omni/lista?filters=TAB_TODAY"
 private const val ML_STOCK_URL = "https://www.mercadolivre.com.br/anuncios/lista/space_management?filters=on-sale%2Cin-transfer"
 private const val ML_LISTINGS_URL = "https://www.mercadolivre.com.br/anuncios/lista?filters=OMNI_ACTIVE|OMNI_INACTIVE|CHANNEL_NO_PROXIMITY_AND_NO_MP_MERCHANTS&page=1&sort=DEFAULT"
+private const val ML_ORDERS_URL = "https://www.mercadolivre.com.br/vendas/omni/lista?filters=TAB_TODAY#menu-user"
 
 @Composable
 fun MlAuthScreen(
@@ -174,6 +175,78 @@ fun MlAuthScreen(
                 Button(
                     onClick = {
                         val webView = webViewRef ?: return@Button
+                        if (!currentUrl.contains("/anuncios/lista") || currentUrl.contains("space_management")) {
+                            statusText = "Сначала открой Карточки."
+                            return@Button
+                        }
+                        statusText = "Парсим карточки..."
+                        webView.evaluateJavascript(listingsExtractorJs()) { result ->
+                            try {
+                                val raw = result ?: ""
+                                val cleaned = if (raw.startsWith("\"") && raw.endsWith("\"")) {
+                                    JSONObject("{\"v\":$raw}").getString("v")
+                                } else raw
+                                statusText = JSONObject(cleaned).toString(2).take(12000)
+                            } catch (t: Throwable) {
+                                statusText = "Listings parse error: ${t.message}"
+                            }
+                        }
+                    }
+                ) {
+                    Text("JSON карточки")
+                }
+
+                Button(
+                    onClick = {
+                        val webView = webViewRef ?: return@Button
+                        if (!currentUrl.contains("space_management")) {
+                            statusText = "Сначала открой Остатки."
+                            return@Button
+                        }
+                        statusText = "Парсим остатки..."
+                        webView.evaluateJavascript(stockExtractorJs()) { result ->
+                            try {
+                                val raw = result ?: ""
+                                val cleaned = if (raw.startsWith("\"") && raw.endsWith("\"")) {
+                                    JSONObject("{\"v\":$raw}").getString("v")
+                                } else raw
+                                statusText = JSONObject(cleaned).toString(2).take(12000)
+                            } catch (t: Throwable) {
+                                statusText = "Stock parse error: ${t.message}"
+                            }
+                        }
+                    }
+                ) {
+                    Text("JSON остатки")
+                }
+
+                Button(
+                    onClick = {
+                        val webView = webViewRef ?: return@Button
+                        if (!currentUrl.contains("/vendas/omni/lista")) {
+                            statusText = "Сначала открой Продажи."
+                            return@Button
+                        }
+                        statusText = "Парсим продажи..."
+                        webView.evaluateJavascript(ordersExtractorJs()) { result ->
+                            try {
+                                val raw = result ?: ""
+                                val cleaned = if (raw.startsWith("\"") && raw.endsWith("\"")) {
+                                    JSONObject("{\"v\":$raw}").getString("v")
+                                } else raw
+                                statusText = JSONObject(cleaned).toString(2).take(12000)
+                            } catch (t: Throwable) {
+                                statusText = "Orders parse error: ${t.message}"
+                            }
+                        }
+                    }
+                ) {
+                    Text("JSON продажи")
+                }
+
+                Button(
+                    onClick = {
+                        val webView = webViewRef ?: return@Button
                         statusText = "Снимаем DOM..."
 
                         val js = """
@@ -245,21 +318,31 @@ fun MlAuthScreen(
                 Button(
                     onClick = {
                         val webView = webViewRef ?: return@Button
-                        statusText = "Открываем страницу остатков..."
-                        webView.loadUrl(ML_STOCK_URL)
+                        statusText = "Открываем карточки..."
+                        webView.loadUrl(ML_LISTINGS_URL)
                     }
                 ) {
-                    Text("Склад")
+                    Text("Карточки")
                 }
 
                 Button(
                     onClick = {
                         val webView = webViewRef ?: return@Button
-                        statusText = "Открываем карточки товаров..."
-                        webView.loadUrl(ML_LISTINGS_URL)
+                        statusText = "Открываем остатки..."
+                        webView.loadUrl(ML_STOCK_URL)
                     }
                 ) {
-                    Text("Карточки")
+                    Text("Остатки")
+                }
+
+                Button(
+                    onClick = {
+                        val webView = webViewRef ?: return@Button
+                        statusText = "Открываем продажи..."
+                        webView.loadUrl(ML_ORDERS_URL)
+                    }
+                ) {
+                    Text("Продажи")
                 }
 
                 Button(
@@ -428,6 +511,241 @@ private fun listingsExtractorJs(): String = """
     captured_at: Date.now(),
     total: items.length,
     items: items
+  });
+})();
+""".trimIndent()
+
+
+
+private fun stockExtractorJs(): String = """
+(function() {
+  function norm(s) {
+    return (s || "").replace(/\r/g, "").replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
+  }
+
+  function parseIntLoose(s) {
+    if (!s) return null;
+    const only = String(s).replace(/[^\d]/g, "");
+    if (!only) return null;
+    const n = Number(only);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  function parseUnits(s) {
+    const m = String(s || "").match(/^(\d+)\s*un\.$/i);
+    return m ? Number(m[1]) : null;
+  }
+
+  function parseWeeks(s) {
+    const m = String(s || "").match(/Até\s+(\d+)\s*sem\./i);
+    return m ? Number(m[1]) : null;
+  }
+
+  const rows = Array.from(document.querySelectorAll("tr"))
+    .map(el => norm(el.innerText || el.textContent || ""))
+    .filter(x => /Código\s+ML:/i.test(x));
+
+  const items = rows.map(block => {
+    const lines = block.split("\n").map(x => x.trim()).filter(Boolean);
+
+    const mlCodeMatch = block.match(/Código\s+ML:\s*([A-Z0-9]+)/i);
+    const ml_code = mlCodeMatch ? mlCodeMatch[1] : null;
+
+    const variantsCountMatch = block.match(/^\+(\d+)$/m);
+    const variants_count = variantsCountMatch ? Number(variantsCountMatch[1]) : 0;
+
+    let title = null;
+    const idx = lines.findIndex(x => /Código\s+ML:/i.test(x));
+    if (idx >= 0) {
+      for (let i = idx + 1; i < lines.length; i++) {
+        const line = lines[i];
+        if (/^\+\d+$/.test(line)) continue;
+        if (/^Ver variações$/i.test(line)) continue;
+        if (/^(PEQUENO|MÉDIO|GRANDE|EXTRAGRANDE)$/i.test(line)) continue;
+        if (/^\d+\s*un\.$/i.test(line)) continue;
+        if (/^Até\s+\d+\s*sem\./i.test(line)) continue;
+        if (/Agora, você pode conferir/i.test(line)) continue;
+        if (/Use o novo filtro/i.test(line)) continue;
+        if (/Entendi/i.test(line)) continue;
+        title = line;
+        break;
+      }
+    }
+
+    let variant_label = null;
+    if (title) {
+      const tIdx = lines.indexOf(title);
+      if (tIdx >= 0 && tIdx + 1 < lines.length) {
+        const cand = lines[tIdx + 1];
+        if (
+          !/^(PEQUENO|MÉDIO|GRANDE|EXTRAGRANDE)$/i.test(cand) &&
+          !/^\d+\s*un\.$/i.test(cand) &&
+          !/^Até\s+\d+\s*sem\./i.test(cand) &&
+          !/^Ver variações$/i.test(cand)
+        ) {
+          variant_label = cand;
+        }
+      }
+    }
+
+    const size_bucket = lines.find(x => /^(PEQUENO|MÉDIO|GRANDE|EXTRAGRANDE)$/i.test(x)) || null;
+
+    const units = lines.map(parseUnits).filter(v => v !== null);
+    const weeksLine = lines.find(x => /^Até\s+\d+\s*sem\./i.test(x)) || null;
+    const weeks_to_stockout = parseWeeks(weeksLine);
+
+    let suggested_action = null;
+    for (const key of [
+      "Retire as unidades não aptas",
+      "Impulsione suas vendas",
+      "Não há recomendações porque ele é de boa qualidade.",
+      "Alterar produto",
+      "Como retirar unidades"
+    ]) {
+      const hit = lines.find(x => x.includes(key));
+      if (hit) {
+        suggested_action = hit;
+        break;
+      }
+    }
+
+    let stock_health = null;
+    if (/boa qualidade/i.test(block)) stock_health = "good";
+    else if (/estoque excedente/i.test(block)) stock_health = "excess";
+    else if (/devolvidas com problemas/i.test(block)) stock_health = "not_sellable";
+    else if (/entrada pendente/i.test(block)) stock_health = "pending";
+
+    return {
+      stock_id: ml_code && variant_label ? (ml_code + ":" + variant_label) : ml_code,
+      ml_code,
+      listing_id: null,
+      sku: null,
+      title,
+      variant_label,
+      size_bucket,
+      variants_count,
+      inbound_units: units[0] ?? null,
+      not_sellable_units: units[1] ?? null,
+      sellable_units: units[2] ?? null,
+      sales_last_30d: units[3] ?? null,
+      weeks_to_stockout,
+      aged_or_excess_units: units[4] ?? null,
+      stock_health,
+      suggested_action,
+      raw_text: block
+    };
+  });
+
+  return JSON.stringify({
+    source: "stock",
+    url: location.href,
+    captured_at: Date.now(),
+    total: items.length,
+    items
+  });
+})();
+""".trimIndent()
+
+private fun ordersExtractorJs(): String = """
+(function() {
+  function norm(s) {
+    return (s || "").replace(/\r/g, "").replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
+  }
+
+  function parseMoney(s) {
+    if (!s) return null;
+    const m = String(s).match(/R\$\s*([\d\.\,]+)/);
+    if (!m) return null;
+    const v = m[1].replace(/\./g, "").replace(",", ".");
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  function parseQty(s) {
+    const m = String(s || "").match(/(\d+)\s+unidade/i);
+    return m ? Number(m[1]) : null;
+  }
+
+  const bodyText = norm(document.body ? (document.body.innerText || document.body.textContent || "") : "");
+  const chunks = bodyText
+    .split(/\n(?=Nova venda|A enviar|Pronto para enviar|Entregar|Hoje|Ontem)/i)
+    .map(x => norm(x))
+    .filter(x => x.length > 40);
+
+  const items = [];
+  for (const block of chunks) {
+    const orderIdMatch =
+      block.match(/#?(\d{13,})/) ||
+      block.match(/Pedido\s*#?\s*(\d{8,})/i);
+
+    const moneyMatches = [...block.matchAll(/R\$\s*[\d\.\,]+/g)].map(m => m[0]);
+    const unit_price = moneyMatches.length ? parseMoney(moneyMatches[0]) : null;
+
+    const skuMatch = block.match(/SKU\s+([A-Z0-9-]+)/i);
+    const qty = parseQty(block);
+
+    let status = null;
+    for (const key of [
+      "A enviar",
+      "Pronto para enviar",
+      "Entregar",
+      "Enviado",
+      "Cancelado"
+    ]) {
+      if (new RegExp("\\b" + key + "\\b", "i").test(block)) {
+        status = key;
+        break;
+      }
+    }
+
+    let sale_date_text = null;
+    const dateMatch = block.match(/\b(Hoje|Ontem)[^\n]*/i);
+    if (dateMatch) sale_date_text = dateMatch[0];
+
+    const lines = block.split("\n").map(x => x.trim()).filter(Boolean);
+
+    let product_title = null;
+    for (const line of lines) {
+      if (/^SKU\s+/i.test(line)) continue;
+      if (/^R\$\s*/i.test(line)) continue;
+      if (/^\d+\s+unidade/i.test(line)) continue;
+      if (/^(Hoje|Ontem)\b/i.test(line)) continue;
+      if (/^(A enviar|Pronto para enviar|Entregar|Enviado|Cancelado)$/i.test(line)) continue;
+      if (line.length > 10) {
+        product_title = line;
+        break;
+      }
+    }
+
+    if (!orderIdMatch && !product_title) continue;
+
+    items.push({
+      order_id: orderIdMatch ? orderIdMatch[1] : null,
+      listing_id: null,
+      sku: skuMatch ? skuMatch[1] : null,
+      ml_code: null,
+      sale_date_text,
+      sale_timestamp: null,
+      buyer_name: null,
+      buyer_alias: null,
+      product_title,
+      quantity: qty,
+      unit_price,
+      total_price: qty && unit_price ? qty * unit_price : unit_price,
+      currency: "BRL",
+      status,
+      shipping_status: status,
+      delivery_mode: null,
+      raw_text: block
+    });
+  }
+
+  return JSON.stringify({
+    source: "orders",
+    url: location.href,
+    captured_at: Date.now(),
+    total: items.length,
+    items
   });
 })();
 """.trimIndent()
