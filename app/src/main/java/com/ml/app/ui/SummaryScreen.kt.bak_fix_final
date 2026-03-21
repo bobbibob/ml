@@ -209,19 +209,6 @@ fun SummaryScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp)
       ) {
-        Button(
-            onClick = {
-                val repo = SQLiteRepo(ctx)
-                scope.launch {
-                    repo.clearAllMlData()
-                }
-            },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Очистить ML")
-        }
-
-
         Text(
           text = "Войти",
           style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
@@ -576,7 +563,6 @@ Row(verticalAlignment = Alignment.CenterVertically) {
 
             is ScreenMode.ArticleEditor -> AddEditArticleScreen(
               bagId = (state.mode as ScreenMode.ArticleEditor).bagId,
-              isAdmin = tasksVm.state.currentUser?.role == "admin",
               onDone = { vm.backFromArticleEditor() }
             )
 

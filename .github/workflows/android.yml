@@ -5,11 +5,25 @@ on:
     branches: [ "main", "stable_build" ]
     paths-ignore:
       - "cloudflare-tasks/**"
+      - "collector/**"
+      - "schema.sql"
+      - ".github/workflows/collector.yml"
       - ".github/workflows/deploy-worker.yml"
+      - ".github/workflows/d1-migrate.yml"
+      - ".github/workflows/deploy-release.yml"
+      - ".github/workflows/init-release-d1.yml"
+      - ".github/workflows/query-release-d1.yml"
   pull_request:
     paths-ignore:
       - "cloudflare-tasks/**"
+      - "collector/**"
+      - "schema.sql"
+      - ".github/workflows/collector.yml"
       - ".github/workflows/deploy-worker.yml"
+      - ".github/workflows/d1-migrate.yml"
+      - ".github/workflows/deploy-release.yml"
+      - ".github/workflows/init-release-d1.yml"
+      - ".github/workflows/query-release-d1.yml"
 
 jobs:
   build:

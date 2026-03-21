@@ -355,62 +355,6 @@ class SQLiteRepo(private val context: Context) {
   }
 
 
-
-  private fun ensureBagMlVariantsTable(db: SQLiteDatabase) {
-    db.execSQL(
-      """
-      CREATE TABLE IF NOT EXISTS bag_ml_variants(
-        article_id TEXT NOT NULL,
-        sku TEXT NOT NULL,
-        color TEXT,
-        size TEXT,
-        material TEXT,
-        image_url TEXT,
-        attr_json TEXT NOT NULL DEFAULT '{}',
-        raw_json TEXT,
-        created_at INTEGER NOT NULL,
-        updated_at INTEGER NOT NULL,
-        PRIMARY KEY(article_id, sku)
-      );
-      """.trimIndent()
-    )
-  }
-
-  private fun pickMainMlVariantIndex(variants: JSONArray): Int {
-    fun colorAt(i: Int): String {
-      val v = variants.optJSONObject(i) ?: return ""
-      return v.optString("color", "").trim().lowercase()
-    }
-
-    for (i in 0 until variants.length()) {
-      val c = colorAt(i)
-      if (
-        c.contains("preto") ||
-        c.contains("preta") ||
-        c.contains("black") ||
-        c.contains("negro") ||
-        c.contains("negra")
-      ) return i
-    }
-    return if (variants.length() > 0) 0 else -1
-  }
-
-  private fun firstVariantImage(v: JSONObject?): String? {
-    if (v == null) return null
-    val direct = jstr(v, "image_main_url")
-    if (!direct.isNullOrBlank()) return direct
-
-    val images = v.optJSONArray("images")
-    if (images != null) {
-      for (i in 0 until images.length()) {
-        val img = images.optJSONObject(i) ?: continue
-        val u = jstr(img, "image_url")
-        if (!u.isNullOrBlank()) return u
-      }
-    }
-    return null
-  }
-
   private fun ensureMlArticleColumns(db: SQLiteDatabase) {
     val cols = mutableSetOf<String>()
     db.rawQuery("PRAGMA table_info(bag_user)", null).use { c ->
@@ -423,7 +367,6 @@ class SQLiteRepo(private val context: Context) {
 
     add("ml_listing_id", "TEXT")
     add("ml_listing_code", "TEXT")
-    add("ml_title", "TEXT")
     add("ml_status", "TEXT")
     add("ml_price", "REAL")
     add("ml_promo_price", "REAL")
@@ -483,13 +426,6 @@ class SQLiteRepo(private val context: Context) {
 
 
 
-
-  private fun deleteImportedMlVariantsForArticle(db: SQLiteDatabase, articleId: String?) {
-    if (articleId.isNullOrBlank()) return
-    ensureBagMlVariantsTable(db)
-    db.execSQL("DELETE FROM bag_ml_variants WHERE article_id=?", arrayOf(articleId))
-  }
-
   private fun deleteImportedMlRowsForListing(db: SQLiteDatabase, listingId: String?) {
     if (listingId.isNullOrBlank()) return
 
@@ -536,17 +472,16 @@ class SQLiteRepo(private val context: Context) {
 
     openDbReadWrite().use { db ->
       ensureMlArticleColumns(db)
-      ensureBagMlVariantsTable(db)
 
       db.beginTransaction()
       try {
         var saved = 0
 
-
         for (i in 0 until items.length()) {
           val item = items.optJSONObject(i) ?: continue
 
           val listingId = jstr(item, "listing_id")
+          deleteImportedMlRowsForListing(db, listingId)
           val listingCode = jstr(item, "listing_code")
           val title = jstr(item, "title")
           val status = jstr(item, "status")
@@ -571,136 +506,185 @@ class SQLiteRepo(private val context: Context) {
           val bulkPriceMinQty = jint(item, "bulk_price_min_qty")
           val bulkPriceAmount = jdbl(item, "bulk_price_amount")
           val listingRaw = item.toString()
-          val effectivePrice = promoPrice ?: price
 
           val variants = item.optJSONArray("variants")
-          val articleCode = run {
-            if (variants != null) {
-              for (j in 0 until variants.length()) {
-                val v = variants.optJSONObject(j) ?: continue
-                val sku = jstr(v, "sku")
-                val code = mlArticleFromSku(sku)
-                if (!code.isNullOrBlank()) return@run code
-              }
-            }
-            listingId
-          } ?: continue
-
-          deleteImportedMlRowsForListing(db, listingId)
-          deleteImportedMlVariantsForArticle(db, articleCode)
-          db.execSQL("DELETE FROM bag_user_colors WHERE bag_id=?", arrayOf(articleCode))
-
-          var mainImageUrl: String? = null
-
           if (variants != null && variants.length() > 0) {
-            val mainIdx = pickMainMlVariantIndex(variants)
-            if (mainIdx >= 0) {
-              mainImageUrl = firstVariantImage(variants.optJSONObject(mainIdx))
-            }
-
             for (j in 0 until variants.length()) {
               val v = variants.optJSONObject(j) ?: continue
-              val sku = jstr(v, "sku") ?: continue
+              val sku = jstr(v, "sku")
               val color = jstr(v, "color")
               val size = jstr(v, "size")
               val material = jstr(v, "material")
-              val imageUrl = firstVariantImage(v)
+              val variantId = jstr(v, "variant_id")
+              val imageMainUrl = jstr(v, "image_main_url")
               val attrJson = if (v.has("attributes") && !v.isNull("attributes")) {
                 v.getJSONObject("attributes").toString()
               } else {
                 "{}"
               }
-              val rawJson = v.toString()
+              val variantRaw = v.toString()
+
+              val articleCode = mlArticleFromSku(sku)
+              val bagId = when {
+                !articleCode.isNullOrBlank() -> articleCode
+                !listingId.isNullOrBlank() -> listingId
+                else -> continue
+              }
+
+              val displayName = bagId
+              val effectivePrice = promoPrice ?: price
 
               db.execSQL(
                 """
-                INSERT OR REPLACE INTO bag_ml_variants(
-                  article_id,sku,color,size,material,image_url,attr_json,raw_json,created_at,updated_at
-                ) VALUES(?,?,?,?,?,?,?,?,?,?)
+                INSERT INTO bag_user(
+                  bag_id,name,hypothesis,price,cogs,card_type,photo_path,
+                  ml_listing_id,ml_listing_code,ml_status,ml_price,ml_promo_price,ml_currency,
+                  ml_stock_total,ml_visits,ml_sold_total,
+                  ml_sale_fee_type,ml_sale_fee_percent,ml_sale_fee_amount,
+                  ml_shipping_mode,ml_shipping_cost,ml_shipping_paid_by,
+                  ml_net_amount,ml_quality_score,ml_quality_level,
+                  ml_experience_score,ml_experience_level,
+                  ml_bulk_price_enabled,ml_bulk_price_min_qty,ml_bulk_price_amount,
+                  ml_variant_id,ml_color,ml_size,ml_material,ml_attr_json,ml_image_main_url,
+                  ml_listing_raw_json,ml_variant_raw_json,ml_synced_at
+                ) VALUES(?,?,?,?,?,?,?,
+                         ?,?,?,?,?,?,
+                         ?,?,?,
+                         ?,?,?,
+                         ?,?,?,
+                         ?,?,?,
+                         ?,?,
+                         ?,?,?,
+                         ?,?,?,?,?,?,
+                         ?,?,?)
+                ON CONFLICT(bag_id) DO UPDATE SET
+                  name=excluded.name,
+                  price=excluded.price,
+                  photo_path=COALESCE(excluded.photo_path, bag_user.photo_path),
+                  ml_listing_id=excluded.ml_listing_id,
+                  ml_listing_code=excluded.ml_listing_code,
+                  ml_status=excluded.ml_status,
+                  ml_price=excluded.ml_price,
+                  ml_promo_price=excluded.ml_promo_price,
+                  ml_currency=excluded.ml_currency,
+                  ml_stock_total=excluded.ml_stock_total,
+                  ml_visits=excluded.ml_visits,
+                  ml_sold_total=excluded.ml_sold_total,
+                  ml_sale_fee_type=excluded.ml_sale_fee_type,
+                  ml_sale_fee_percent=excluded.ml_sale_fee_percent,
+                  ml_sale_fee_amount=excluded.ml_sale_fee_amount,
+                  ml_shipping_mode=excluded.ml_shipping_mode,
+                  ml_shipping_cost=excluded.ml_shipping_cost,
+                  ml_shipping_paid_by=excluded.ml_shipping_paid_by,
+                  ml_net_amount=excluded.ml_net_amount,
+                  ml_quality_score=excluded.ml_quality_score,
+                  ml_quality_level=excluded.ml_quality_level,
+                  ml_experience_score=excluded.ml_experience_score,
+                  ml_experience_level=excluded.ml_experience_level,
+                  ml_bulk_price_enabled=excluded.ml_bulk_price_enabled,
+                  ml_bulk_price_min_qty=excluded.ml_bulk_price_min_qty,
+                  ml_bulk_price_amount=excluded.ml_bulk_price_amount,
+                  ml_variant_id=excluded.ml_variant_id,
+                  ml_color=excluded.ml_color,
+                  ml_size=excluded.ml_size,
+                  ml_material=excluded.ml_material,
+                  ml_attr_json=excluded.ml_attr_json,
+                  ml_image_main_url=excluded.ml_image_main_url,
+                  ml_listing_raw_json=excluded.ml_listing_raw_json,
+                  ml_variant_raw_json=excluded.ml_variant_raw_json,
+                  ml_synced_at=excluded.ml_synced_at
                 """.trimIndent(),
                 arrayOf(
-                  articleCode, sku, color, size, material, imageUrl, attrJson, rawJson, syncedAt, syncedAt
+                  bagId, displayName, null, effectivePrice, null, null, imageMainUrl,
+                  listingId, listingCode, status, price, promoPrice, currency,
+                  stockTotal, visits, soldTotal,
+                  saleFeeType, saleFeePercent, saleFeeAmount,
+                  shippingMode, shippingCost, shippingPaidBy,
+                  netAmount, qualityScore, qualityLevel,
+                  experienceScore, experienceLevel,
+                  bulkPriceEnabled, bulkPriceMinQty, bulkPriceAmount,
+                  variantId, color, size, material, attrJson, imageMainUrl,
+                  listingRaw, variantRaw, syncedAt
                 )
               )
 
               if (!color.isNullOrBlank()) {
-                db.execSQL(
-                  "INSERT OR IGNORE INTO bag_user_colors(bag_id,color) VALUES(?,?)",
-                  arrayOf(articleCode, color)
-                )
+                db.execSQL("INSERT OR IGNORE INTO bag_user_colors(bag_id,color) VALUES(?,?)", arrayOf(bagId, color))
               }
+              saved++
             }
-          }
+          } else {
+            val bagId = listingId ?: continue
+            val displayName = bagId
+            val effectivePrice = promoPrice ?: price
 
-          db.execSQL(
-            """
-            INSERT INTO bag_user(
-              bag_id,name,hypothesis,price,cogs,card_type,photo_path,
-              ml_listing_id,ml_listing_code,ml_title,ml_status,ml_price,ml_promo_price,ml_currency,
-              ml_stock_total,ml_visits,ml_sold_total,
-              ml_sale_fee_type,ml_sale_fee_percent,ml_sale_fee_amount,
-              ml_shipping_mode,ml_shipping_cost,ml_shipping_paid_by,
-              ml_net_amount,ml_quality_score,ml_quality_level,
-              ml_experience_score,ml_experience_level,
-              ml_bulk_price_enabled,ml_bulk_price_min_qty,ml_bulk_price_amount,
-              ml_variant_id,ml_color,ml_size,ml_material,ml_attr_json,ml_image_main_url,
-              ml_listing_raw_json,ml_variant_raw_json,ml_synced_at
-            ) VALUES(?,?,?,?,?,?,?,
-                     ?,?,?,?,?,?,?,?,
-                     ?,?,
-                     ?,?,?,
-                     ?,?,?,
-                     ?,?,?,
-                     ?,?,
-                     ?,?,?,
-                     ?,?,?,?,?,?,
-                     ?,?,?)
-            ON CONFLICT(bag_id) DO UPDATE SET
-              name=excluded.name,
-              price=excluded.price,
-              photo_path=COALESCE(excluded.photo_path, bag_user.photo_path),
-              ml_listing_id=excluded.ml_listing_id,
-              ml_listing_code=excluded.ml_listing_code,
-              ml_title=excluded.ml_title,
-              ml_status=excluded.ml_status,
-              ml_price=excluded.ml_price,
-              ml_promo_price=excluded.ml_promo_price,
-              ml_currency=excluded.ml_currency,
-              ml_stock_total=excluded.ml_stock_total,
-              ml_visits=excluded.ml_visits,
-              ml_sold_total=excluded.ml_sold_total,
-              ml_sale_fee_type=excluded.ml_sale_fee_type,
-              ml_sale_fee_percent=excluded.ml_sale_fee_percent,
-              ml_sale_fee_amount=excluded.ml_sale_fee_amount,
-              ml_shipping_mode=excluded.ml_shipping_mode,
-              ml_shipping_cost=excluded.ml_shipping_cost,
-              ml_shipping_paid_by=excluded.ml_shipping_paid_by,
-              ml_net_amount=excluded.ml_net_amount,
-              ml_quality_score=excluded.ml_quality_score,
-              ml_quality_level=excluded.ml_quality_level,
-              ml_experience_score=excluded.ml_experience_score,
-              ml_experience_level=excluded.ml_experience_level,
-              ml_bulk_price_enabled=excluded.ml_bulk_price_enabled,
-              ml_bulk_price_min_qty=excluded.ml_bulk_price_min_qty,
-              ml_bulk_price_amount=excluded.ml_bulk_price_amount,
-              ml_listing_raw_json=excluded.ml_listing_raw_json,
-              ml_synced_at=excluded.ml_synced_at
-            """.trimIndent(),
-            arrayOf(
-              articleCode, articleCode, null, effectivePrice, null, null, mainImageUrl,
-              listingId, listingCode, title, status, price, promoPrice, currency,
-              stockTotal, visits, soldTotal,
-              saleFeeType, saleFeePercent, saleFeeAmount,
-              shippingMode, shippingCost, shippingPaidBy,
-              netAmount, qualityScore, qualityLevel,
-              experienceScore, experienceLevel,
-              bulkPriceEnabled, bulkPriceMinQty, bulkPriceAmount,
-              null, null, null, null, "{}", null,
-              listingRaw, null, syncedAt
+            db.execSQL(
+              """
+              INSERT INTO bag_user(
+                bag_id,name,hypothesis,price,cogs,card_type,photo_path,
+                ml_listing_id,ml_listing_code,ml_status,ml_price,ml_promo_price,ml_currency,
+                ml_stock_total,ml_visits,ml_sold_total,
+                ml_sale_fee_type,ml_sale_fee_percent,ml_sale_fee_amount,
+                ml_shipping_mode,ml_shipping_cost,ml_shipping_paid_by,
+                ml_net_amount,ml_quality_score,ml_quality_level,
+                ml_experience_score,ml_experience_level,
+                ml_bulk_price_enabled,ml_bulk_price_min_qty,ml_bulk_price_amount,
+                ml_variant_id,ml_color,ml_size,ml_material,ml_attr_json,ml_image_main_url,
+                ml_listing_raw_json,ml_variant_raw_json,ml_synced_at
+              ) VALUES(?,?,?,?,?,?,?,
+                       ?,?,?,?,?,?,
+                       ?,?,?,
+                       ?,?,?,
+                       ?,?,?,
+                       ?,?,?,
+                       ?,?,
+                       ?,?,?,
+                       ?,?,?,?,?,?,
+                       ?,?,?)
+              ON CONFLICT(bag_id) DO UPDATE SET
+                name=excluded.name,
+                price=excluded.price,
+                ml_listing_id=excluded.ml_listing_id,
+                ml_listing_code=excluded.ml_listing_code,
+                ml_status=excluded.ml_status,
+                ml_price=excluded.ml_price,
+                ml_promo_price=excluded.ml_promo_price,
+                ml_currency=excluded.ml_currency,
+                ml_stock_total=excluded.ml_stock_total,
+                ml_visits=excluded.ml_visits,
+                ml_sold_total=excluded.ml_sold_total,
+                ml_sale_fee_type=excluded.ml_sale_fee_type,
+                ml_sale_fee_percent=excluded.ml_sale_fee_percent,
+                ml_sale_fee_amount=excluded.ml_sale_fee_amount,
+                ml_shipping_mode=excluded.ml_shipping_mode,
+                ml_shipping_cost=excluded.ml_shipping_cost,
+                ml_shipping_paid_by=excluded.ml_shipping_paid_by,
+                ml_net_amount=excluded.ml_net_amount,
+                ml_quality_score=excluded.ml_quality_score,
+                ml_quality_level=excluded.ml_quality_level,
+                ml_experience_score=excluded.ml_experience_score,
+                ml_experience_level=excluded.ml_experience_level,
+                ml_bulk_price_enabled=excluded.ml_bulk_price_enabled,
+                ml_bulk_price_min_qty=excluded.ml_bulk_price_min_qty,
+                ml_bulk_price_amount=excluded.ml_bulk_price_amount,
+                ml_listing_raw_json=excluded.ml_listing_raw_json,
+                ml_synced_at=excluded.ml_synced_at
+              """.trimIndent(),
+              arrayOf(
+                bagId, displayName, null, effectivePrice, null, null, null,
+                listingId, listingCode, status, price, promoPrice, currency,
+                stockTotal, visits, soldTotal,
+                saleFeeType, saleFeePercent, saleFeeAmount,
+                shippingMode, shippingCost, shippingPaidBy,
+                netAmount, qualityScore, qualityLevel,
+                experienceScore, experienceLevel,
+                bulkPriceEnabled, bulkPriceMinQty, bulkPriceAmount,
+                null, null, null, null, "{}", null,
+                listingRaw, null, syncedAt
+              )
             )
-          )
-
-          saved++
+            saved++
+          }
         }
 
         db.setTransactionSuccessful()
@@ -944,36 +928,6 @@ class SQLiteRepo(private val context: Context) {
       } finally {
         db.endTransaction()
       }
-    }
-  }
-
-
-  suspend fun getBagMlVariants(articleId: String): List<JSONObject> = withContext(Dispatchers.IO) {
-    openDbReadWrite().use { db ->
-      ensureBagMlVariantsTable(db)
-      val out = ArrayList<JSONObject>()
-      db.rawQuery(
-        """
-        SELECT sku,color,size,material,image_url,attr_json,raw_json
-        FROM bag_ml_variants
-        WHERE article_id=?
-        ORDER BY sku COLLATE NOCASE
-        """.trimIndent(),
-        arrayOf(articleId)
-      ).use { c ->
-        while (c.moveToNext()) {
-          val o = JSONObject()
-          o.put("sku", c.getString(0))
-          o.put("color", if (c.isNull(1)) JSONObject.NULL else c.getString(1))
-          o.put("size", if (c.isNull(2)) JSONObject.NULL else c.getString(2))
-          o.put("material", if (c.isNull(3)) JSONObject.NULL else c.getString(3))
-          o.put("image_url", if (c.isNull(4)) JSONObject.NULL else c.getString(4))
-          o.put("attr_json", if (c.isNull(5)) "{}" else c.getString(5))
-          o.put("raw_json", if (c.isNull(6)) JSONObject.NULL else c.getString(6))
-          out.add(o)
-        }
-      }
-      out
     }
   }
 
@@ -2044,22 +1998,5 @@ class SQLiteRepo(private val context: Context) {
       }
     }
   }
-
-
-
-  suspend fun clearAllMlData() = withContext(Dispatchers.IO) {
-    openDbReadWrite().use { db ->
-      db.beginTransaction()
-      try {
-        db.execSQL("DELETE FROM bag_ml_variants")
-        db.execSQL("DELETE FROM bag_user_colors")
-        db.execSQL("DELETE FROM bag_user WHERE ml_listing_id IS NOT NULL")
-        db.setTransactionSuccessful()
-      } finally {
-        db.endTransaction()
-      }
-    }
-  }
-
 
 }
