@@ -15,6 +15,66 @@ import kotlin.math.roundToInt
 
 class SQLiteRepo(private val context: Context) {
 
+  private fun ensureDeletedArticlesTable(db: SQLiteDatabase) {
+    db.execSQL(
+      """
+      CREATE TABLE IF NOT EXISTS deleted_articles(
+        article_id TEXT PRIMARY KEY,
+        deleted_at INTEGER NOT NULL,
+        reason TEXT
+      );
+      """.trimIndent()
+    )
+  }
+
+  private fun tableExists(db: SQLiteDatabase, name: String): Boolean {
+    db.rawQuery(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+      arrayOf(name)
+    ).use { c ->
+      return c.moveToFirst()
+    }
+  }
+
+  private fun parseArticleCodeFromSkuValue(sku: String?): String? {
+    val v = sku?.trim().orEmpty()
+    if (v.isBlank()) return null
+    val i = v.lastIndexOf('-')
+    return if (i > 0) v.substring(0, i) else v
+  }
+
+  private fun parseSkuCandidatesFromItem(item: JSONObject): List<String> {
+    val out = LinkedHashSet<String>()
+
+    val variants = item.optJSONArray("variants")
+    if (variants != null) {
+      for (i in 0 until variants.length()) {
+        val v = variants.optJSONObject(i) ?: continue
+        val sku = jstr(v, "sku")
+        if (!sku.isNullOrBlank()) out.add(sku.trim())
+      }
+    }
+
+    val raw = jstr(item, "raw_text").orEmpty()
+    Regex("""SKU\s+([A-Z0-9-]+)""").findAll(raw).forEach { m ->
+      val sku = m.groupValues.getOrNull(1).orEmpty().trim()
+      if (sku.isNotBlank()) out.add(sku)
+    }
+
+    return out.toList()
+  }
+
+  private fun isDeletedArticle(db: SQLiteDatabase, articleId: String): Boolean {
+    ensureDeletedArticlesTable(db)
+    db.rawQuery(
+      "SELECT 1 FROM deleted_articles WHERE article_id=? LIMIT 1",
+      arrayOf(articleId)
+    ).use { c ->
+      return c.moveToFirst()
+    }
+  }
+
+
   private fun ensureDailySummarySyncQueueTable(db: SQLiteDatabase) {
     db.execSQL(
       """
@@ -537,6 +597,7 @@ class SQLiteRepo(private val context: Context) {
     openDbReadWrite().use { db ->
       ensureMlArticleColumns(db)
       ensureBagMlVariantsTable(db)
+      ensureDeletedArticlesTable(db)
 
       db.beginTransaction()
       try {
@@ -883,6 +944,7 @@ class SQLiteRepo(private val context: Context) {
 
   suspend fun listBagPickerRows(): List<BagPickerRow> = withContext(Dispatchers.IO) {
     openDbReadWrite().use { db ->
+      ensureDeletedArticlesTable(db)
       val out = ArrayList<BagPickerRow>()
       db.rawQuery(
         """
@@ -918,6 +980,9 @@ class SQLiteRepo(private val context: Context) {
           WHERE u2.bag_id IS NOT NULL AND u2.bag_id != ''
         ) x
         LEFT JOIN bag_user u ON u.bag_id = x.bag_id
+        WHERE x.bag_id NOT IN (
+          SELECT article_id FROM deleted_articles
+        )
         ORDER BY bag_name COLLATE NOCASE
         """.trimIndent(),
         null
@@ -939,6 +1004,17 @@ class SQLiteRepo(private val context: Context) {
         }
       }
       out
+    }
+  }
+
+
+  suspend fun softDeleteArticle(articleId: String, reason: String? = null) = withContext(Dispatchers.IO) {
+    openDbReadWrite().use { db ->
+      ensureDeletedArticlesTable(db)
+      db.execSQL(
+        "INSERT OR REPLACE INTO deleted_articles(article_id, deleted_at, reason) VALUES(?,?,?)",
+        arrayOf(articleId, System.currentTimeMillis(), reason)
+      )
     }
   }
 
