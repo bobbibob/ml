@@ -180,27 +180,31 @@ fun MlAuthScreen(
                             statusText = "Сначала открой Карточки."
                             return@Button
                         }
-                        statusText = "Сохраняем карточки в артикулы..."
-                        webView.evaluateJavascript(listingsExtractorJs()) { result ->
-                            try {
-                                val raw = result ?: ""
-                                val cleaned = if (raw.startsWith("\"") && raw.endsWith("\"")) {
-                                    JSONObject("{\"v\":$raw}").getString("v")
-                                } else raw
-
-                                Thread {
+                        statusText = "Раскрываем варианты и импортируем..."
+                        webView.evaluateJavascript(expandListingVariantsJs()) { _ ->
+                            webView.postDelayed({
+                                webView.evaluateJavascript(listingsExtractorJs()) { result ->
                                     try {
-                                        val repo = SQLiteRepo(context)
-                                        val saved = repo.importMlListingsJsonToArticles(cleaned)
-                                        repo.normalizeImportedMlArticleNames()
-                                        statusText = "Сохранено в артикулы: $saved"
+                                        val raw = result ?: ""
+                                        val cleaned = if (raw.startsWith("\"") && raw.endsWith("\"")) {
+                                            JSONObject("{\"v\":$raw}").getString("v")
+                                        } else raw
+
+                                        Thread {
+                                            try {
+                                                val repo = SQLiteRepo(context)
+                                                val saved = repo.importMlListingsJsonToArticles(cleaned)
+                                                repo.normalizeImportedMlArticleNames()
+                                                statusText = "Сохранено в артикулы: $saved"
+                                            } catch (t: Throwable) {
+                                                statusText = "Ошибка сохранения в артикулы: ${t.message}"
+                                            }
+                                        }.start()
                                     } catch (t: Throwable) {
-                                        statusText = "Ошибка сохранения в артикулы: ${t.message}"
+                                        statusText = "Listings save error: ${t.message}"
                                     }
-                                }.start()
-                            } catch (t: Throwable) {
-                                statusText = "Listings save error: ${t.message}"
-                            }
+                                }
+                            }, 1600)
                         }
                     }
                 ) {
@@ -422,6 +426,29 @@ fun MlAuthScreen(
     }
 }
 
+
+
+private fun expandListingVariantsJs(): String = """
+(function() {
+  function txt(el) {
+    return ((el && (el.innerText || el.textContent)) || "").trim();
+  }
+
+  let clicked = 0;
+  const nodes = Array.from(document.querySelectorAll("button,a,span,div"));
+  for (const el of nodes) {
+    const t = txt(el);
+    if (!t) continue;
+    if (/Ver variações/i.test(t) || /É possível agrupar as variações/i.test(t)) {
+      try {
+        el.click();
+        clicked++;
+      } catch (_) {}
+    }
+  }
+  return JSON.stringify({ clicked: clicked });
+})();
+""".trimIndent()
 
 private fun listingsExtractorJs(): String = """
 (function() {

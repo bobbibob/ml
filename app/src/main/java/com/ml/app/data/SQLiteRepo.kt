@@ -877,7 +877,8 @@ class SQLiteRepo(private val context: Context) {
   data class BagPickerRow(
     val bagId: String,
     val bagName: String,
-    val photoPath: String?
+    val photoPath: String?,
+    val colorsText: String? = null
   )
 
   suspend fun listBagPickerRows(): List<BagPickerRow> = withContext(Dispatchers.IO) {
@@ -888,7 +889,16 @@ class SQLiteRepo(private val context: Context) {
         SELECT
           x.bag_id AS bag_id,
           COALESCE(NULLIF(u.name,''), x.bag_name, x.bag_id) AS bag_name,
-          u.photo_path AS photo_path
+          u.photo_path AS photo_path,
+          (
+            SELECT GROUP_CONCAT(color, ', ')
+            FROM (
+              SELECT DISTINCT color
+              FROM bag_user_colors c
+              WHERE c.bag_id = x.bag_id
+              ORDER BY color COLLATE NOCASE
+            )
+          ) AS colors_text
         FROM (
           SELECT
             s.bag_id AS bag_id,
@@ -915,13 +925,15 @@ class SQLiteRepo(private val context: Context) {
         val iBagId = c.getColumnIndexOrThrow("bag_id")
         val iBagName = c.getColumnIndexOrThrow("bag_name")
         val iPhoto = c.getColumnIndexOrThrow("photo_path")
+        val iColors = c.getColumnIndexOrThrow("colors_text")
 
         while (c.moveToNext()) {
           out.add(
             BagPickerRow(
               bagId = c.getString(iBagId),
               bagName = c.getString(iBagName),
-              photoPath = if (c.isNull(iPhoto)) null else c.getString(iPhoto)
+              photoPath = if (c.isNull(iPhoto)) null else c.getString(iPhoto),
+              colorsText = if (c.isNull(iColors)) null else c.getString(iColors)
             )
           )
         }
