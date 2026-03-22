@@ -180,31 +180,65 @@ fun MlAuthScreen(
                             statusText = "Сначала открой Карточки."
                             return@Button
                         }
-                        statusText = "Раскрываем варианты и импортируем..."
+                        statusText = "Шаг 1/5: раскрываем варианты..."
                         webView.evaluateJavascript(expandListingVariantsJs()) { _ ->
                             webView.postDelayed({
-                                webView.evaluateJavascript(listingsExtractorJs()) { result ->
-                                    try {
-                                        val raw = result ?: ""
-                                        val cleaned = if (raw.startsWith("\"") && raw.endsWith("\"")) {
-                                            JSONObject("{\"v\":$raw}").getString("v")
-                                        } else raw
+                                statusText = "Шаг 2/5: повторно раскрываем варианты..."
+                                webView.evaluateJavascript(expandListingVariantsJs()) { _ ->
+                                    webView.postDelayed({
+                                        statusText = "Шаг 3/5: прокручиваем вниз для догрузки..."
+                                        webView.evaluateJavascript(
+                                            """
+                                            (function() {
+                                              window.scrollTo(0, document.body.scrollHeight || 0);
+                                              return JSON.stringify({ ok: true, h: document.body.scrollHeight || 0 });
+                                            })();
+                                            """.trimIndent()
+                                        ) { _ ->
+                                            webView.postDelayed({
+                                                statusText = "Шаг 4/5: возвращаемся вверх..."
+                                                webView.evaluateJavascript(
+                                                    """
+                                                    (function() {
+                                                      window.scrollTo(0, 0);
+                                                      return JSON.stringify({ ok: true });
+                                                    })();
+                                                    """.trimIndent()
+                                                ) { _ ->
+                                                    webView.postDelayed({
+                                                        statusText = "Шаг 5/5: финально раскрываем и собираем JSON..."
+                                                        webView.evaluateJavascript(expandListingVariantsJs()) { _ ->
+                                                            webView.postDelayed({
+                                                                webView.evaluateJavascript(listingsExtractorJs()) { result ->
+                                                                    try {
+                                                                        val raw = result ?: ""
+                                                                        val cleaned = if (raw.startsWith("\"") && raw.endsWith("\"")) {
+                                                                            JSONObject("{\"v\":$raw}").getString("v")
+                                                                        } else raw
 
-                                        Thread {
-                                            try {
-                                                val repo = SQLiteRepo(context)
-                                                val saved = repo.importMlListingsJsonToArticles(cleaned)
-                                                kotlin.runCatching { repo.normalizeImportedMlArticleNames() }
-                                                statusText = "Сохранено в артикулы: $saved"
-                                            } catch (t: Throwable) {
-                                                statusText = "Ошибка сохранения в артикулы: ${t.message}"
-                                            }
-                                        }.start()
-                                    } catch (t: Throwable) {
-                                        statusText = "Listings save error: ${t.message}"
-                                    }
+                                                                        Thread {
+                                                                            try {
+                                                                                val repo = SQLiteRepo(context)
+                                                                                val saved = repo.importMlListingsJsonToArticles(cleaned)
+                                                                                kotlin.runCatching { repo.normalizeImportedMlArticleNames() }
+                                                                                statusText = "Сохранено в артикулы: $saved. Готово"
+                                                                            } catch (t: Throwable) {
+                                                                                statusText = "Ошибка сохранения в артикулы: ${t.message}"
+                                                                            }
+                                                                        }.start()
+                                                                    } catch (t: Throwable) {
+                                                                        statusText = "Listings save error: ${t.message}"
+                                                                    }
+                                                                }
+                                                            }, 2200)
+                                                        }
+                                                    }, 1200)
+                                                }
+                                            }, 2200)
+                                        }
+                                    }, 1200)
                                 }
-                            }, 1600)
+                            }, 1500)
                         }
                     }
                 ) {
