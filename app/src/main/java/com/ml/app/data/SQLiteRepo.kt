@@ -606,6 +606,7 @@ class SQLiteRepo(private val context: Context) {
 
         for (i in 0 until items.length()) {
           val item = items.optJSONObject(i) ?: continue
+          val listingId = jstr(item, "listing_id")
 
 
           // 🔥 ВСЕГДА сначала чистим старые данные
