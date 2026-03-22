@@ -73,21 +73,6 @@ private fun copyImageToInternalStorage(context: Context, uri: Uri): String? {
     } catch (_: Throwable) {
         null
     }
-                        }
-                    }
-                ) {
-                    Text("Удалить")
-                }
-            },
-            dismissButton = {
-                OutlinedButton(onClick = { pendingDeleteBagId = null }) {
-                    Text("Отмена")
-                }
-            }
-        )
-    }
-
-}
 
 @Composable
 fun AddEditArticleScreen(
