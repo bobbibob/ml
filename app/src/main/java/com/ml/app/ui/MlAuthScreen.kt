@@ -157,6 +157,13 @@ fun MlAuthScreen(
                         webView.evaluateJavascript(listingsExtractorJs()) { result ->
                             try {
                                 val raw = result ?: ""
+val parsed = try {
+    if (raw.startsWith("{") || raw.startsWith("[")) raw
+    else JSONObject("{\"v\":" + raw + "}").getString("v")
+} catch (e: Exception) {
+    raw
+}
+
                                 val cleaned = if (raw.startsWith("\"") && raw.endsWith("\"")) {
                                     JSONObject("{\"v\":$raw}").getString("v")
                                 } else {
@@ -212,6 +219,13 @@ fun MlAuthScreen(
                                                                 webView.evaluateJavascript(listingsExtractorJs()) { result ->
                                                                     try {
                                                                         val raw = result ?: ""
+val parsed = try {
+    if (raw.startsWith("{") || raw.startsWith("[")) raw
+    else JSONObject("{\"v\":" + raw + "}").getString("v")
+} catch (e: Exception) {
+    raw
+}
+
                                                                         val cleaned = if (raw.startsWith("\"") && raw.endsWith("\"")) {
                                                                             JSONObject("{\"v\":$raw}").getString("v")
                                                                         } else raw
@@ -256,6 +270,13 @@ fun MlAuthScreen(
                         webView.evaluateJavascript(listingsExtractorJs()) { result ->
                             try {
                                 val raw = result ?: ""
+val parsed = try {
+    if (raw.startsWith("{") || raw.startsWith("[")) raw
+    else JSONObject("{\"v\":" + raw + "}").getString("v")
+} catch (e: Exception) {
+    raw
+}
+
                                 val cleaned = if (raw.startsWith("\"") && raw.endsWith("\"")) {
                                     JSONObject("{\"v\":$raw}").getString("v")
                                 } else raw
@@ -280,6 +301,13 @@ fun MlAuthScreen(
                         webView.evaluateJavascript(stockExtractorJs()) { result ->
                             try {
                                 val raw = result ?: ""
+val parsed = try {
+    if (raw.startsWith("{") || raw.startsWith("[")) raw
+    else JSONObject("{\"v\":" + raw + "}").getString("v")
+} catch (e: Exception) {
+    raw
+}
+
                                 val cleaned = if (raw.startsWith("\"") && raw.endsWith("\"")) {
                                     JSONObject("{\"v\":$raw}").getString("v")
                                 } else raw
@@ -304,6 +332,13 @@ fun MlAuthScreen(
                         webView.evaluateJavascript(ordersExtractorJs()) { result ->
                             try {
                                 val raw = result ?: ""
+val parsed = try {
+    if (raw.startsWith("{") || raw.startsWith("[")) raw
+    else JSONObject("{\"v\":" + raw + "}").getString("v")
+} catch (e: Exception) {
+    raw
+}
+
                                 val cleaned = if (raw.startsWith("\"") && raw.endsWith("\"")) {
                                     JSONObject("{\"v\":$raw}").getString("v")
                                 } else raw
@@ -366,6 +401,13 @@ fun MlAuthScreen(
                         webView.evaluateJavascript(js) { result ->
                             try {
                                 val raw = result ?: ""
+val parsed = try {
+    if (raw.startsWith("{") || raw.startsWith("[")) raw
+    else JSONObject("{\"v\":" + raw + "}").getString("v")
+} catch (e: Exception) {
+    raw
+}
+
                                 val cleaned = if (raw.startsWith("\"") && raw.endsWith("\"")) {
                                     JSONObject("{\"v\":$raw}").getString("v")
                                 } else {
