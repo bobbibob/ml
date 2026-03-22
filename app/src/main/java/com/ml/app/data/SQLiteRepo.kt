@@ -2477,10 +2477,18 @@ class SQLiteRepo(private val context: Context) {
           }
           extractSkusFromRawV2(rawText).forEach { skuSet.add(it) }
 
-          val articleCode = skuSet.asSequence()
-            .map { parseArticleCodeFromSkuV2(it) }
-            .firstOrNull { !it.isNullOrBlank() }
-            ?: continue
+          val articleCode = run {
+            val variants = item.optJSONArray("variants") ?: return@run null
+
+            for (j in 0 until variants.length()) {
+                val v = variants.optJSONObject(j) ?: continue
+                val sku = jstr(v, "sku")
+                val code = mlArticleFromSku(sku)
+                if (!code.isNullOrBlank()) return@run code
+            }
+
+            null
+        } ?: continue
 
           if (isDeletedArticle(db, articleCode)) continue
 
