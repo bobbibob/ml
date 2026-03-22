@@ -615,7 +615,11 @@ class SQLiteRepo(private val context: Context) {
           val variantsCheck = item.optJSONArray("variants")
           val hasSku = (variantsCheck != null && variantsCheck.length() > 0)
 
-          if (!hasSku) continue
+          // allow items without variants
+if (!hasSku) {
+  // fallback: create single variant
+}
+
 
 
           val listingCode = jstr(item, "listing_code")
@@ -646,6 +650,9 @@ class SQLiteRepo(private val context: Context) {
 
           val variants = item.optJSONArray("variants")
           val articleCode = run {
+      // fallback: listing_id as article
+      val fallbackId = listingId
+
             if (variants != null) {
               for (j in 0 until variants.length()) {
                 val v = variants.optJSONObject(j) ?: continue
@@ -660,7 +667,7 @@ class SQLiteRepo(private val context: Context) {
             if (!directCode.isNullOrBlank()) return@run directCode
 
             null
-          } ?: continue
+          } ?: fallbackId ?: continue
 
           deleteImportedMlVariantsForArticle(db, articleCode)
           db.execSQL("DELETE FROM bag_user_colors WHERE bag_id=?", arrayOf(articleCode))
@@ -2487,6 +2494,9 @@ class SQLiteRepo(private val context: Context) {
           extractSkusFromRawV2(rawText).forEach { skuSet.add(it) }
 
           val articleCode = run {
+      // fallback: listing_id as article
+      val fallbackId = listingId
+
             val variants = item.optJSONArray("variants") ?: return@run null
 
             for (j in 0 until variants.length()) {
@@ -2497,7 +2507,7 @@ class SQLiteRepo(private val context: Context) {
             }
 
             null
-        } ?: continue
+        } ?: fallbackId ?: continue
 
           if (isDeletedArticle(db, articleCode)) continue
 
