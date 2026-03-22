@@ -884,58 +884,7 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
       }
 
       
-      
-      if (path === "/delete_user" && request.method === "POST") {
-        const user = await getCurrentUser(request, env)
-        if (!user) return json({ ok: false, error: "unauthorized" }, 401)
-        if (user.role !== "admin") return json({ ok: false, error: "forbidden" }, 403)
-
-        const body = await request.json().catch(() => null)
-        const targetUserId = String(body?.user_id || "").trim()
-
-        if (!targetUserId) {
-          return json({ ok: false, error: "user_id required" }, 400)
-        }
-
-        if (targetUserId === user.user_id) {
-          return json({ ok: false, error: "cannot_delete_self" }, 400)
-        }
-
-        const target = await env.DB.prepare(`
-          SELECT user_id, email, display_name, role
-          FROM users
-          WHERE user_id = ?
-        `).bind(targetUserId).first()
-
-        if (!target) {
-          return json({ ok: false, error: "user_not_found" }, 404)
-        }
-
-        await env.DB.prepare(`DELETE FROM user_devices WHERE user_id = ?`)
-          .bind(targetUserId).run()
-
-        await env.DB.prepare(`DELETE FROM user_sessions WHERE user_id = ?`)
-          .bind(targetUserId).run()
-
-        await env.DB.prepare(`
-          DELETE FROM tasks
-          WHERE created_by_user_id = ?
-             OR assignee_user_id = ?
-             OR completed_by_user_id = ?
-             OR cancelled_by_user_id = ?
-        `).bind(targetUserId, targetUserId, targetUserId, targetUserId).run()
-
-        await env.DB.prepare(`DELETE FROM users WHERE user_id = ?`)
-          .bind(targetUserId).run()
-
-        await logAction(env, "user", targetUserId, "user_deleted", user.user_id, {
-          deleted_user_id: targetUserId
-        })
-
-        return json({ ok: true })
-      }
-
-if (path === "/change_role" && request.method === "POST") {
+      if (path === "/change_role" && request.method === "POST") {
         const user = await getCurrentUser(request, env)
         const debugBypass = !user
         if (debugBypass) console.log("DEBUG: bypass auth for send_push")
