@@ -592,10 +592,35 @@ private fun listingsExtractorJs(): String = """
   }
 
   const bodyText = norm(document.body ? (document.body.innerText || document.body.textContent || "") : "");
+
+  if (/Ops!\s*Ocorreu um erro/i.test(bodyText) || /\bOcorreu um erro\b/i.test(bodyText)) {
+    return JSON.stringify({
+      source: "listings",
+      url: location.href,
+      captured_at: Date.now(),
+      error: "ML_PAGE_ERROR",
+      error_text: bodyText.slice(0, 4000),
+      total: 0,
+      items: []
+    });
+  }
+
   const parts = bodyText
     .split(/Selecionar anúncio/gi)
     .map(x => norm(x))
     .filter(x => /#\d{6,}/.test(x));
+
+  if (!parts.length) {
+    return JSON.stringify({
+      source: "listings",
+      url: location.href,
+      captured_at: Date.now(),
+      error: "ML_EMPTY_LIST",
+      error_text: bodyText.slice(0, 4000),
+      total: 0,
+      items: []
+    });
+  }
 
   const items = parts.map(block => {
     const lines = block.split("\n").map(x => x.trim()).filter(Boolean);
