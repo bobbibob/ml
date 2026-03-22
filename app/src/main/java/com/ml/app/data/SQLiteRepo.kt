@@ -672,6 +672,22 @@ class SQLiteRepo(private val context: Context) {
       }
 
       if (out.isEmpty()) {
+        val rxSkuColorBlock = Regex("""(?is)(?:Acambamento dos ferragens:[^\n]*\n+)?Cor:\s*([^\n]+)(?:\n+Cor da correia de ombro:[^\n]*)?(?:\n+\d+\s+unidades)?\n+SKU\s+([A-Za-z0-9\-]+)""")
+        for (m in rxSkuColorBlock.findAll(rawText)) {
+          val color = m.groupValues.getOrNull(1)?.trim()
+          val sku = normalizeSku(m.groupValues.getOrNull(2)) ?: continue
+          out.putIfAbsent(
+            sku,
+            VariantAcc(
+              sku = sku,
+              color = color?.takeIf { it.isNotBlank() } ?: itemColor,
+              imageUrl = itemImage
+            )
+          )
+        }
+      }
+
+      if (out.isEmpty()) {
         val rxSku = Regex("""\bSKU\s+([A-Za-z0-9\-]+)\b""", RegexOption.IGNORE_CASE)
         for (m in rxSku.findAll(rawText)) {
           val sku = normalizeSku(m.groupValues.getOrNull(1)) ?: continue

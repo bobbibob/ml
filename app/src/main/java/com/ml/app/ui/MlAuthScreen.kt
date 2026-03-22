@@ -536,6 +536,10 @@ private fun listingsExtractorJs(): String = """
       .trim();
   }
 
+  function txt(el) {
+    return norm((el && (el.innerText || el.textContent)) || "");
+  }
+
   function parseIntLoose(s) {
     if (!s) return null;
     const only = String(s).replace(/[^\d]/g, "");
@@ -550,6 +554,97 @@ private fun listingsExtractorJs(): String = """
     if (!m) return null;
     const n = Number(m[1].replace(/\./g, "").replace(",", "."));
     return Number.isFinite(n) ? n : null;
+  }
+
+  function absUrl(url) {
+    if (!url) return null;
+    try { return new URL(url, location.href).toString(); } catch (_) { return String(url); }
+  }
+
+  function pickFirstUrl(srcset) {
+    if (!srcset) return null;
+    const first = String(srcset).split(",")[0].trim().split(" ")[0];
+    return first ? absUrl(first) : null;
+  }
+
+  function imgUrl(img) {
+    if (!img) return null;
+    const attrs = [
+      img.getAttribute("src"),
+      img.getAttribute("data-src"),
+      img.getAttribute("data-lazy"),
+      img.getAttribute("data-original"),
+      img.getAttribute("data-image"),
+      img.getAttribute("data-zoom"),
+      img.currentSrc
+    ];
+    for (const v of attrs) {
+      if (v && !String(v).startsWith("data:")) return absUrl(v);
+    }
+    const sets = [img.getAttribute("srcset"), img.getAttribute("data-srcset")];
+    for (const ss of sets) {
+      const u = pickFirstUrl(ss);
+      if (u) return u;
+    }
+    const pic = img.closest("picture");
+    if (pic) {
+      for (const source of Array.from(pic.querySelectorAll("source"))) {
+        const u = pickFirstUrl(source.getAttribute("srcset") || source.getAttribute("data-srcset"));
+        if (u) return u;
+      }
+    }
+    return null;
+  }
+
+  function bgImageUrl(el) {
+    if (!el) return null;
+    const parts = [];
+    try { parts.push(el.getAttribute("style") || ""); } catch (_) {}
+    try { parts.push(((el.style || {}).backgroundImage) || ""); } catch (_) {}
+    try { parts.push((window.getComputedStyle(el).backgroundImage) || ""); } catch (_) {}
+    try { parts.push(el.getAttribute("data-image") || ""); } catch (_) {}
+    try { parts.push(el.getAttribute("data-src") || ""); } catch (_) {}
+    const style = parts.join(" ");
+    const m = style.match(/url\((['"]?)(.*?)\1\)/i);
+    if (m && m[2]) return absUrl(m[2]);
+    for (const raw of parts) {
+      if (raw && /^https?:\/\//i.test(raw)) return absUrl(raw);
+    }
+    return null;
+  }
+
+  function uniqPush(out, seen, value) {
+    if (!value) return;
+    const u = absUrl(value);
+    if (!u) return;
+    if (seen.has(u)) return;
+    seen.add(u);
+    out.push(u);
+  }
+
+  function extractContainerImages(container) {
+    const out = [];
+    const seen = new Set();
+    if (!container) return out;
+
+    uniqPush(out, seen, bgImageUrl(container));
+
+    for (const img of Array.from(container.querySelectorAll("img"))) {
+      uniqPush(out, seen, imgUrl(img));
+    }
+
+    for (const source of Array.from(container.querySelectorAll("picture source"))) {
+      uniqPush(out, seen, pickFirstUrl(source.getAttribute("srcset") || source.getAttribute("data-srcset")));
+    }
+
+    for (const el of Array.from(container.querySelectorAll("*"))) {
+      uniqPush(out, seen, bgImageUrl(el));
+      try { uniqPush(out, seen, el.getAttribute("data-image")); } catch (_) {}
+      try { uniqPush(out, seen, el.getAttribute("data-src")); } catch (_) {}
+      try { uniqPush(out, seen, el.getAttribute("data-zoom")); } catch (_) {}
+    }
+
+    return out;
   }
 
   function titleFromLines(lines, listingCode) {
@@ -572,14 +667,31 @@ private fun listingsExtractorJs(): String = """
     return null;
   }
 
-  const bodyText = norm(document.body ? (document.body.innerText || document.body.textContent || "") : "");
-  const rawBlocks = bodyText
-    .split(/(?=#\d{6,})/g)
-    .map(x => norm(x))
-    .filter(x => /#\d{6,}/.test(x) && /SKU\s+[A-Za-z0-9\-]+/i.test(x));
+  function listingContainers() {
+    const all = Array.from(document.querySelectorAll("tr,div,section,article,li"));
+    return all.filter(el => {
+      const t = txt(el);
+      return /#\d{6,}/.test(t) && /SKU\s+[A-Za-z0-9\-]+/i.test(t);
+    }).sort((a, b) => txt(a).length - txt(b).length);
+  }
 
-  const items = rawBlocks.map(block => {
+  const containers = [];
+  const seenIds = new Set();
+
+  for (const el of listingContainers()) {
+    const t = txt(el);
+    const m = t.match(/#(\d{6,})/);
+    if (!m) continue;
+    const listingId = m[1];
+    if (seenIds.has(listingId)) continue;
+    seenIds.add(listingId);
+    containers.push(el);
+  }
+
+  const items = containers.map(container => {
+    const block = txt(container);
     const lines = block.split("\n").map(x => x.trim()).filter(Boolean);
+
     const listingIdMatch = block.match(/#(\d{6,})/);
     const listing_id = listingIdMatch ? listingIdMatch[1] : null;
     const listing_code = listing_id ? "#" + listing_id : null;
@@ -603,16 +715,33 @@ private fun listingsExtractorJs(): String = """
     const statusHits = block.match(/\b(Ativo|Pausado|Inativo)\b/gi);
     if (statusHits && statusHits.length) status = statusHits[statusHits.length - 1];
 
+    const listingImages = extractContainerImages(container);
+    const image_main_url = listingImages[0] || null;
+
     const variants = [];
-    const seen = new Set();
+    const seenSku = new Set();
 
     const rxColorSku = /Cor:\s*([^\n]+?)\s*(?:\n+[^\n]*)*?\n+SKU\s+([A-Za-z0-9\-]+)/gi;
     let m;
     while ((m = rxColorSku.exec(block)) !== null) {
       const color = norm(m[1]);
       const sku = norm(m[2]).toUpperCase();
-      if (!sku || seen.has(sku)) continue;
-      seen.add(sku);
+      if (!sku || seenSku.has(sku)) continue;
+      seenSku.add(sku);
+
+      const variantImages = [];
+      const variantNodes = Array.from(container.querySelectorAll("tr,div,section,article,li")).filter(el => {
+        const t = txt(el);
+        return t.includes("SKU " + sku) || (color && t.includes("Cor: " + color));
+      }).sort((a, b) => txt(a).length - txt(b).length);
+
+      for (const vn of variantNodes) {
+        const imgs = extractContainerImages(vn);
+        for (const u of imgs) {
+          if (!variantImages.includes(u)) variantImages.push(u);
+        }
+      }
+
       variants.push({
         sku: sku,
         color: color || null,
@@ -620,8 +749,8 @@ private fun listingsExtractorJs(): String = """
         material: null,
         price: promo_price ?? price,
         promo_price: promo_price ?? price,
-        image_main_url: null,
-        images: []
+        image_main_url: variantImages[0] || image_main_url,
+        images: variantImages.map(u => ({ image_url: u }))
       });
     }
 
@@ -630,8 +759,8 @@ private fun listingsExtractorJs(): String = """
       const skuMatches = [...block.matchAll(/\bSKU\s+([A-Za-z0-9\-]+)/gi)];
       for (const mm of skuMatches) {
         const sku = norm(mm[1]).toUpperCase();
-        if (!sku || seen.has(sku)) continue;
-        seen.add(sku);
+        if (!sku || seenSku.has(sku)) continue;
+        seenSku.add(sku);
         variants.push({
           sku: sku,
           color: fallbackColor,
@@ -639,8 +768,8 @@ private fun listingsExtractorJs(): String = """
           material: null,
           price: promo_price ?? price,
           promo_price: promo_price ?? price,
-          image_main_url: null,
-          images: []
+          image_main_url: image_main_url,
+          images: listingImages.map(u => ({ image_url: u }))
         });
       }
     }
@@ -660,11 +789,12 @@ private fun listingsExtractorJs(): String = """
       sold_total: sold_total,
       sku: firstVariant ? firstVariant.sku : null,
       color: firstVariant ? firstVariant.color : null,
-      image_main_url: null,
+      image_main_url: image_main_url,
+      images: listingImages.map(u => ({ image_url: u })),
       variants: variants,
       raw_text: block
     };
-  });
+  }).filter(item => item.variants && item.variants.length > 0);
 
   return JSON.stringify({
     url: location.href,
