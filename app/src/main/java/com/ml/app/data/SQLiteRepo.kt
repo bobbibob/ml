@@ -583,6 +583,7 @@ class SQLiteRepo(private val context: Context) {
     }
   }
 
+  
   fun importMlListingsJsonToArticles(json: String): Int {
     val root = try {
       JSONObject(json)
@@ -591,150 +592,268 @@ class SQLiteRepo(private val context: Context) {
     }
 
     val items = root.optJSONArray("items") ?: return 0
-    val sourceUrl = root.optString("url", "")
     val syncedAt = root.optLong("captured_at", System.currentTimeMillis())
+
+    data class VariantAcc(
+      val sku: String,
+      var color: String? = null,
+      var size: String? = null,
+      var material: String? = null,
+      var imageUrl: String? = null,
+      var price: Double? = null,
+      var attrJson: String = "{}",
+      var rawJson: String? = null
+    )
+
+    data class ArticleAcc(
+      val articleCode: String,
+      var listingId: String? = null,
+      var listingCode: String? = null,
+      var title: String? = null,
+      var status: String? = null,
+      var price: Double? = null,
+      var promoPrice: Double? = null,
+      var currency: String? = null,
+      var stockTotal: Int? = null,
+      var visits: Int? = null,
+      var soldTotal: Int? = null,
+      var listingRaw: String? = null,
+      var mainImageUrl: String? = null,
+      val colors: LinkedHashSet<String> = LinkedHashSet(),
+      val variants: LinkedHashMap<String, VariantAcc> = LinkedHashMap()
+    )
+
+    fun normalizeSku(sku: String?): String? {
+      val s = sku?.trim()?.uppercase() ?: return null
+      return s.takeIf { it.isNotBlank() }
+    }
+
+    fun firstVariantImage(v: JSONObject?): String? {
+      val direct = v?.optString("image_main_url")?.takeIf { it.isNotBlank() }
+      if (!direct.isNullOrBlank()) return direct
+      val direct2 = v?.optString("image_url")?.takeIf { it.isNotBlank() }
+      if (!direct2.isNullOrBlank()) return direct2
+      val images = v?.optJSONArray("images")
+      if (images != null) {
+        for (i in 0 until images.length()) {
+          val o = images.optJSONObject(i)
+          val u1 = o?.optString("image_url")?.takeIf { it.isNotBlank() }
+          if (!u1.isNullOrBlank()) return u1
+          val u2 = o?.optString("url")?.takeIf { it.isNotBlank() }
+          if (!u2.isNullOrBlank()) return u2
+        }
+      }
+      return null
+    }
+
+    fun firstItemImage(item: JSONObject?): String? {
+      val direct = item?.optString("image_main_url")?.takeIf { it.isNotBlank() }
+      if (!direct.isNullOrBlank()) return direct
+      val direct2 = item?.optString("image_url")?.takeIf { it.isNotBlank() }
+      if (!direct2.isNullOrBlank()) return direct2
+      return null
+    }
+
+    fun parseVariantsFromRawText(rawText: String, itemColor: String?, itemImage: String?): List<VariantAcc> {
+      val out = LinkedHashMap<String, VariantAcc>()
+
+      val rxColorSku = Regex("""(?is)Cor:\s*([^\n]+?)\s*(?:\n+[^\n]*)*?\n+SKU\s+([A-Za-z0-9\-]+)""")
+      for (m in rxColorSku.findAll(rawText)) {
+        val color = m.groupValues.getOrNull(1)?.trim()
+        val sku = normalizeSku(m.groupValues.getOrNull(2)) ?: continue
+        out.putIfAbsent(
+          sku,
+          VariantAcc(
+            sku = sku,
+            color = color?.takeIf { it.isNotBlank() } ?: itemColor,
+            imageUrl = itemImage
+          )
+        )
+      }
+
+      if (out.isEmpty()) {
+        val rxSku = Regex("""\bSKU\s+([A-Za-z0-9\-]+)\b""", RegexOption.IGNORE_CASE)
+        for (m in rxSku.findAll(rawText)) {
+          val sku = normalizeSku(m.groupValues.getOrNull(1)) ?: continue
+          out.putIfAbsent(
+            sku,
+            VariantAcc(
+              sku = sku,
+              color = itemColor,
+              imageUrl = itemImage
+            )
+          )
+        }
+      }
+
+      return out.values.toList()
+    }
+
+    val accMap = LinkedHashMap<String, ArticleAcc>()
+
+    for (i in 0 until items.length()) {
+      val item = items.optJSONObject(i) ?: continue
+
+      val listingId = item.optString("listing_id").takeIf { it.isNotBlank() }
+      val listingCode = item.optString("listing_code").takeIf { it.isNotBlank() }
+      val title = item.optString("title").takeIf { it.isNotBlank() }
+      val status = item.optString("status").takeIf { it.isNotBlank() }
+      val price = item.optDouble("price").takeIf { !it.isNaN() }
+      val promoPrice = item.optDouble("promo_price").takeIf { !it.isNaN() }
+      val currency = item.optString("currency").takeIf { it.isNotBlank() }
+      val stockTotal = item.optInt("stock_total").takeIf { it != 0 || item.has("stock_total") }
+      val visits = item.optInt("visits").takeIf { it != 0 || item.has("visits") }
+      val soldTotal = item.optInt("sold_total").takeIf { it != 0 || item.has("sold_total") }
+      val rawText = item.optString("raw_text").orEmpty()
+      val listingRaw = item.toString()
+      val itemColor = item.optString("color").takeIf { it.isNotBlank() }
+      val itemImage = firstItemImage(item)
+
+      val variantMap = LinkedHashMap<String, VariantAcc>()
+
+      val variants = item.optJSONArray("variants")
+      if (variants != null) {
+        for (j in 0 until variants.length()) {
+          val v = variants.optJSONObject(j) ?: continue
+          val sku = normalizeSku(v.optString("sku")) ?: continue
+          variantMap[sku] = VariantAcc(
+            sku = sku,
+            color = v.optString("color").takeIf { it.isNotBlank() } ?: itemColor,
+            size = v.optString("size").takeIf { it.isNotBlank() },
+            material = v.optString("material").takeIf { it.isNotBlank() },
+            imageUrl = firstVariantImage(v) ?: itemImage,
+            price = v.optDouble("promo_price").takeIf { !it.isNaN() }
+              ?: v.optDouble("price").takeIf { !it.isNaN() }
+              ?: promoPrice
+              ?: price,
+            rawJson = v.toString()
+          )
+        }
+      }
+
+      for (v in parseVariantsFromRawText(rawText, itemColor, itemImage)) {
+        if (!variantMap.containsKey(v.sku)) {
+          v.price = promoPrice ?: price
+          variantMap[v.sku] = v
+        }
+      }
+
+      val directSku = normalizeSku(item.optString("sku"))
+      if (!directSku.isNullOrBlank() && !variantMap.containsKey(directSku)) {
+        variantMap[directSku] = VariantAcc(
+          sku = directSku,
+          color = itemColor,
+          imageUrl = itemImage,
+          price = promoPrice ?: price
+        )
+      }
+
+      if (variantMap.isEmpty()) continue
+
+      for ((sku, vv) in variantMap) {
+        val articleCode = mlArticleFromSku(sku) ?: continue
+        val acc = accMap.getOrPut(articleCode) { ArticleAcc(articleCode = articleCode) }
+
+        if (acc.listingId == null) acc.listingId = listingId
+        if (acc.listingCode == null) acc.listingCode = listingCode
+        if (acc.title == null) acc.title = title
+        if (acc.status == null) acc.status = status
+        if (acc.price == null) acc.price = price
+        if (acc.promoPrice == null) acc.promoPrice = promoPrice
+        if (acc.currency == null) acc.currency = currency
+        if (acc.stockTotal == null) acc.stockTotal = stockTotal
+        if (acc.visits == null) acc.visits = visits
+        if (acc.soldTotal == null) acc.soldTotal = soldTotal
+        if (acc.listingRaw == null) acc.listingRaw = listingRaw
+        if (acc.mainImageUrl == null) acc.mainImageUrl = vv.imageUrl ?: itemImage
+
+        val variantAcc = acc.variants.getOrPut(sku) { vv.copy() }
+        if (variantAcc.color == null) variantAcc.color = vv.color
+        if (variantAcc.size == null) variantAcc.size = vv.size
+        if (variantAcc.material == null) variantAcc.material = vv.material
+        if (variantAcc.imageUrl == null) variantAcc.imageUrl = vv.imageUrl ?: itemImage
+        if (variantAcc.price == null) variantAcc.price = vv.price ?: promoPrice ?: price
+        if (variantAcc.rawJson == null) variantAcc.rawJson = vv.rawJson
+
+        if (!variantAcc.color.isNullOrBlank()) {
+          acc.colors.add(variantAcc.color!!)
+        }
+      }
+    }
+
+    if (accMap.isEmpty()) return 0
 
     openDbReadWrite().use { db ->
       ensureMlArticleColumns(db)
       ensureBagMlVariantsTable(db)
       ensureDeletedArticlesTable(db)
+      db.execSQL(
+        """
+        CREATE TABLE IF NOT EXISTS bag_user_color_price(
+          bag_id TEXT NOT NULL,
+          color TEXT NOT NULL,
+          price REAL,
+          PRIMARY KEY(bag_id, color)
+        )
+        """.trimIndent()
+      )
 
       db.beginTransaction()
       try {
         var saved = 0
 
-
-        for (i in 0 until items.length()) {
-          val item = items.optJSONObject(i) ?: continue
-          val listingId = jstr(item, "listing_id")
-
-
-          // 🔥 ВСЕГДА сначала чистим старые данные
-          deleteImportedMlRowsForListing(db, listingId)
-
-          val variantsCheck = item.optJSONArray("variants")
-          val hasSku = (variantsCheck != null && variantsCheck.length() > 0)
-
-          // allow items without variants
-if (!hasSku) {
-  // fallback: create single variant
-}
-
-
-
-          val listingCode = jstr(item, "listing_code")
-          val title = jstr(item, "title")
-          val status = jstr(item, "status")
-          val price = jdbl(item, "price")
-          val promoPrice = jdbl(item, "promo_price")
-          val currency = jstr(item, "currency")
-          val stockTotal = jint(item, "stock_total")
-          val visits = jint(item, "visits")
-          val soldTotal = jint(item, "sold_total")
-          val saleFeeType = jstr(item, "sale_fee_type")
-          val saleFeePercent = jdbl(item, "sale_fee_percent")
-          val saleFeeAmount = jdbl(item, "sale_fee_amount")
-          val shippingMode = jstr(item, "shipping_mode")
-          val shippingCost = jdbl(item, "shipping_cost")
-          val shippingPaidBy = jstr(item, "shipping_paid_by")
-          val netAmount = jdbl(item, "net_amount")
-          val qualityScore = jint(item, "quality_score")
-          val qualityLevel = jstr(item, "quality_level")
-          val experienceScore = jint(item, "experience_score")
-          val experienceLevel = jstr(item, "experience_level")
-          val bulkPriceEnabled = if (item.optBoolean("bulk_price_enabled", false)) 1 else 0
-          val bulkPriceMinQty = jint(item, "bulk_price_min_qty")
-          val bulkPriceAmount = jdbl(item, "bulk_price_amount")
-          val listingRaw = item.toString()
-          val effectivePrice = promoPrice ?: price
-
-          val variants = item.optJSONArray("variants")
-          val articleCode = run {
-
-            if (variants != null) {
-              for (j in 0 until variants.length()) {
-                val v = variants.optJSONObject(j) ?: continue
-                val sku = jstr(v, "sku")
-                val code = mlArticleFromSku(sku)
-                if (!code.isNullOrBlank()) return@run code
-              }
-            }
-
-            val directSku = jstr(item, "sku")
-            val directCode = mlArticleFromSku(directSku)
-            if (!directCode.isNullOrBlank()) return@run directCode
-
-            null
-          } ?: continue
+        for ((articleCode, acc) in accMap) {
+          val isDeleted = db.rawQuery(
+            "SELECT 1 FROM deleted_articles WHERE article_id=? LIMIT 1",
+            arrayOf(articleCode)
+          ).use { c -> c.moveToFirst() }
+          if (isDeleted) continue
 
           deleteImportedMlVariantsForArticle(db, articleCode)
           db.execSQL("DELETE FROM bag_user_colors WHERE bag_id=?", arrayOf(articleCode))
+          db.execSQL("DELETE FROM bag_user_color_price WHERE bag_id=?", arrayOf(articleCode))
 
-          var mainImageUrl: String? = null
-
-          if (variants != null && variants.length() > 0) {
-            val mainIdx = pickMainMlVariantIndex(variants)
-            if (mainIdx >= 0) {
-              mainImageUrl = firstVariantImage(variants.optJSONObject(mainIdx))
-            }
-
-            for (j in 0 until variants.length()) {
-              val v = variants.optJSONObject(j) ?: continue
-              val sku = jstr(v, "sku") ?: continue
-              val color = jstr(v, "color")
-              val size = jstr(v, "size")
-              val material = jstr(v, "material")
-              val imageUrl = firstVariantImage(v)
-              val attrJson = if (v.has("attributes") && !v.isNull("attributes")) {
-                v.getJSONObject("attributes").toString()
-              } else {
-                "{}"
-              }
-              val rawJson = v.toString()
-
-              db.execSQL(
-                """
-                INSERT OR REPLACE INTO bag_ml_variants(
-                  article_id,sku,color,size,material,image_url,attr_json,raw_json,created_at,updated_at
-                ) VALUES(?,?,?,?,?,?,?,?,?,?)
-                """.trimIndent(),
-                arrayOf(
-                  articleCode, sku, color, size, material, imageUrl, attrJson, rawJson, syncedAt, syncedAt
-                )
+          for ((_, v) in acc.variants) {
+            db.execSQL(
+              """
+              INSERT OR REPLACE INTO bag_ml_variants(
+                article_id,sku,color,size,material,image_url,attr_json,raw_json,created_at,updated_at
+              ) VALUES(?,?,?,?,?,?,?,?,?,?)
+              """.trimIndent(),
+              arrayOf(
+                articleCode,
+                v.sku,
+                v.color,
+                v.size,
+                v.material,
+                v.imageUrl,
+                v.attrJson,
+                v.rawJson,
+                syncedAt,
+                syncedAt
               )
+            )
 
-              if (!color.isNullOrBlank()) {
-                db.execSQL(
-                  "INSERT OR IGNORE INTO bag_user_colors(bag_id,color) VALUES(?,?)",
-                  arrayOf(articleCode, color)
-                )
-              }
+            if (!v.color.isNullOrBlank()) {
+              db.execSQL(
+                "INSERT OR IGNORE INTO bag_user_colors(bag_id,color) VALUES(?,?)",
+                arrayOf(articleCode, v.color)
+              )
+              db.execSQL(
+                "INSERT OR REPLACE INTO bag_user_color_price(bag_id,color,price) VALUES(?,?,?)",
+                arrayOf(articleCode, v.color, v.price)
+              )
             }
           }
+
+          val effectivePrice = acc.promoPrice ?: acc.price
 
           db.execSQL(
             """
             INSERT INTO bag_user(
               bag_id,name,hypothesis,price,cogs,card_type,photo_path,
-              ml_listing_id,ml_listing_code,ml_title,ml_status,ml_price,ml_promo_price,ml_currency,
-              ml_stock_total,ml_visits,ml_sold_total,
-              ml_sale_fee_type,ml_sale_fee_percent,ml_sale_fee_amount,
-              ml_shipping_mode,ml_shipping_cost,ml_shipping_paid_by,
-              ml_net_amount,ml_quality_score,ml_quality_level,
-              ml_experience_score,ml_experience_level,
-              ml_bulk_price_enabled,ml_bulk_price_min_qty,ml_bulk_price_amount,
-              ml_variant_id,ml_color,ml_size,ml_material,ml_attr_json,ml_image_main_url,
-              ml_listing_raw_json,ml_variant_raw_json,ml_synced_at
-            ) VALUES(?,?,?,?,?,?,?,
-                     ?,?,?,?,?,?,?,?,
-                     ?,?,
-                     ?,?,?,
-                     ?,?,?,
-                     ?,?,?,
-                     ?,?,
-                     ?,?,?,
-                     ?,?,?,?,?,?,
-                     ?,?,?)
+              ml_listing_id,ml_listing_code,ml_title,ml_status,ml_price,ml_promo_price,ml_currency,ml_synced_at
+            ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             ON CONFLICT(bag_id) DO UPDATE SET
               name=excluded.name,
               price=excluded.price,
@@ -746,37 +865,24 @@ if (!hasSku) {
               ml_price=excluded.ml_price,
               ml_promo_price=excluded.ml_promo_price,
               ml_currency=excluded.ml_currency,
-              ml_stock_total=excluded.ml_stock_total,
-              ml_visits=excluded.ml_visits,
-              ml_sold_total=excluded.ml_sold_total,
-              ml_sale_fee_type=excluded.ml_sale_fee_type,
-              ml_sale_fee_percent=excluded.ml_sale_fee_percent,
-              ml_sale_fee_amount=excluded.ml_sale_fee_amount,
-              ml_shipping_mode=excluded.ml_shipping_mode,
-              ml_shipping_cost=excluded.ml_shipping_cost,
-              ml_shipping_paid_by=excluded.ml_shipping_paid_by,
-              ml_net_amount=excluded.ml_net_amount,
-              ml_quality_score=excluded.ml_quality_score,
-              ml_quality_level=excluded.ml_quality_level,
-              ml_experience_score=excluded.ml_experience_score,
-              ml_experience_level=excluded.ml_experience_level,
-              ml_bulk_price_enabled=excluded.ml_bulk_price_enabled,
-              ml_bulk_price_min_qty=excluded.ml_bulk_price_min_qty,
-              ml_bulk_price_amount=excluded.ml_bulk_price_amount,
-              ml_listing_raw_json=excluded.ml_listing_raw_json,
               ml_synced_at=excluded.ml_synced_at
             """.trimIndent(),
             arrayOf(
-              articleCode, articleCode, null, effectivePrice, null, null, mainImageUrl,
-              listingId, listingCode, title, status, price, promoPrice, currency,
-              stockTotal, visits, soldTotal,
-              saleFeeType, saleFeePercent, saleFeeAmount,
-              shippingMode, shippingCost, shippingPaidBy,
-              netAmount, qualityScore, qualityLevel,
-              experienceScore, experienceLevel,
-              bulkPriceEnabled, bulkPriceMinQty, bulkPriceAmount,
-              null, null, null, null, "{}", null,
-              listingRaw, null, syncedAt
+              articleCode,
+              articleCode,
+              null,
+              effectivePrice,
+              null,
+              null,
+              acc.mainImageUrl,
+              acc.listingId,
+              acc.listingCode,
+              acc.title,
+              acc.status,
+              acc.price,
+              acc.promoPrice,
+              acc.currency,
+              syncedAt
             )
           )
 
@@ -790,6 +896,7 @@ if (!hasSku) {
       }
     }
   }
+
 
   data class BagUserRow(
     val bagId: String,

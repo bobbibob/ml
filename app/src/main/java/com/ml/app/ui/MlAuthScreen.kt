@@ -529,7 +529,11 @@ private fun expandListingVariantsJs(): String = """
 private fun listingsExtractorJs(): String = """
 (function() {
   function norm(s) {
-    return (s || "").replace(/\r/g, "").replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
+    return (s || "")
+      .replace(/\r/g, "")
+      .replace(/[ \t]+/g, " ")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
   }
 
   function parseIntLoose(s) {
@@ -540,289 +544,133 @@ private fun listingsExtractorJs(): String = """
     return Number.isFinite(n) ? n : null;
   }
 
-  function parseMoney(s) {
-    if (!s) return null;
-    const m = String(s).match(/R\$\s*([\d\.\,]+)/);
+  function parseMoney(text) {
+    if (!text) return null;
+    const m = String(text).match(/R\$\s*([\d\.,]+)/);
     if (!m) return null;
-    const v = m[1].replace(/\./g, "").replace(",", ".");
-    const n = Number(v);
+    const n = Number(m[1].replace(/\./g, "").replace(",", "."));
     return Number.isFinite(n) ? n : null;
   }
 
-  function txt(el) {
-    return norm((el && (el.innerText || el.textContent)) || "");
-  }
-
-  function absUrl(url) {
-    if (!url) return null;
-    try { return new URL(url, location.href).toString(); } catch (_) { return url; }
-  }
-
-  function imgUrl(img) {
-    if (!img) return null;
-    const src = img.getAttribute("src") || img.getAttribute("data-src") || img.currentSrc || "";
-    if (src && !src.startsWith("data:")) return absUrl(src);
-    const srcset = img.getAttribute("srcset") || "";
-    if (srcset) {
-      const first = srcset.split(",")[0].trim().split(" ")[0];
-      if (first) return absUrl(first);
+  function titleFromLines(lines, listingCode) {
+    if (!listingCode) return null;
+    const idx = lines.findIndex(x => x === listingCode);
+    if (idx < 0) return null;
+    for (let i = idx + 1; i < lines.length; i++) {
+      const line = lines[i];
+      if (!line) continue;
+      if (/^\d+\s+unidades$/i.test(line)) break;
+      if (/^SKU\s+/i.test(line)) continue;
+      if (/^Cor:/i.test(line)) continue;
+      if (/^I D /i.test(line)) continue;
+      if (/^#\d+$/.test(line)) continue;
+      if (/^(Clássico|Premium|Ativo|Pausado|Inativo)$/i.test(line)) continue;
+      if (/^R\$\s*/i.test(line)) continue;
+      if (/visitas|vendidas|Qualidade do anúncio|Experiência de compra|Adicionar preços de atacado|Ir para Promoções|Alterar preço|Alterar/i.test(line)) continue;
+      return line;
     }
     return null;
-  }
-
-  function bgImageUrl(el) {
-    if (!el) return null;
-    const style = (el.getAttribute("style") || "") + " " + (((el.style || {}).backgroundImage) || "");
-    const m = style.match(/url\((['"]?)(.*?)\1\)/i);
-    if (m && m[2]) return absUrl(m[2]);
-    return null;
-  }
-
-  function smallestListingContainer(listingId) {
-    const all = Array.from(document.querySelectorAll("tr,div,section,article,li"));
-    const target = "#" + listingId;
-    const candidates = all.filter(el => {
-      const t = txt(el);
-      return t.includes(target) && (
-        t.includes("Qualidade do anúncio") ||
-        t.includes("Experiência de compra") ||
-        t.includes("unidades vendidas")
-      );
-    }).sort((a,b) => txt(a).length - txt(b).length);
-    return candidates[0] || null;
-  }
-
-  function extractContainerImages(container) {
-    if (!container) return [];
-    const out = [];
-    const seen = new Set();
-
-    function push(u) {
-      if (!u) return;
-      if (seen.has(u)) return;
-      seen.add(u);
-      out.push(u);
-    }
-
-    for (const img of Array.from(container.querySelectorAll("img"))) {
-      push(imgUrl(img));
-    }
-
-    for (const el of Array.from(container.querySelectorAll("*"))) {
-      push(bgImageUrl(el));
-    }
-
-    return out;
-  }
-
-  function variantImage(container, sku, color, fallbackImages) {
-    if (!container) return fallbackImages[0] || null;
-    const all = Array.from(container.querySelectorAll("tr,div,section,article,li"));
-    const candidates = all.filter(el => {
-      const t = txt(el);
-      return (
-        (sku && t.includes("SKU " + sku)) ||
-        (color && t.includes("Cor: " + color))
-      );
-    }).sort((a,b) => txt(a).length - txt(b).length);
-
-    for (const el of candidates) {
-      const imgs = extractContainerImages(el);
-      if (imgs.length) return imgs[0];
-    }
-    return fallbackImages[0] || null;
   }
 
   const bodyText = norm(document.body ? (document.body.innerText || document.body.textContent || "") : "");
-
-  if (/Ops!\s*Ocorreu um erro/i.test(bodyText) || /\bOcorreu um erro\b/i.test(bodyText)) {
-    return JSON.stringify({
-      source: "listings",
-      url: location.href,
-      captured_at: Date.now(),
-      error: "ML_PAGE_ERROR",
-      error_text: bodyText.slice(0, 4000),
-      total: 0,
-      items: []
-    });
-  }
-
-  const parts = bodyText
-    .split(/Selecionar anúncio/gi)
+  const rawBlocks = bodyText
+    .split(/(?=#\d{6,})/g)
     .map(x => norm(x))
-    .filter(x => /#\d{6,}/.test(x));
+    .filter(x => /#\d{6,}/.test(x) && /SKU\s+[A-Za-z0-9\-]+/i.test(x));
 
-  if (!parts.length) {
-    return JSON.stringify({
-      source: "listings",
-      url: location.href,
-      captured_at: Date.now(),
-      error: "ML_EMPTY_LIST",
-      error_text: bodyText.slice(0, 4000),
-      total: 0,
-      items: []
-    });
-  }
-
-  const items = parts.map(block => {
+  const items = rawBlocks.map(block => {
     const lines = block.split("\n").map(x => x.trim()).filter(Boolean);
-
     const listingIdMatch = block.match(/#(\d{6,})/);
     const listing_id = listingIdMatch ? listingIdMatch[1] : null;
     const listing_code = listing_id ? "#" + listing_id : null;
 
-    let title = null;
-    if (listing_code) {
-      const idx = lines.findIndex(x => x === listing_code);
-      if (idx >= 0) {
-        for (let i = idx + 1; i < lines.length; i++) {
-          const line = lines[i];
-          if (/^\d+\s+unidades$/i.test(line)) break;
-          if (/^SKU\s+/i.test(line)) continue;
-          if (/^Cor:/i.test(line)) continue;
-          if (/^I D /i.test(line)) continue;
-          if (!/^#\d+$/.test(line)) {
-            title = line;
-            break;
-          }
-        }
-      }
-    }
-
+    const title = titleFromLines(lines, listing_code);
     const stock_total = parseIntLoose((block.match(/(\d+)\s+unidades/i) || [])[1]);
     const visits = parseIntLoose((block.match(/([\d\.]+)\s+visitas/i) || [])[1]);
     const sold_total = parseIntLoose((block.match(/(\d+)\s+unidades vendidas/i) || [])[1]);
 
-    const headlinePriceMatch =
-      block.match(/\nR\$\s*([\d\.\,]+)\n\n(?:Você oferece|Você vende|Clássico|Premium)/i) ||
-      block.match(/\bR\$\s*([\d\.\,]+)\b/);
-    const price = headlinePriceMatch ? parseMoney(headlinePriceMatch[0]) : null;
-
     const promoPriceMatch =
-      block.match(/Você vende por\s*R\$\s*([\d\.\,]+)\s+na promoção/i) ||
-      block.match(/Preço\*?\s*\n\s*R\$\s*([\d\.\,]+)/i);
+      block.match(/Você vende por\s*R\$\s*([\d\.,]+)\s+na promoção/i) ||
+      block.match(/Preço\*?\s*\n\s*R\$\s*([\d\.,]+)/i);
     const promo_price = promoPriceMatch ? parseMoney(promoPriceMatch[0]) : null;
+
+    const priceMatch =
+      block.match(/\nR\$\s*([\d\.,]+)\n\n(?:Você oferece|Você vende|Clássico|Premium)/i) ||
+      block.match(/\bR\$\s*([\d\.,]+)\b/);
+    const price = priceMatch ? parseMoney(priceMatch[0]) : null;
 
     let status = null;
     const statusHits = block.match(/\b(Ativo|Pausado|Inativo)\b/gi);
     if (statusHits && statusHits.length) status = statusHits[statusHits.length - 1];
 
-    const qualityScoreMatch = block.match(/(\d+)\s+Qualidade do anúncio/i);
-    const quality_score = qualityScoreMatch ? Number(qualityScoreMatch[1]) : null;
-
-    const qualityLevelMatch = block.match(/Qualidade do anúncio\s+([A-Za-zÀ-ÿ]+)/i);
-    const quality_level = qualityLevelMatch ? qualityLevelMatch[1] : null;
-
-    const experienceScoreMatch = block.match(/(\d+)\s+Experiência de compra/i);
-    const experience_score = experienceScoreMatch ? Number(experienceScoreMatch[1]) : null;
-
-    const experienceLevelMatch = block.match(/Experiência de compra\s+([A-Za-zÀ-ÿ]+)/i);
-    const experience_level = experienceLevelMatch ? experienceLevelMatch[1] : null;
-
-    const saleFeeTypeMatch =
-      block.match(/Tarifa de venda\s+([A-Za-zÀ-ÿ]+)/i) ||
-      block.match(/\n(Clássico|Premium)\n/i);
-    const sale_fee_type = saleFeeTypeMatch ? saleFeeTypeMatch[1] : null;
-
-    const saleFeePercentMatch = block.match(/Tarifa de venda\s+(\d+)%/i);
-    const sale_fee_percent = saleFeePercentMatch ? Number(saleFeePercentMatch[1]) : null;
-
-    let sale_fee_amount = null;
-    const saleFeeAmountMatch =
-      block.match(/A pagar R\$\s*([\d\.\,]+)\s+Oferecer parcelamento/i) ||
-      block.match(/Tarifa de venda[^\n]*\n(?:[A-Za-zÀ-ÿ]+\n)?-?R\$\s*([\d\.\,]+)/i);
-    if (saleFeeAmountMatch) {
-      const v = saleFeeAmountMatch[1].replace(/\./g, "").replace(",", ".");
-      const n = Number(v);
-      sale_fee_amount = Number.isFinite(n) ? n : null;
-    }
-
-    let shipping_mode = null;
-    if (/Frete grátis/i.test(block)) shipping_mode = "Frete grátis";
-    else if (/Por conta do comprador/i.test(block)) shipping_mode = "Por conta do comprador";
-    else if (/Custo de envio Full/i.test(block)) shipping_mode = "Full";
-
-    let shipping_paid_by = null;
-    if (/Grátis para o comprador/i.test(block) || /Frete grátis/i.test(block)) shipping_paid_by = "seller";
-    else if (/Por conta do comprador/i.test(block)) shipping_paid_by = "buyer";
-
-    let shipping_cost = null;
-    const shippingCostMatch =
-      block.match(/Frete grátis\s+A pagar R\$\s*([\d\.\,]+)/i) ||
-      block.match(/Por conta do comprador\s+-?R\$\s*([\d\.\,]+)/i) ||
-      block.match(/Custo de envio Full[^\n]*\n(?:Grátis para o comprador|Por conta do comprador)?\n-?R\$\s*([\d\.\,]+)/i);
-    if (shippingCostMatch) {
-      const v = shippingCostMatch[1].replace(/\./g, "").replace(",", ".");
-      const n = Number(v);
-      shipping_cost = Number.isFinite(n) ? n : null;
-    }
-
-    let net_amount = null;
-    const netMatches = [...block.matchAll(/Você recebe\s+R\$\s*([\d\.\,]+)/gi)];
-    if (netMatches.length) {
-      const v = netMatches[netMatches.length - 1][1].replace(/\./g, "").replace(",", ".");
-      const n = Number(v);
-      net_amount = Number.isFinite(n) ? n : null;
-    }
-
-    const listingContainer = listing_id ? smallestListingContainer(listing_id) : null;
-    const listingImages = extractContainerImages(listingContainer);
-
     const variants = [];
-    const variantRegex = /Cor:\s*([^\n]+)\n+\s*SKU\s+([A-Z0-9-]+)/gi;
-    let vm;
-    while ((vm = variantRegex.exec(block)) !== null) {
-      const color = (vm[1] || "").trim();
-      const sku = (vm[2] || "").trim();
-      const mainImage = variantImage(listingContainer, sku, color, listingImages);
+    const seen = new Set();
+
+    const rxColorSku = /Cor:\s*([^\n]+?)\s*(?:\n+[^\n]*)*?\n+SKU\s+([A-Za-z0-9\-]+)/gi;
+    let m;
+    while ((m = rxColorSku.exec(block)) !== null) {
+      const color = norm(m[1]);
+      const sku = norm(m[2]).toUpperCase();
+      if (!sku || seen.has(sku)) continue;
+      seen.add(sku);
       variants.push({
-        variant_id: listing_id && sku ? listing_id + ":" + sku : null,
-        sku: sku || null,
-        variant_title: null,
+        sku: sku,
         color: color || null,
         size: null,
         material: null,
-        attributes: color ? { "Cor": color } : {},
-        image_main_url: mainImage,
-        images: mainImage ? [{ image_url: mainImage, sort_order: 0, is_primary: true }] : []
+        price: promo_price ?? price,
+        promo_price: promo_price ?? price,
+        image_main_url: null,
+        images: []
       });
     }
 
+    if (variants.length === 0) {
+      const fallbackColor = ((block.match(/Cor:\s*([^\n]+)/i) || [])[1] || "").trim() || null;
+      const skuMatches = [...block.matchAll(/\bSKU\s+([A-Za-z0-9\-]+)/gi)];
+      for (const mm of skuMatches) {
+        const sku = norm(mm[1]).toUpperCase();
+        if (!sku || seen.has(sku)) continue;
+        seen.add(sku);
+        variants.push({
+          sku: sku,
+          color: fallbackColor,
+          size: null,
+          material: null,
+          price: promo_price ?? price,
+          promo_price: promo_price ?? price,
+          image_main_url: null,
+          images: []
+        });
+      }
+    }
+
+    const firstVariant = variants[0] || null;
+
     return {
-      listing_id,
-      listing_code,
-      title,
-      status,
-      price,
-      promo_price,
+      listing_id: listing_id,
+      listing_code: listing_code,
+      title: title,
+      status: status,
+      price: price,
+      promo_price: promo_price,
       currency: "BRL",
-      stock_total,
-      visits,
-      sold_total,
-      sale_fee_type,
-      sale_fee_percent,
-      sale_fee_amount,
-      shipping_mode,
-      shipping_cost,
-      shipping_paid_by,
-      net_amount,
-      quality_score,
-      quality_level,
-      experience_score,
-      experience_level,
-      bulk_price_enabled: /preço de atacado/i.test(block),
-      bulk_price_min_qty: parseIntLoose((block.match(/(\d+)\s+unidades\s*\n\s*R\$\s*[\d\.\,]+\/u/i) || [])[1]),
-      bulk_price_amount: parseMoney((block.match(/(\bR\$\s*[\d\.\,]+\/u\b)/i) || [])[1]),
-      variants,
+      stock_total: stock_total,
+      visits: visits,
+      sold_total: sold_total,
+      sku: firstVariant ? firstVariant.sku : null,
+      color: firstVariant ? firstVariant.color : null,
+      image_main_url: null,
+      variants: variants,
       raw_text: block
     };
   });
 
   return JSON.stringify({
-    source: "listings",
     url: location.href,
-    captured_at: Date.now(),
+    title: document.title || "",
     total: items.length,
+    captured_at: Date.now(),
     items: items
   });
 })();
