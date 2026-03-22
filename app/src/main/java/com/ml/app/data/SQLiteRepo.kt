@@ -641,7 +641,7 @@ class SQLiteRepo(private val context: Context) {
                 val v = variants.optJSONObject(j) ?: continue
                 val sku = jstr(v, "sku")
                 val code = mlArticleFromSku(sku)
-                if (!code.isNullOrBlank()) return code
+                if (!code.isNullOrBlank()) return@run code
               }
             }
             null
