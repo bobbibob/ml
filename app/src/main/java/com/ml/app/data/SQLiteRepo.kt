@@ -2783,4 +2783,98 @@ class SQLiteRepo(private val context: Context) {
   }
 
 
+
+  suspend fun listDeletedBagPickerRowsV3(): List<BagPickerRow> = withContext(Dispatchers.IO) {
+    openDbReadWrite().use { db ->
+      ensureDeletedArticlesTableV3(db)
+      val out = ArrayList<BagPickerRow>()
+
+      db.rawQuery(
+        """
+        SELECT
+          grouped.base_id AS bag_id,
+          grouped.base_id AS bag_name,
+          (
+            SELECT COALESCE(
+              NULLIF(u.photo_path, ''),
+              (
+                SELECT v2.image_url
+                FROM bag_ml_variants v2
+                WHERE v2.article_id = grouped.base_id
+                  AND v2.image_url IS NOT NULL
+                  AND v2.image_url != ''
+                ORDER BY
+                  CASE
+                    WHEN LOWER(COALESCE(v2.color, '')) LIKE '%preto%' THEN 0
+                    WHEN LOWER(COALESCE(v2.color, '')) LIKE '%preta%' THEN 0
+                    WHEN LOWER(COALESCE(v2.color, '')) LIKE '%black%' THEN 0
+                    WHEN LOWER(COALESCE(v2.color, '')) LIKE '%negro%' THEN 0
+                    WHEN LOWER(COALESCE(v2.color, '')) LIKE '%negra%' THEN 0
+                    ELSE 1
+                  END,
+                  v2.sku COLLATE NOCASE
+                LIMIT 1
+              )
+            )
+            FROM bag_user u
+            WHERE u.bag_id = grouped.base_id
+            LIMIT 1
+          ) AS photo_path,
+          (
+            SELECT GROUP_CONCAT(color, ', ')
+            FROM (
+              SELECT DISTINCT v3.color AS color
+              FROM bag_ml_variants v3
+              WHERE v3.article_id = grouped.base_id
+                AND v3.color IS NOT NULL
+                AND v3.color != ''
+              ORDER BY v3.color COLLATE NOCASE
+            )
+          ) AS colors_text
+        FROM (
+          SELECT DISTINCT
+            CASE
+              WHEN article_id GLOB '*-[0-9]*' THEN SUBSTR(article_id, 1, LENGTH(article_id) - INSTR(REVERSE(article_id), '-'))
+              ELSE article_id
+            END AS base_id
+          FROM bag_ml_variants
+          WHERE article_id IS NOT NULL
+            AND article_id != ''
+            AND article_id GLOB '*[A-Za-z]*'
+            AND article_id NOT LIKE 'bag\_%' ESCAPE '\'
+        ) grouped
+        WHERE grouped.base_id IN (SELECT article_id FROM deleted_articles)
+        ORDER BY grouped.base_id COLLATE NOCASE
+        """.trimIndent(),
+        null
+      ).use { c ->
+        val iBagId = c.getColumnIndexOrThrow("bag_id")
+        val iBagName = c.getColumnIndexOrThrow("bag_name")
+        val iPhoto = c.getColumnIndexOrThrow("photo_path")
+        val iColors = c.getColumnIndexOrThrow("colors_text")
+
+        while (c.moveToNext()) {
+          out.add(
+            BagPickerRow(
+              bagId = c.getString(iBagId),
+              bagName = c.getString(iBagName),
+              photoPath = if (c.isNull(iPhoto)) null else c.getString(iPhoto),
+              colorsText = if (c.isNull(iColors)) null else c.getString(iColors)
+            )
+          )
+        }
+      }
+
+      out
+    }
+  }
+
+  suspend fun restoreDeletedArticleV3(articleId: String) = withContext(Dispatchers.IO) {
+    if (articleId.isBlank()) return@withContext
+    openDbReadWrite().use { db ->
+      ensureDeletedArticlesTableV3(db)
+      db.execSQL("DELETE FROM deleted_articles WHERE article_id=?", arrayOf(articleId))
+    }
+  }
+
 }
