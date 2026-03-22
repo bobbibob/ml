@@ -73,22 +73,6 @@ private fun copyImageToInternalStorage(context: Context, uri: Uri): String? {
     } catch (_: Throwable) {
         null
     }
-    pendingDeleteBagId?.let { deleteId ->
-        AlertDialog(
-            onDismissRequest = { pendingDeleteBagId = null },
-            title = { Text("Удалить артикул?") },
-            text = { Text(deleteId) },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        scope.launch {
-                            repo.softDeleteArticleV3(deleteId)
-                            pendingDeleteBagId = null
-                            bagItems = kotlin.runCatching { repo.listBagPickerRowsV3() }.getOrDefault(emptyList())
-                            if (selectedBagId == deleteId) {
-                                selectedBagId = null
-                                tab = 1
-                            }
                         }
                     }
                 ) {
