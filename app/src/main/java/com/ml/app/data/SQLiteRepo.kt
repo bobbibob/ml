@@ -2681,64 +2681,64 @@ class SQLiteRepo(private val context: Context) {
   suspend fun listBagPickerRowsV3(): List<BagPickerRow> = withContext(Dispatchers.IO) {
     openDbReadWrite().use { db ->
       ensureDeletedArticlesTableV3(db)
-      val raw = ArrayList<BagPickerRow>()
+      val out = ArrayList<BagPickerRow>()
+
       db.rawQuery(
         """
         SELECT
-          u.bag_id AS bag_id,
-          u.bag_id AS bag_name,
-          COALESCE(
-            NULLIF(u.photo_path, ''),
-            (
-              SELECT v.image_url
-              FROM bag_ml_variants v
-              WHERE v.article_id = u.bag_id
-                AND v.image_url IS NOT NULL
-                AND v.image_url != ''
-              ORDER BY
-                CASE
-                  WHEN LOWER(COALESCE(v.color, '')) LIKE '%preto%' THEN 0
-                  WHEN LOWER(COALESCE(v.color, '')) LIKE '%preta%' THEN 0
-                  WHEN LOWER(COALESCE(v.color, '')) LIKE '%black%' THEN 0
-                  WHEN LOWER(COALESCE(v.color, '')) LIKE '%negro%' THEN 0
-                  WHEN LOWER(COALESCE(v.color, '')) LIKE '%negra%' THEN 0
-                  ELSE 1
-                END,
-                v.sku COLLATE NOCASE
-              LIMIT 1
-            )
-          ) AS photo_path,
-          COALESCE(
-            (
-              SELECT GROUP_CONCAT(color, ', ')
-              FROM (
-                SELECT DISTINCT color
-                FROM bag_user_colors c
-                WHERE c.bag_id = u.bag_id
-                  AND c.color IS NOT NULL
-                  AND c.color != ''
-                ORDER BY color COLLATE NOCASE
-              )
-            ),
-            (
-              SELECT GROUP_CONCAT(color, ', ')
-              FROM (
-                SELECT DISTINCT color
+          base_id AS bag_id,
+          base_id AS bag_name,
+          (
+            SELECT COALESCE(
+              NULLIF(u.photo_path, ''),
+              (
+                SELECT v2.image_url
                 FROM bag_ml_variants v2
-                WHERE v2.article_id = u.bag_id
-                  AND v2.color IS NOT NULL
-                  AND v2.color != ''
-                ORDER BY color COLLATE NOCASE
+                WHERE v2.article_id = grouped.base_id
+                  AND v2.image_url IS NOT NULL
+                  AND v2.image_url != ''
+                ORDER BY
+                  CASE
+                    WHEN LOWER(COALESCE(v2.color, '')) LIKE '%preto%' THEN 0
+                    WHEN LOWER(COALESCE(v2.color, '')) LIKE '%preta%' THEN 0
+                    WHEN LOWER(COALESCE(v2.color, '')) LIKE '%black%' THEN 0
+                    WHEN LOWER(COALESCE(v2.color, '')) LIKE '%negro%' THEN 0
+                    WHEN LOWER(COALESCE(v2.color, '')) LIKE '%negra%' THEN 0
+                    ELSE 1
+                  END,
+                  v2.sku COLLATE NOCASE
+                LIMIT 1
               )
+            )
+            FROM bag_user u
+            WHERE u.bag_id = grouped.base_id
+            LIMIT 1
+          ) AS photo_path,
+          (
+            SELECT GROUP_CONCAT(color, ', ')
+            FROM (
+              SELECT DISTINCT v3.color AS color
+              FROM bag_ml_variants v3
+              WHERE v3.article_id = grouped.base_id
+                AND v3.color IS NOT NULL
+                AND v3.color != ''
+              ORDER BY v3.color COLLATE NOCASE
             )
           ) AS colors_text
-        FROM bag_user u
-        WHERE u.bag_id IS NOT NULL
-          AND u.bag_id != ''
-          AND u.bag_id GLOB '*[A-Za-z]*'
-          AND u.bag_id NOT LIKE 'bag\_%' ESCAPE '\'
-          AND u.bag_id NOT IN (SELECT article_id FROM deleted_articles)
-        ORDER BY u.bag_id COLLATE NOCASE
+        FROM (
+          SELECT DISTINCT
+            CASE
+              WHEN article_id GLOB '*-[0-9]*' THEN SUBSTR(article_id, 1, LENGTH(article_id) - INSTR(REVERSE(article_id), '-'))
+              ELSE article_id
+            END AS base_id
+          FROM bag_ml_variants
+          WHERE article_id IS NOT NULL
+            AND article_id != ''
+            AND article_id GLOB '*[A-Za-z]*'
+            AND article_id NOT LIKE 'bag\_%' ESCAPE '\'
+        ) grouped
+        WHERE grouped.base_id NOT IN (SELECT article_id FROM deleted_articles)
+        ORDER BY grouped.base_id COLLATE NOCASE
         """.trimIndent(),
         null
       ).use { c ->
@@ -2748,7 +2748,7 @@ class SQLiteRepo(private val context: Context) {
         val iColors = c.getColumnIndexOrThrow("colors_text")
 
         while (c.moveToNext()) {
-          raw.add(
+          out.add(
             BagPickerRow(
               bagId = c.getString(iBagId),
               bagName = c.getString(iBagName),
@@ -2759,28 +2759,7 @@ class SQLiteRepo(private val context: Context) {
         }
       }
 
-      val merged = LinkedHashMap<String, BagPickerRow>()
-      for (row in raw) {
-        val baseId = baseArticleIdForPickerV3(row.bagId)
-        val prev = merged[baseId]
-
-        val colors = linkedSetOf<String>()
-        listOf(prev?.colorsText, row.colorsText)
-          .filterNotNull()
-          .flatMap { it.split(",") }
-          .map { it.trim() }
-          .filter { it.isNotBlank() }
-          .forEach { colors.add(it) }
-
-        merged[baseId] = BagPickerRow(
-          bagId = baseId,
-          bagName = baseId,
-          photoPath = prev?.photoPath ?: row.photoPath,
-          colorsText = colors.takeIf { it.isNotEmpty() }?.joinToString(", ")
-        )
-      }
-
-      merged.values.toList()
+      out
     }
   }
 
