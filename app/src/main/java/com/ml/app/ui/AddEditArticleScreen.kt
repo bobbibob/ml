@@ -73,11 +73,11 @@ private fun copyImageToInternalStorage(context: Context, uri: Uri): String? {
     } catch (_: Throwable) {
         null
     }
+}
 
 @Composable
 fun AddEditArticleScreen(
     bagId: String? = null,
-    isAdmin: Boolean = false,
     onDone: (() -> Unit)? = null
 ) {
     val ctx = LocalContext.current
@@ -96,9 +96,8 @@ fun AddEditArticleScreen(
     }
 
     var selectedBagId by remember { mutableStateOf(bagId) }
-    var tab by remember { mutableStateOf(1) }
+    var tab by remember { mutableStateOf(if (bagId.isNullOrBlank()) 0 else 1) }
     var bagItems by remember { mutableStateOf<List<BagPickerRow>>(emptyList()) }
-    var pendingDeleteBagId by remember { mutableStateOf<String?>(null) }
 
     var name by remember { mutableStateOf("") }
     var hypothesis by remember { mutableStateOf("") }
@@ -176,7 +175,7 @@ fun AddEditArticleScreen(
 
     LaunchedEffect(tab) {
         if (tab == 1) {
-            bagItems = kotlin.runCatching { repo.listBagPickerRowsV3() }.getOrDefault(emptyList())
+            bagItems = kotlin.runCatching { repo.listBagPickerRows() }.getOrDefault(emptyList())
         }
     }
 
@@ -281,33 +280,15 @@ fun AddEditArticleScreen(
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.SemiBold
                                 )
-
-                                bag.colorsText?.takeIf { it.isNotBlank() }?.let {
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = it,
-                                        style = MaterialTheme.typography.bodySmall
-                                    )
-                                }
                             }
 
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                OutlinedButton(
-                                    onClick = {
-                                        selectedBagId = bag.bagId
-                                        tab = 0
-                                    }
-                                ) {
-                                    Text("Открыть")
+                            OutlinedButton(
+                                onClick = {
+                                    selectedBagId = bag.bagId
+                                    tab = 0
                                 }
-
-                                if (isAdmin) {
-                                    OutlinedButton(
-                                        onClick = { pendingDeleteBagId = bag.bagId }
-                                    ) {
-                                        Text("Удалить")
-                                    }
-                                }
+                            ) {
+                                Text("Открыть")
                             }
                         }
                     }
