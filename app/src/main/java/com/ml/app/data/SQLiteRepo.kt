@@ -2731,6 +2731,7 @@ class SQLiteRepo(private val context: Context) {
         FROM bag_user u
         WHERE u.bag_id IS NOT NULL
           AND u.bag_id != ''
+          AND u.bag_id GLOB '*[A-Za-z]*'
           AND u.bag_id NOT IN (SELECT article_id FROM deleted_articles)
         ORDER BY u.bag_id COLLATE NOCASE
         """.trimIndent(),
