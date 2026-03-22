@@ -2674,10 +2674,14 @@ class SQLiteRepo(private val context: Context) {
     )
   }
 
+  private fun baseArticleIdForPickerV3(value: String): String {
+    return value.trim().replace(Regex("-\\d+$"), "")
+  }
+
   suspend fun listBagPickerRowsV3(): List<BagPickerRow> = withContext(Dispatchers.IO) {
     openDbReadWrite().use { db ->
       ensureDeletedArticlesTableV3(db)
-      val out = ArrayList<BagPickerRow>()
+      val raw = ArrayList<BagPickerRow>()
       db.rawQuery(
         """
         SELECT
@@ -2743,7 +2747,7 @@ class SQLiteRepo(private val context: Context) {
         val iColors = c.getColumnIndexOrThrow("colors_text")
 
         while (c.moveToNext()) {
-          out.add(
+          raw.add(
             BagPickerRow(
               bagId = c.getString(iBagId),
               bagName = c.getString(iBagName),
@@ -2753,7 +2757,29 @@ class SQLiteRepo(private val context: Context) {
           )
         }
       }
-      out
+
+      val merged = LinkedHashMap<String, BagPickerRow>()
+      for (row in raw) {
+        val baseId = baseArticleIdForPickerV3(row.bagId)
+        val prev = merged[baseId]
+
+        val colorSet = linkedSetOf<String>()
+        listOf(prev?.colorsText, row.colorsText)
+          .filterNotNull()
+          .flatMap { it.split(",") }
+          .map { it.trim() }
+          .filter { it.isNotBlank() }
+          .forEach { colorSet.add(it) }
+
+        merged[baseId] = BagPickerRow(
+          bagId = baseId,
+          bagName = baseId,
+          photoPath = prev?.photoPath ?: row.photoPath,
+          colorsText = colorSet.takeIf { it.isNotEmpty() }?.joinToString(", ")
+        )
+      }
+
+      merged.values.toList()
     }
   }
 

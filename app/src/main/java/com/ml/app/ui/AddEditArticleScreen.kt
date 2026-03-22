@@ -73,6 +73,36 @@ private fun copyImageToInternalStorage(context: Context, uri: Uri): String? {
     } catch (_: Throwable) {
         null
     }
+    pendingDeleteBagId?.let { deleteId ->
+        AlertDialog(
+            onDismissRequest = { pendingDeleteBagId = null },
+            title = { Text("Удалить артикул?") },
+            text = { Text(deleteId) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        scope.launch {
+                            repo.softDeleteArticleV3(deleteId)
+                            pendingDeleteBagId = null
+                            bagItems = kotlin.runCatching { repo.listBagPickerRowsV3() }.getOrDefault(emptyList())
+                            if (selectedBagId == deleteId) {
+                                selectedBagId = null
+                                tab = 1
+                            }
+                        }
+                    }
+                ) {
+                    Text("Удалить")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { pendingDeleteBagId = null }) {
+                    Text("Отмена")
+                }
+            }
+        )
+    }
+
 }
 
 @Composable
@@ -282,15 +312,33 @@ fun AddEditArticleScreen(
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.SemiBold
                                 )
+
+                                bag.colorsText?.takeIf { it.isNotBlank() }?.let {
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = it,
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
                             }
 
-                            OutlinedButton(
-                                onClick = {
-                                    selectedBagId = bag.bagId
-                                    tab = 0
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(
+                                    onClick = {
+                                        selectedBagId = bag.bagId
+                                        tab = 0
+                                    }
+                                ) {
+                                    Text("Открыть")
                                 }
-                            ) {
-                                Text("Открыть")
+
+                                if (isAdmin) {
+                                    OutlinedButton(
+                                        onClick = { pendingDeleteBagId = bag.bagId }
+                                    ) {
+                                        Text("Удалить")
+                                    }
+                                }
                             }
                         }
                     }
