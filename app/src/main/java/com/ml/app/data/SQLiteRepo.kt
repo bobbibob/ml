@@ -650,8 +650,6 @@ if (!hasSku) {
 
           val variants = item.optJSONArray("variants")
           val articleCode = run {
-      // fallback: listing_id as article
-      val fallbackId = listingId
 
             if (variants != null) {
               for (j in 0 until variants.length()) {
@@ -667,7 +665,7 @@ if (!hasSku) {
             if (!directCode.isNullOrBlank()) return@run directCode
 
             null
-          } ?: fallbackId ?: continue
+          } ?: continue
 
           deleteImportedMlVariantsForArticle(db, articleCode)
           db.execSQL("DELETE FROM bag_user_colors WHERE bag_id=?", arrayOf(articleCode))
@@ -2494,8 +2492,6 @@ if (!hasSku) {
           extractSkusFromRawV2(rawText).forEach { skuSet.add(it) }
 
           val articleCode = run {
-      // fallback: listing_id as article
-      val fallbackId = listingId
 
             val variants = item.optJSONArray("variants") ?: return@run null
 
@@ -2507,7 +2503,7 @@ if (!hasSku) {
             }
 
             null
-        } ?: fallbackId ?: continue
+        } ?: continue
 
           if (isDeletedArticle(db, articleCode)) continue
 
