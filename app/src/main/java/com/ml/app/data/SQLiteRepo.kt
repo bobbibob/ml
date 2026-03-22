@@ -607,6 +607,17 @@ class SQLiteRepo(private val context: Context) {
         for (i in 0 until items.length()) {
           val item = items.optJSONObject(i) ?: continue
 
+          val listingId = if (!item.isNull("listing_id")) item.optString("listing_id", null) else null
+
+          // 🔥 ВСЕГДА сначала чистим старые данные
+          deleteImportedMlRowsForListing(db, listingId)
+
+          val variantsCheck = item.optJSONArray("variants")
+          val hasSku = (variantsCheck != null && variantsCheck.length() > 0)
+
+          if (!hasSku) continue
+
+
           val listingId = jstr(item, "listing_id")
           val listingCode = jstr(item, "listing_code")
           val title = jstr(item, "title")
