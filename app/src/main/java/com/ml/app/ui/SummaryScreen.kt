@@ -574,8 +574,7 @@ Row(verticalAlignment = Alignment.CenterVertically) {
               cardTypes = state.cardTypes
             )
 
-            is ScreenMode.ArticleEditor -> AddEditArticleScreen(
-              bagId = (state.mode as ScreenMode.ArticleEditor).bagId,
+            is ScreenMode.ArticleEditor -> SkuListScreen(
               isAdmin = tasksVm.state.currentUser?.role == "admin",
               onDone = { vm.backFromArticleEditor() }
             )
