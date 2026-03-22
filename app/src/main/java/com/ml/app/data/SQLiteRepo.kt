@@ -2736,6 +2736,7 @@ class SQLiteRepo(private val context: Context) {
         WHERE u.bag_id IS NOT NULL
           AND u.bag_id != ''
           AND u.bag_id GLOB '*[A-Za-z]*'
+          AND u.bag_id NOT LIKE 'bag\_%' ESCAPE '\'
           AND u.bag_id NOT IN (SELECT article_id FROM deleted_articles)
         ORDER BY u.bag_id COLLATE NOCASE
         """.trimIndent(),
@@ -2763,19 +2764,19 @@ class SQLiteRepo(private val context: Context) {
         val baseId = baseArticleIdForPickerV3(row.bagId)
         val prev = merged[baseId]
 
-        val colorSet = linkedSetOf<String>()
+        val colors = linkedSetOf<String>()
         listOf(prev?.colorsText, row.colorsText)
           .filterNotNull()
           .flatMap { it.split(",") }
           .map { it.trim() }
           .filter { it.isNotBlank() }
-          .forEach { colorSet.add(it) }
+          .forEach { colors.add(it) }
 
         merged[baseId] = BagPickerRow(
           bagId = baseId,
           bagName = baseId,
           photoPath = prev?.photoPath ?: row.photoPath,
-          colorsText = colorSet.takeIf { it.isNotEmpty() }?.joinToString(", ")
+          colorsText = colors.takeIf { it.isNotEmpty() }?.joinToString(", ")
         )
       }
 
