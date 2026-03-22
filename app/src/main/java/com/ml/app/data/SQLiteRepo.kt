@@ -618,7 +618,6 @@ class SQLiteRepo(private val context: Context) {
           if (!hasSku) continue
 
 
-          val listingId = jstr(item, "listing_id")
           val listingCode = jstr(item, "listing_code")
           val title = jstr(item, "title")
           val status = jstr(item, "status")
