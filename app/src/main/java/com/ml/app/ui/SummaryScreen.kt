@@ -213,7 +213,7 @@ fun SummaryScreen(
             onClick = {
                 val repo = SQLiteRepo(ctx)
                 scope.launch {
-                    repo.clearAllMlData()
+                    repo.clearAllMlDataSafe()
                 }
             },
             modifier = Modifier.fillMaxWidth()
