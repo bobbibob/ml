@@ -644,6 +644,11 @@ class SQLiteRepo(private val context: Context) {
                 if (!code.isNullOrBlank()) return@run code
               }
             }
+
+            val directSku = jstr(item, "sku")
+            val directCode = mlArticleFromSku(directSku)
+            if (!directCode.isNullOrBlank()) return@run directCode
+
             null
           } ?: continue
 
