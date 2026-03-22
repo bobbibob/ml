@@ -662,7 +662,6 @@ class SQLiteRepo(private val context: Context) {
             null
           } ?: continue
 
-          deleteImportedMlRowsForListing(db, listingId)
           deleteImportedMlVariantsForArticle(db, articleCode)
           db.execSQL("DELETE FROM bag_user_colors WHERE bag_id=?", arrayOf(articleCode))
 

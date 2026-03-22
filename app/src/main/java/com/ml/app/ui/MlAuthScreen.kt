@@ -193,7 +193,7 @@ fun MlAuthScreen(
                                         Thread {
                                             try {
                                                 val repo = SQLiteRepo(context)
-                                                val saved = repo.importMlListingsJsonToArticlesV2(cleaned)
+                                                val saved = repo.importMlListingsJsonToArticles(cleaned)
                                                 kotlin.runCatching { repo.normalizeImportedMlArticleNames() }
                                                 statusText = "Сохранено в артикулы: $saved"
                                             } catch (t: Throwable) {
