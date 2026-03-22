@@ -583,61 +583,10 @@ class SQLiteRepo(private val context: Context) {
     }
   }
 
-  
   fun importMlListingsJsonToArticles(json: String): Int {
-    val db = openDbReadWrite()
-    ensureMlTables(db)
-
-    val root = org.json.JSONObject(json)
-    val items = root.optJSONArray("items") ?: return 0
-
-    db.beginTransaction()
-    try {
-      var saved = 0
-
-      for (i in 0 until items.length()) {
-        val item = items.optJSONObject(i) ?: continue
-
-        val rawText = item.optString("raw_text")
-        val listingId = item.optString("listing_id")
-
-        // 🔥 Парсим SKU напрямую из raw_text
-        val rx = Regex("SKU\s+([A-Za-z0-9\-]+)")
-        val skuList = rx.findAll(rawText).map { it.groupValues[1] }.toList()
-
-        if (skuList.isEmpty()) continue
-
-        for (sku in skuList) {
-          val articleCode = mlArticleFromSku(sku) ?: continue
-
-          val colorMatch = Regex("Cor:\s*([^\n]+)").find(rawText)
-          val color = colorMatch?.groupValues?.getOrNull(1)?.trim()
-
-          db.execSQL("""
-            INSERT OR REPLACE INTO bag_ml_variants(
-              article_id,
-              sku,
-              color,
-              image_url
-            ) VALUES(?, ?, ?, ?)
-          """.trimIndent(), arrayOf(
-            articleCode,
-            sku,
-            color,
-            item.optString("image_main_url")
-          ))
-
-          saved++
-        }
-      }
-
-      db.setTransactionSuccessful()
-      return saved
-    } finally {
-      db.endTransaction()
-    }
-  }
- catch (_: JSONException) {
+    val root = try {
+      JSONObject(json)
+    } catch (_: JSONException) {
       return 0
     }
 

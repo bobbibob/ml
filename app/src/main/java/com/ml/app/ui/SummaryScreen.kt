@@ -576,6 +576,7 @@ Row(verticalAlignment = Alignment.CenterVertically) {
 
             is ScreenMode.ArticleEditor -> AddEditArticleScreen(
               bagId = (state.mode as ScreenMode.ArticleEditor).bagId,
+              isAdmin = tasksVm.state.currentUser?.role == "admin",
               onDone = { vm.backFromArticleEditor() }
             )
 
