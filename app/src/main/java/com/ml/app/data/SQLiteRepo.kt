@@ -584,6 +584,7 @@ class SQLiteRepo(private val context: Context) {
   }
 
   
+  
   fun importMlListingsJsonToArticles(json: String): Int {
     val root = try {
       JSONObject(json)
@@ -597,11 +598,8 @@ class SQLiteRepo(private val context: Context) {
     data class VariantAcc(
       val sku: String,
       var color: String? = null,
-      var size: String? = null,
-      var material: String? = null,
       var imageUrl: String? = null,
       var price: Double? = null,
-      var attrJson: String = "{}",
       var rawJson: String? = null
     )
 
@@ -619,7 +617,6 @@ class SQLiteRepo(private val context: Context) {
       var soldTotal: Int? = null,
       var listingRaw: String? = null,
       var mainImageUrl: String? = null,
-      val colors: LinkedHashSet<String> = LinkedHashSet(),
       val variants: LinkedHashMap<String, VariantAcc> = LinkedHashMap()
     )
 
@@ -628,33 +625,15 @@ class SQLiteRepo(private val context: Context) {
       return s.takeIf { it.isNotBlank() }
     }
 
-    fun firstVariantImage(v: JSONObject?): String? {
-      val direct = v?.optString("image_main_url")?.takeIf { it.isNotBlank() }
-      if (!direct.isNullOrBlank()) return direct
-      val direct2 = v?.optString("image_url")?.takeIf { it.isNotBlank() }
-      if (!direct2.isNullOrBlank()) return direct2
-      val images = v?.optJSONArray("images")
-      if (images != null) {
-        for (i in 0 until images.length()) {
-          val o = images.optJSONObject(i)
-          val u1 = o?.optString("image_url")?.takeIf { it.isNotBlank() }
-          if (!u1.isNullOrBlank()) return u1
-          val u2 = o?.optString("url")?.takeIf { it.isNotBlank() }
-          if (!u2.isNullOrBlank()) return u2
-        }
-      }
+    fun directImage(obj: JSONObject?): String? {
+      val a = obj?.optString("image_main_url")?.takeIf { it.isNotBlank() }
+      if (!a.isNullOrBlank()) return a
+      val b = obj?.optString("image_url")?.takeIf { it.isNotBlank() }
+      if (!b.isNullOrBlank()) return b
       return null
     }
 
-    fun firstItemImage(item: JSONObject?): String? {
-      val direct = item?.optString("image_main_url")?.takeIf { it.isNotBlank() }
-      if (!direct.isNullOrBlank()) return direct
-      val direct2 = item?.optString("image_url")?.takeIf { it.isNotBlank() }
-      if (!direct2.isNullOrBlank()) return direct2
-      return null
-    }
-
-    fun parseVariantsFromRawText(rawText: String, itemColor: String?, itemImage: String?): List<VariantAcc> {
+    fun parseVariantsFromRaw(rawText: String, itemColor: String?, itemImage: String?): List<VariantAcc> {
       val out = LinkedHashMap<String, VariantAcc>()
 
       val rxColorSku = Regex("""(?is)Cor:\s*([^\n]+?)\s*(?:\n+[^\n]*)*?\n+SKU\s+([A-Za-z0-9\-]+)""")
@@ -669,22 +648,6 @@ class SQLiteRepo(private val context: Context) {
             imageUrl = itemImage
           )
         )
-      }
-
-      if (out.isEmpty()) {
-        val rxSkuColorBlock = Regex("""(?is)(?:Acambamento dos ferragens:[^\n]*\n+)?Cor:\s*([^\n]+)(?:\n+Cor da correia de ombro:[^\n]*)?(?:\n+\d+\s+unidades)?\n+SKU\s+([A-Za-z0-9\-]+)""")
-        for (m in rxSkuColorBlock.findAll(rawText)) {
-          val color = m.groupValues.getOrNull(1)?.trim()
-          val sku = normalizeSku(m.groupValues.getOrNull(2)) ?: continue
-          out.putIfAbsent(
-            sku,
-            VariantAcc(
-              sku = sku,
-              color = color?.takeIf { it.isNotBlank() } ?: itemColor,
-              imageUrl = itemImage
-            )
-          )
-        }
       }
 
       if (out.isEmpty()) {
@@ -721,9 +684,9 @@ class SQLiteRepo(private val context: Context) {
       val visits = item.optInt("visits").takeIf { it != 0 || item.has("visits") }
       val soldTotal = item.optInt("sold_total").takeIf { it != 0 || item.has("sold_total") }
       val rawText = item.optString("raw_text").orEmpty()
-      val listingRaw = item.toString()
       val itemColor = item.optString("color").takeIf { it.isNotBlank() }
-      val itemImage = firstItemImage(item)
+      val itemImage = directImage(item)
+      val listingRaw = item.toString()
 
       val variantMap = LinkedHashMap<String, VariantAcc>()
 
@@ -735,9 +698,7 @@ class SQLiteRepo(private val context: Context) {
           variantMap[sku] = VariantAcc(
             sku = sku,
             color = v.optString("color").takeIf { it.isNotBlank() } ?: itemColor,
-            size = v.optString("size").takeIf { it.isNotBlank() },
-            material = v.optString("material").takeIf { it.isNotBlank() },
-            imageUrl = firstVariantImage(v) ?: itemImage,
+            imageUrl = directImage(v) ?: itemImage,
             price = v.optDouble("promo_price").takeIf { !it.isNaN() }
               ?: v.optDouble("price").takeIf { !it.isNaN() }
               ?: promoPrice
@@ -747,7 +708,7 @@ class SQLiteRepo(private val context: Context) {
         }
       }
 
-      for (v in parseVariantsFromRawText(rawText, itemColor, itemImage)) {
+      for (v in parseVariantsFromRaw(rawText, itemColor, itemImage)) {
         if (!variantMap.containsKey(v.sku)) {
           v.price = promoPrice ?: price
           variantMap[v.sku] = v
@@ -783,17 +744,11 @@ class SQLiteRepo(private val context: Context) {
         if (acc.listingRaw == null) acc.listingRaw = listingRaw
         if (acc.mainImageUrl == null) acc.mainImageUrl = vv.imageUrl ?: itemImage
 
-        val variantAcc = acc.variants.getOrPut(sku) { vv.copy() }
-        if (variantAcc.color == null) variantAcc.color = vv.color
-        if (variantAcc.size == null) variantAcc.size = vv.size
-        if (variantAcc.material == null) variantAcc.material = vv.material
-        if (variantAcc.imageUrl == null) variantAcc.imageUrl = vv.imageUrl ?: itemImage
-        if (variantAcc.price == null) variantAcc.price = vv.price ?: promoPrice ?: price
-        if (variantAcc.rawJson == null) variantAcc.rawJson = vv.rawJson
-
-        if (!variantAcc.color.isNullOrBlank()) {
-          acc.colors.add(variantAcc.color!!)
-        }
+        val cur = acc.variants.getOrPut(sku) { vv.copy() }
+        if (cur.color == null) cur.color = vv.color
+        if (cur.imageUrl == null) cur.imageUrl = vv.imageUrl ?: itemImage
+        if (cur.price == null) cur.price = vv.price ?: promoPrice ?: price
+        if (cur.rawJson == null) cur.rawJson = vv.rawJson
       }
     }
 
@@ -840,10 +795,10 @@ class SQLiteRepo(private val context: Context) {
                 articleCode,
                 v.sku,
                 v.color,
-                v.size,
-                v.material,
+                null,
+                null,
                 v.imageUrl,
-                v.attrJson,
+                "{}",
                 v.rawJson,
                 syncedAt,
                 syncedAt
@@ -912,6 +867,7 @@ class SQLiteRepo(private val context: Context) {
       }
     }
   }
+
 
 
   data class BagUserRow(
