@@ -235,7 +235,12 @@ val parsed = try {
                                                                                 val repo = SQLiteRepo(context)
                                                                                 val saved = repo.importMlListingsJsonToArticles(cleaned)
                                                                                 kotlin.runCatching { repo.normalizeImportedMlArticleNames() }
-                                                                                val rawCount = try { JSONObject(cleaned).optJSONArray("items")?.length() ?: 0 } catch (_: Throwable) { 0 }\n                                                                                statusText = "Сохранено сырьё: $rawCount, собрано артикулов: $saved. Готово"
+                                                                                val rawCount = try {
+                                                                                    JSONObject(cleaned).optJSONArray("items")?.length() ?: 0
+                                                                                } catch (_: Throwable) {
+                                                                                    0
+                                                                                }
+                                                                                statusText = "Сохранено сырьё: $rawCount, собрано артикулов: $saved. Готово"
                                                                             } catch (t: Throwable) {
                                                                                 statusText = "Ошибка сохранения в артикулы: ${t.message}"
                                                                             }
