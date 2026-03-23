@@ -240,6 +240,11 @@ val parsed = try {
                                                                                 } catch (_: Throwable) {
                                                                                     0
                                                                                 }
+                                                                                val rawCount = try {
+                                                                                    JSONObject(cleaned).optJSONArray("items")?.length() ?: 0
+                                                                                } catch (_: Throwable) {
+                                                                                    0
+                                                                                }
                                                                                 statusText = "Сохранено сырьё: $rawCount, собрано артикулов: $saved. Готово"
                                                                             } catch (t: Throwable) {
                                                                                 statusText = "Ошибка сохранения в артикулы: ${t.message}"
