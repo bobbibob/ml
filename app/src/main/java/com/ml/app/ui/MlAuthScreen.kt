@@ -575,10 +575,13 @@ private fun listingsExtractorJs(): String = """
   }
 
   const bodyText = norm(document.body ? (document.body.innerText || document.body.textContent || "") : "");
-  const parts = bodyText
-    .split(/Selecionar anúncio/gi)
-    .map(x => norm(x))
-    .filter(x => /#\d{6,}/.test(x));
+  const parts = [];
+  const rxBlock = /#\d{6,}[\s\S]*?(?=(?:\n#\d{6,}\b)|$)/g;
+  let bm;
+  while ((bm = rxBlock.exec(bodyText)) !== null) {
+    const block = norm(bm[0]);
+    if (block) parts.push(block);
+  }
 
   const items = parts.map(block => {
     const lines = block.split("\n").map(x => x.trim()).filter(Boolean);
@@ -667,7 +670,7 @@ private fun listingsExtractorJs(): String = """
       variants: variants,
       raw_text: block
     };
-  }).filter(item => item.variants && item.variants.length > 0);
+  }).filter(item => item && (item.listing_id || (item.variants && item.variants.length > 0) || /SKU\s+/i.test(item.raw_text || "")));
 
   return JSON.stringify({
     url: location.href,

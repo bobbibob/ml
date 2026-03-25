@@ -518,10 +518,11 @@ class SQLiteRepo(private val context: Context) {
 
 
   private fun mlArticleFromSku(sku: String?): String? {
-    val v = sku?.trim().orEmpty()
+    val v = sku?.trim()?.uppercase().orEmpty()
     if (v.isBlank()) return null
-    val i = v.lastIndexOf('-')
-    return if (i > 0) v.substring(0, i) else v
+    if (!Regex("""^[A-Z0-9\-]+$""").matches(v)) return null
+    if (!v.any { it.isLetter() }) return null
+    return v.replace(Regex("""-\d+$"""), "")
   }
 
   private fun jstr(o: JSONObject, key: String): String? =
@@ -622,7 +623,10 @@ class SQLiteRepo(private val context: Context) {
 
     fun normalizeSku(sku: String?): String? {
       val s = sku?.trim()?.uppercase() ?: return null
-      return s.takeIf { it.isNotBlank() }
+      if (s.isBlank()) return null
+      if (!Regex("""^[A-Z0-9\-]+$""").matches(s)) return null
+      if (!s.any { it.isLetter() }) return null
+      return s
     }
 
     fun directImage(obj: JSONObject?): String? {
@@ -636,7 +640,7 @@ class SQLiteRepo(private val context: Context) {
     fun parseVariantsFromRaw(rawText: String, itemColor: String?, itemImage: String?): List<VariantAcc> {
       val out = LinkedHashMap<String, VariantAcc>()
 
-      val rxColorSku = Regex("""(?is)Cor:\s*([^\n]+?)\s*(?:\n+[^\n]*)*?\n+SKU\s+([A-Za-z0-9\-]+)""")
+      val rxColorSku = Regex("""(?is)Cor:\s*([^\n]+?)\s*(?:\n+[^\n]*){0,4}?\n+SKU\s+([A-Za-z0-9\-]+)""")
       for (m in rxColorSku.findAll(rawText)) {
         val color = m.groupValues.getOrNull(1)?.trim()
         val sku = normalizeSku(m.groupValues.getOrNull(2)) ?: continue
