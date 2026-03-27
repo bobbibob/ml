@@ -96,8 +96,7 @@ fun AddEditArticleScreen(
     }
 
     var selectedBagId by remember { mutableStateOf(bagId) }
-    var isEditMode by remember { mutableStateOf(bagId.isNullOrBlank()) }
-    var tab by remember { mutableStateOf(1) }
+    var tab by remember { mutableStateOf(if (bagId.isNullOrBlank()) 0 else 1) }
     var bagItems by remember { mutableStateOf<List<BagPickerRow>>(emptyList()) }
 
     var name by remember { mutableStateOf("") }
@@ -157,8 +156,6 @@ fun AddEditArticleScreen(
             }
         }
     }
-
-    val canEdit = selectedBagId.isNullOrBlank() || isEditMode
 
     val hasChanges =
         name.isNotBlank() ||
@@ -257,22 +254,7 @@ fun AddEditArticleScreen(
             )
         }
 
-        
-                if (!selectedBagId.isNullOrBlank()) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        if (isEditMode) {
-                            OutlinedButton(onClick = { isEditMode = false }) {
-                                Text("Отмена")
-                            }
-                        } else {
-                            Button(onClick = { isEditMode = true }) {
-                                Text("Редактировать")
-                            }
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(16.dp))
-                }
-Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
         if (tab == 1) {
             Text("Выберите артикул")
@@ -314,7 +296,6 @@ Spacer(modifier = Modifier.height(16.dp))
                                 onClick = {
                                     selectedBagId = bag.bagId
                                     tab = 0
-                                    isEditMode = false
                                 }
                             ) {
                                 Text("Открыть")
@@ -365,7 +346,7 @@ Spacer(modifier = Modifier.height(16.dp))
 
                 OutlinedTextField(
                     value = name,
-                    onValueChange = { name = it }, enabled = canEdit,
+                    onValueChange = { name = it },
                     label = { Text("Название") },
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -374,7 +355,7 @@ Spacer(modifier = Modifier.height(16.dp))
 
                 OutlinedTextField(
                     value = hypothesis,
-                    onValueChange = { hypothesis = it }, enabled = canEdit,
+                    onValueChange = { hypothesis = it },
                     label = { Text("Гипотеза") },
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -510,20 +491,19 @@ Spacer(modifier = Modifier.height(16.dp))
 
                 OutlinedTextField(
                     value = cost,
-                    onValueChange = { cost = it }, enabled = canEdit,
+                    onValueChange = { cost = it },
                     label = { Text("Себестоимость") }
                 )
 
                 OutlinedTextField(
                     value = deliveryFee,
-                    onValueChange = { deliveryFee = it }, enabled = canEdit,
+                    onValueChange = { deliveryFee = it },
                     label = { Text("Доставка") },
                     modifier = Modifier.fillMaxWidth()
                 )
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                if (canEdit) {
                 Button(
                     onClick = {
                         scope.launch {
@@ -563,7 +543,6 @@ Spacer(modifier = Modifier.height(16.dp))
                     Text(if (selectedBagId.isNullOrBlank()) "Сохранить" else "Сохранить изменения")
                 }
             }
-            }
         }
     }
 
@@ -573,7 +552,6 @@ Spacer(modifier = Modifier.height(16.dp))
             title = { Text("Выйти?") },
             text = { Text("Изменения могут быть потеряны") },
             confirmButton = {
-                if (canEdit) {
                 Button(
                     onClick = {
                         showExitDialog = false
@@ -584,8 +562,7 @@ Spacer(modifier = Modifier.height(16.dp))
                 }
             },
             dismissButton = {
-                Outlinedif (canEdit) {
-                Button(
+                OutlinedButton(
                     onClick = { showExitDialog = false }
                 ) {
                     Text("Нет")
