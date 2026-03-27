@@ -358,7 +358,7 @@ class SQLiteRepo(private val context: Context) {
         fun nstr(col: String) = if (c.isNull(c.getColumnIndexOrThrow(col))) null else str(col)
         fun ndbl(col: String) = if (c.isNull(c.getColumnIndexOrThrow(col))) null else c.getDouble(c.getColumnIndexOrThrow(col))
 
-        BagUserRow(
+        val local = BagUserRow(
           bagId = str("bag_id"),
           name = nstr("name"),
           hypothesis = nstr("hypothesis"),
@@ -368,6 +368,22 @@ class SQLiteRepo(private val context: Context) {
           cardType = nstr("card_type"),
           photoPath = nstr("photo_path")
         )
+
+        val override = getServerCardOverride(bagId)
+
+        if (override != null) {
+          local.copy(
+            name = override.name ?: local.name,
+            hypothesis = override.hypothesis ?: local.hypothesis,
+            price = override.price ?: local.price,
+            cogs = override.cogs ?: local.cogs,
+            deliveryFee = override.deliveryFee ?: local.deliveryFee,
+            cardType = override.cardType ?: local.cardType,
+            photoPath = override.photoPath ?: local.photoPath
+          )
+        } else {
+          local
+        }
       }
     }
   }
