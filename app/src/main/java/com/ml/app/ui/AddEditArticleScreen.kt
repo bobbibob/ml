@@ -86,9 +86,8 @@ fun AddEditArticleScreen(
 
     var showExitDialog by remember { mutableStateOf(false) }
     var photoPath by remember { mutableStateOf<String?>(null) }
-    var saveError by remember { mutableStateOf<String?>(null) }
-    var saveError by remember { mutableStateOf<String?>(null) }
-
+        var saveError by remember { mutableStateOf<String?>(null) }
+    
     val imagePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
