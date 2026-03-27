@@ -1069,6 +1069,10 @@ private fun TasksListTab(
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .clickable {
+                                    openedTask = task
+                                    showTaskDetails = true
+                                }
                                 .animateContentSize()
                                 .padding(18.dp)
                         ) {
