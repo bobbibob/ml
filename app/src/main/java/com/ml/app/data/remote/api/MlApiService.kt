@@ -11,6 +11,7 @@ import com.ml.app.data.remote.request.LoginRequest
 import com.ml.app.data.remote.request.ReassignTaskRequest
 import com.ml.app.data.remote.request.RegisterRequest
 import com.ml.app.data.remote.request.SaveFcmTokenRequest
+import com.ml.app.data.remote.request.TaskReminderRequest
 import com.ml.app.data.remote.response.CancelTaskResponse
 import com.ml.app.data.remote.response.ChangeRoleResponse
 import com.ml.app.data.remote.response.CompleteTaskResponse
@@ -27,6 +28,7 @@ import com.ml.app.data.remote.response.BasicOkResponse
 import com.ml.app.data.remote.dto.DailySummaryUpsertResponse
 import com.ml.app.data.remote.dto.DailySummaryUpsertRequest
 import com.ml.app.data.remote.dto.DailySummaryByDateResponse
+import com.ml.app.data.remote.dto.DailySummaryDeleteResponse
 import com.ml.app.data.remote.dto.DailySummaryRecentDatesResponse
 import retrofit2.http.Body
 import retrofit2.http.GET
@@ -55,11 +57,19 @@ interface MlApiService {
     @POST("create_task")
     suspend fun createTask(@Body request: CreateTaskRequest): CreateTaskResponse
 
+    @GET("task_by_id")
+    suspend fun getTaskByIdRaw(
+        @retrofit2.http.Query("task_id") taskId: String
+    ): ResponseBody
+
     @GET("my_tasks")
     suspend fun getMyTasks(): TasksResponse
 
     @GET("all_tasks")
     suspend fun getAllTasks(): TasksResponse
+
+    @POST("task_reminder")
+    suspend fun taskReminder(@Body request: TaskReminderRequest): BasicOkResponse
 
     @POST("complete_task")
     suspend fun completeTask(@Body request: CompleteTaskRequest): CompleteTaskResponse
@@ -112,6 +122,12 @@ interface MlApiService {
         @retrofit2.http.Query("limit") limit: Int = 30
     ): DailySummaryRecentDatesResponse
 
+    @retrofit2.http.FormUrlEncoded
+    @retrofit2.http.POST("daily_summary_delete")
+    suspend fun deleteDailySummary(
+        @retrofit2.http.Field("summary_date") summaryDate: String
+    ): DailySummaryDeleteResponse
+
     @GET("daily_summary_by_date")
     suspend fun getDailySummaryByDate(
         @retrofit2.http.Query("date") date: String
@@ -126,4 +142,10 @@ interface MlApiService {
     suspend fun sendPushRaw(
         @Body body: Map<String, String>
     ): ResponseBody
+
+    @POST("task_notification_delivered")
+    suspend fun markTaskDelivered(@Body request: CompleteTaskRequest): BasicOkResponse
+
+    @POST("task_seen")
+    suspend fun markTaskSeen(@Body request: CompleteTaskRequest): BasicOkResponse
 }
