@@ -529,7 +529,11 @@ fun AddEditArticleScreen(
                                 colorDrafts.map {
                                     BagColorPriceRow(
                                         color = it.color,
-                                        price = if (priceForAllEnabled) null else it.priceText.replace(",", ".").toDoubleOrNull()
+                                        price = if (priceForAllEnabled) {
+                                            priceAll.replace(",", ".").toDoubleOrNull()
+                                        } else {
+                                            it.priceText.replace(",", ".").toDoubleOrNull()
+                                        }
                                     )
                                 }
                             )
