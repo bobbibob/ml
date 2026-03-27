@@ -233,7 +233,16 @@ fun TasksScreen(
     }
 
     LaunchedEffect(Unit) {
-        vm.init()
+        try {
+            vm.init()
+        } catch (e: Throwable) {
+            android.util.Log.e("TASKS_CRASH", "vm.init failed", e)
+            android.widget.Toast.makeText(
+                ctx,
+                "TASKS CRASH: " + (e.message ?: e.javaClass.simpleName),
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+        }
     }
 
     val state = vm.state
