@@ -28,8 +28,6 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -98,10 +96,7 @@ fun AddEditArticleScreen(
     }
 
     var selectedBagId by remember { mutableStateOf(bagId) }
-
-    var isEditMode by remember { mutableStateOf(false) }
-    var originalState by remember { mutableStateOf("") }
-    var tab by remember { mutableStateOf(1) }
+    var tab by remember { mutableStateOf(if (bagId.isNullOrBlank()) 0 else 1) }
     var bagItems by remember { mutableStateOf<List<BagPickerRow>>(emptyList()) }
 
     var name by remember { mutableStateOf("") }
@@ -128,7 +123,6 @@ fun AddEditArticleScreen(
     }
 
     fun loadBagFromPicker(id: String) {
-        originalState = name + "|" + hypothesis + "|" + priceAll + "|" + cost
         val bag = bagItems.firstOrNull { it.bagId == id }
         resetForm()
         name = bag?.bagName.orEmpty()
@@ -155,8 +149,6 @@ fun AddEditArticleScreen(
     }
 
     fun seedColorPricesFromCommon() {
-
-                val allSkus = repo.getAllSkus()
         for (i in colorDrafts.indices) {
             val item = colorDrafts[i]
             if (item.priceText.isBlank()) {
@@ -164,7 +156,6 @@ fun AddEditArticleScreen(
             }
         }
     }
-    val canEdit = selectedBagId.isNullOrBlank() || isEditMode
 
     val hasChanges =
         name.isNotBlank() ||
@@ -201,7 +192,6 @@ fun AddEditArticleScreen(
     LaunchedEffect(selectedBagId) {
         val id = selectedBagId ?: return@LaunchedEffect
         loadBagFromPicker(id)
-        originalState = name + "|" + hypothesis + "|" + priceAll + "|" + cost
 
         val row = kotlin.runCatching { repo.getBagUser(id) }.getOrNull()
         if (row != null) {
@@ -232,8 +222,6 @@ fun AddEditArticleScreen(
         priceForAllEnabled = savedPrices.none { it.price != null }
 
         if (savedPrices.isNotEmpty()) {
-
-                val allSkus = repo.getAllSkus()
             for (i in colorDrafts.indices) {
                 val item = colorDrafts[i]
                 val saved = savedPrices.firstOrNull { it.color == item.color }?.price
@@ -256,7 +244,6 @@ fun AddEditArticleScreen(
                     tab = 0
                     selectedBagId = null
                     resetForm()
-                    isEditMode = true
                 },
                 label = { Text("Добавить") }
             )
@@ -309,7 +296,6 @@ fun AddEditArticleScreen(
                                 onClick = {
                                     selectedBagId = bag.bagId
                                     tab = 0
-                                    isEditMode = false
                                 }
                             ) {
                                 Text("Открыть")
@@ -327,11 +313,7 @@ fun AddEditArticleScreen(
                     .verticalScroll(rememberScrollState())
             ) {
                 Text(
-                    text = when {
-                        selectedBagId.isNullOrBlank() -> "Добавить артикул"
-                        isEditMode -> "Редактировать артикул"
-                        else -> "Артикул"
-                    },
+                    text = if (selectedBagId.isNullOrBlank()) "Добавить артикул" else "Редактировать артикул",
                     style = MaterialTheme.typography.headlineSmall
                 )
 
@@ -354,7 +336,6 @@ fun AddEditArticleScreen(
 
                     Button(
                         onClick = { imagePicker.launch("image/*") },
-                        enabled = canEdit,
                         modifier = Modifier.weight(1f)
                     ) {
                         Text("Обновить фото")
@@ -366,7 +347,6 @@ fun AddEditArticleScreen(
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    enabled = canEdit,
                     label = { Text("Название") },
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -376,7 +356,6 @@ fun AddEditArticleScreen(
                 OutlinedTextField(
                     value = hypothesis,
                     onValueChange = { hypothesis = it },
-                    enabled = canEdit,
                     label = { Text("Гипотеза") },
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -396,7 +375,6 @@ fun AddEditArticleScreen(
                 ) {
                     Checkbox(
                         checked = priceForAllEnabled,
-                        enabled = canEdit,
                         onCheckedChange = { checked ->
                             priceForAllEnabled = checked
                             if (!checked) seedColorPricesFromCommon()
@@ -418,8 +396,6 @@ fun AddEditArticleScreen(
                     onValueChange = {
                         priceAll = it
                         if (!priceForAllEnabled) {
-
-                val allSkus = repo.getAllSkus()
                             for (i in colorDrafts.indices) {
                                 val item = colorDrafts[i]
                                 if (item.priceText.isBlank()) {
@@ -428,7 +404,7 @@ fun AddEditArticleScreen(
                             }
                         }
                     },
-                    enabled = canEdit && priceForAllEnabled,
+                    enabled = priceForAllEnabled,
                     label = { Text("Цена для всех") },
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -446,7 +422,7 @@ fun AddEditArticleScreen(
                         modifier = Modifier.weight(1f)
                     )
                     Spacer(modifier = Modifier.width(10.dp))
-                    Button(onClick = { addColor() }, enabled = canEdit) {
+                    Button(onClick = { addColor() }) {
                         Text("Добавить")
                     }
                 }
@@ -455,8 +431,6 @@ fun AddEditArticleScreen(
                     Spacer(modifier = Modifier.height(12.dp))
                 }
 
-
-                val allSkus = repo.getAllSkus()
                 for (i in colorDrafts.indices) {
                     val item = colorDrafts[i]
 
@@ -475,7 +449,6 @@ fun AddEditArticleScreen(
                                 onValueChange = { value ->
                                     colorDrafts[i] = item.copy(priceText = value)
                                 },
-                                enabled = canEdit,
                                 label = { Text("Цена") },
                                 modifier = Modifier.width(140.dp)
                             )
@@ -483,8 +456,7 @@ fun AddEditArticleScreen(
                         }
 
                         OutlinedButton(
-                            onClick = { removeColor(item.color) },
-                            enabled = canEdit
+                            onClick = { removeColor(item.color) }
                         ) {
                             Text("Удалить")
                         }
@@ -505,13 +477,11 @@ fun AddEditArticleScreen(
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     FilterChip(
                         selected = cardType == "classic",
-                        enabled = canEdit,
                         onClick = { cardType = "classic" },
                         label = { Text("Классика") }
                     )
                     FilterChip(
                         selected = cardType == "premium",
-                        enabled = canEdit,
                         onClick = { cardType = "premium" },
                         label = { Text("Премиум") }
                     )
@@ -522,22 +492,19 @@ fun AddEditArticleScreen(
                 OutlinedTextField(
                     value = cost,
                     onValueChange = { cost = it },
-                    enabled = canEdit,
                     label = { Text("Себестоимость") }
                 )
 
                 OutlinedTextField(
                     value = deliveryFee,
                     onValueChange = { deliveryFee = it },
-                    enabled = canEdit,
                     label = { Text("Доставка") },
                     modifier = Modifier.fillMaxWidth()
                 )
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                if (canEdit) {
-                    Button(
+                Button(
                     onClick = {
                         scope.launch {
                             val id = selectedBagId ?: name.trim().ifBlank { return@launch }
@@ -574,10 +541,6 @@ fun AddEditArticleScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(if (selectedBagId.isNullOrBlank()) "Сохранить" else "Сохранить изменения")
-
-                OutlinedButton(onClick = {
-                    isEditMode = false
-                }) { Text("Отмена") }
                 }
             }
         }
