@@ -471,13 +471,11 @@ fun AddEditArticleScreen(
 
                         if (!priceForAllEnabled) {
                             OutlinedTextField(
-                                  value = item.priceText,
-                                  onValueChange = { value ->
-                                      colorDrafts[i] = item.copy(priceText = value)
-                                  },
-                                  enabled = canEdit,
+                                value = item.priceText,
+                                onValueChange = { value ->
                                     colorDrafts[i] = item.copy(priceText = value)
                                 },
+                                enabled = canEdit,
                                 label = { Text("Цена") },
                                 modifier = Modifier.width(140.dp)
                             )
