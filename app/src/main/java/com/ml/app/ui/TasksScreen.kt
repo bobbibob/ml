@@ -1089,16 +1089,8 @@ private fun TasksListTab(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
-                                    try {
-                                        openedTask = task
-                                        showTaskDetails = true
-                                    } catch (e: Throwable) {
-                                        android.widget.Toast.makeText(
-                                            ctx,
-                                            "TASK TAP CRASH: " + (e.message ?: e.javaClass.simpleName),
-                                            android.widget.Toast.LENGTH_LONG
-                                        ).show()
-                                    }
+                                    openedTask = task
+                                    showTaskDetails = true
                                 }
                                 .animateContentSize()
                                 .padding(18.dp)
@@ -1269,46 +1261,36 @@ private fun TasksListTab(
     }
 
       if (showTaskDetails && openedTask != null) {
-          try {
-              val task = openedTask!!
-              val canDelete = currentUserRole == "admin" || task.created_by_user_id == currentUserId
-              val canEdit = canDelete && task.status == "open"
-              val canRemind = currentUserRole == "admin" || task.created_by_user_id == currentUserId
+          val task = openedTask!!
+          val canDelete = currentUserRole == "admin" || task.created_by_user_id == currentUserId
+          val canEdit = canDelete && task.status == "open"
+          val canRemind = currentUserRole == "admin" || task.created_by_user_id == currentUserId
 
-              TaskDetailsDialog(
-                  task = task,
-                  canEdit = canEdit,
-                  canDelete = canDelete,
-                  onDismiss = {
-                      showTaskDetails = false
-                      openedTask = null
-                  },
-                  onComplete = {
-                      showTaskDetails = false
-                      onComplete(it)
-                  },
-                  onRemind = { onRemind(it) },
-                  canRemind = canRemind,
-                  onEdit = {
-                      showTaskDetails = false
-                      onEdit()
-                      editTask = it
-                      showEditWizard = true
-                  },
-                  onDelete = {
-                      showTaskDetails = false
-                      deleteTask = it
-                  }
-              )
-          } catch (e: Throwable) {
-              android.widget.Toast.makeText(
-                  ctx,
-                  "TASK DIALOG CRASH: " + (e.message ?: e.javaClass.simpleName),
-                  android.widget.Toast.LENGTH_LONG
-              ).show()
-              showTaskDetails = false
-              openedTask = null
-          }
+          TaskDetailsDialog(
+              task = task,
+              canEdit = canEdit,
+              canDelete = canDelete,
+              onDismiss = {
+                  showTaskDetails = false
+                  openedTask = null
+              },
+              onComplete = {
+                  showTaskDetails = false
+                  onComplete(it)
+              },
+              onRemind = { onRemind(it) },
+              canRemind = canRemind,
+              onEdit = {
+                  showTaskDetails = false
+                  onEdit()
+                  editTask = it
+                  showEditWizard = true
+              },
+              onDelete = {
+                  showTaskDetails = false
+                  deleteTask = it
+              }
+          )
       }
 
       deleteTask?.let { task ->
