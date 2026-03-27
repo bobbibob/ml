@@ -28,14 +28,11 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -99,8 +96,7 @@ fun AddEditArticleScreen(
     }
 
     var selectedBagId by remember { mutableStateOf(bagId) }
-    var isEditMode by remember { mutableStateOf(bagId.isNullOrBlank()) }
-    var tab by remember { mutableStateOf(1) }
+    var tab by remember { mutableStateOf(if (bagId.isNullOrBlank()) 0 else 1) }
     var bagItems by remember { mutableStateOf<List<BagPickerRow>>(emptyList()) }
 
     var name by remember { mutableStateOf("") }
@@ -113,8 +109,6 @@ fun AddEditArticleScreen(
     var newColor by remember { mutableStateOf("") }
 
     val colorDrafts = remember { mutableStateListOf<ColorDraft>() }
-    val skuDrafts = remember { mutableStateMapOf<String, String>() }
-    val allSkus = remember { repo.getAllSkus() }
 
     fun resetForm() {
         name = ""
@@ -126,7 +120,6 @@ fun AddEditArticleScreen(
         newColor = ""
         priceForAllEnabled = true
         colorDrafts.clear()
-        skuDrafts.clear()
     }
 
     fun loadBagFromPicker(id: String) {
@@ -146,7 +139,6 @@ fun AddEditArticleScreen(
                     priceText = if (priceForAllEnabled) "" else priceAll
                 )
             )
-            skuDrafts.putIfAbsent(value, "")
         }
         newColor = ""
     }
@@ -154,7 +146,6 @@ fun AddEditArticleScreen(
     fun removeColor(color: String) {
         val idx = colorDrafts.indexOfFirst { it.color == color }
         if (idx >= 0) colorDrafts.removeAt(idx)
-        skuDrafts.remove(color)
     }
 
     fun seedColorPricesFromCommon() {
@@ -166,8 +157,6 @@ fun AddEditArticleScreen(
         }
     }
 
-    val canEdit = selectedBagId.isNullOrBlank() || isEditMode
-
     val hasChanges =
         name.isNotBlank() ||
         hypothesis.isNotBlank() ||
@@ -177,7 +166,7 @@ fun AddEditArticleScreen(
         !photoPath.isNullOrBlank()
 
     BackHandler {
-        if (canEdit && hasChanges) {
+        if (hasChanges) {
             showExitDialog = true
         } else {
             onDone?.invoke()
@@ -241,11 +230,6 @@ fun AddEditArticleScreen(
                 }
             }
         }
-
-        skuDrafts.clear()
-        kotlin.runCatching { repo.getSkuMapForCard(id) }.getOrDefault(emptyMap()).forEach { (color, sku) ->
-            skuDrafts[color] = sku
-        }
     }
 
     Column(
@@ -260,7 +244,6 @@ fun AddEditArticleScreen(
                     tab = 0
                     selectedBagId = null
                     resetForm()
-                    isEditMode = true
                 },
                 label = { Text("Добавить") }
             )
@@ -313,7 +296,6 @@ fun AddEditArticleScreen(
                                 onClick = {
                                     selectedBagId = bag.bagId
                                     tab = 0
-                                    isEditMode = false
                                 }
                             ) {
                                 Text("Открыть")
@@ -331,44 +313,11 @@ fun AddEditArticleScreen(
                     .verticalScroll(rememberScrollState())
             ) {
                 Text(
-                    text = when {
-                        selectedBagId.isNullOrBlank() -> "Добавить артикул"
-                        isEditMode -> "Редактировать артикул"
-                        else -> "Артикул"
-                    },
+                    text = if (selectedBagId.isNullOrBlank()) "Добавить артикул" else "Редактировать артикул",
                     style = MaterialTheme.typography.headlineSmall
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
-
-                if (!selectedBagId.isNullOrBlank()) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        if (isEditMode) {
-                            OutlinedButton(
-                                onClick = { isEditMode = false }
-                            ) {
-                                Text("Отмена")
-                            }
-                        } else {
-                            Button(
-                                onClick = { isEditMode = true }
-                            ) {
-                                Text("Редактировать")
-                            }
-                            OutlinedButton(
-                                onClick = {
-                                    selectedBagId = null
-                                    tab = 1
-                                    resetForm()
-                                }
-                            ) {
-                                Text("Назад")
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-                }
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -387,7 +336,6 @@ fun AddEditArticleScreen(
 
                     Button(
                         onClick = { imagePicker.launch("image/*") },
-                        enabled = canEdit,
                         modifier = Modifier.weight(1f)
                     ) {
                         Text("Обновить фото")
@@ -399,7 +347,6 @@ fun AddEditArticleScreen(
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    enabled = canEdit,
                     label = { Text("Название") },
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -409,7 +356,6 @@ fun AddEditArticleScreen(
                 OutlinedTextField(
                     value = hypothesis,
                     onValueChange = { hypothesis = it },
-                    enabled = canEdit,
                     label = { Text("Гипотеза") },
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -429,7 +375,6 @@ fun AddEditArticleScreen(
                 ) {
                     Checkbox(
                         checked = priceForAllEnabled,
-                        enabled = canEdit,
                         onCheckedChange = { checked ->
                             priceForAllEnabled = checked
                             if (!checked) seedColorPricesFromCommon()
@@ -452,51 +397,51 @@ fun AddEditArticleScreen(
                         priceAll = it
                         if (!priceForAllEnabled) {
                             for (i in colorDrafts.indices) {
+                                val item = colorDrafts[i]
+                                if (item.priceText.isBlank()) {
+                                    colorDrafts[i] = item.copy(priceText = it)
+                                }
+                            }
+                        }
+                    },
+                    enabled = priceForAllEnabled,
+                    label = { Text("Цена для всех") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = newColor,
+                        onValueChange = { newColor = it },
+                        label = { Text("Новый цвет") },
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Button(onClick = { addColor() }) {
+                        Text("Добавить")
+                    }
+                }
+
+                if (colorDrafts.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+
+                for (i in colorDrafts.indices) {
                     val item = colorDrafts[i]
-                    var skuExpanded by remember(item.color) { mutableStateOf(false) }
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = item.color,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-
-                            Spacer(modifier = Modifier.height(6.dp))
-
-                            if (canEdit) {
-                                OutlinedButton(
-                                    onClick = { skuExpanded = true }
-                                ) {
-                                    Text(skuDrafts[item.color].takeUnless { it.isNullOrBlank() } ?: "Выбрать SKU")
-                                }
-
-                                DropdownMenu(
-                                    expanded = skuExpanded,
-                                    onDismissRequest = { skuExpanded = false }
-                                ) {
-                                    allSkus.forEach { sku ->
-                                        DropdownMenuItem(
-                                            text = { Text(sku) },
-                                            onClick = {
-                                                skuDrafts[item.color] = sku
-                                                skuExpanded = false
-                                            }
-                                        )
-                                    }
-                                }
-                            } else {
-                                Text(
-                                    text = "SKU: " + (skuDrafts[item.color].takeUnless { it.isNullOrBlank() } ?: "—"),
-                                    style = MaterialTheme.typography.bodySmall
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = item.color,
+                            modifier = Modifier.weight(1f)
+                        )
 
                         if (!priceForAllEnabled) {
                             OutlinedTextField(
@@ -504,7 +449,6 @@ fun AddEditArticleScreen(
                                 onValueChange = { value ->
                                     colorDrafts[i] = item.copy(priceText = value)
                                 },
-                                enabled = canEdit,
                                 label = { Text("Цена") },
                                 modifier = Modifier.width(140.dp)
                             )
@@ -512,8 +456,7 @@ fun AddEditArticleScreen(
                         }
 
                         OutlinedButton(
-                            onClick = { removeColor(item.color) },
-                            enabled = canEdit
+                            onClick = { removeColor(item.color) }
                         ) {
                             Text("Удалить")
                         }
@@ -534,13 +477,11 @@ fun AddEditArticleScreen(
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     FilterChip(
                         selected = cardType == "classic",
-                        enabled = canEdit,
                         onClick = { cardType = "classic" },
                         label = { Text("Классика") }
                     )
                     FilterChip(
                         selected = cardType == "premium",
-                        enabled = canEdit,
                         onClick = { cardType = "premium" },
                         label = { Text("Премиум") }
                     )
@@ -551,59 +492,55 @@ fun AddEditArticleScreen(
                 OutlinedTextField(
                     value = cost,
                     onValueChange = { cost = it },
-                    enabled = canEdit,
                     label = { Text("Себестоимость") }
                 )
 
                 OutlinedTextField(
                     value = deliveryFee,
                     onValueChange = { deliveryFee = it },
-                    enabled = canEdit,
                     label = { Text("Доставка") },
                     modifier = Modifier.fillMaxWidth()
                 )
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                if (canEdit) {
-                    Button(
-                        onClick = {
-                            scope.launch {
-                                val id = selectedBagId ?: name.trim().ifBlank { return@launch }
+                Button(
+                    onClick = {
+                        scope.launch {
+                            val id = selectedBagId ?: name.trim().ifBlank { return@launch }
 
-                                repo.upsertBagUser(
-                                    bagId = id,
-                                    name = name.ifBlank { null },
-                                    hypothesis = hypothesis.ifBlank { null },
-                                    price = priceAll.replace(",", ".").toDoubleOrNull(),
-                                    cogs = cost.replace(",", ".").toDoubleOrNull(),
-                                    cardType = cardType,
-                                    photoPath = photoPath
-                                )
+                            repo.upsertBagUser(
+                                bagId = id,
+                                name = name.ifBlank { null },
+                                hypothesis = hypothesis.ifBlank { null },
+                                price = priceAll.replace(",", ".").toDoubleOrNull(),
+                                cogs = cost.replace(",", ".").toDoubleOrNull(),
+                                cardType = cardType,
+                                photoPath = photoPath
+                            )
 
-                                repo.replaceBagUserColors(
-                                    id,
-                                    colorDrafts.map { it.color }
-                                )
+                            repo.replaceBagUserColors(
+                                id,
+                                colorDrafts.map { it.color }
+                            )
 
-                                repo.replaceBagColorPrices(
-                                    id,
-                                    colorDrafts.map {
-                                        BagColorPriceRow(
-                                            color = it.color,
-                                            price = if (priceForAllEnabled) null else it.priceText.replace(",", ".").toDoubleOrNull()
-                                        )
-                                    }
-                                )
+                            repo.replaceBagColorPrices(
+                                id,
+                                colorDrafts.map {
+                                    BagColorPriceRow(
+                                        color = it.color,
+                                        price = if (priceForAllEnabled) null else it.priceText.replace(",", ".").toDoubleOrNull()
+                                    )
+                                }
+                            )
 
-                                PackUploadManager.saveUserChangesAndUpload(ctx)
-                                onDone?.invoke()
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(if (selectedBagId.isNullOrBlank()) "Сохранить" else "Сохранить изменения")
-                    }
+                            PackUploadManager.saveUserChangesAndUpload(ctx)
+                            onDone?.invoke()
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(if (selectedBagId.isNullOrBlank()) "Сохранить" else "Сохранить изменения")
                 }
             }
         }
