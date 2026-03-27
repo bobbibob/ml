@@ -347,7 +347,8 @@ fun TasksScreen(
         return
     }
 
-    LaunchedEffect(state.currentUser.user_id, state.selectedTab) {
+    LaunchedEffect(state.currentUser?.user_id, state.selectedTab) {
+        if (state.currentUser == null) return@LaunchedEffect
         when (state.selectedTab) {
             "create" -> {
                 if (state.users.isEmpty() && !state.loadingUsers) {
