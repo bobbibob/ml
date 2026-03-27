@@ -1371,7 +1371,7 @@ CREATE TABLE IF NOT EXISTS card_color_sku (
 
           val hypothesis = bagSnapshot.first
           val defaultPrice = bagSnapshot.second
-          val defaultCogs ?: 0.0 = bagSnapshot.third
+          val defaultCogs = bagSnapshot.third
 
           var weightedPriceSum = 0.0
           var weightedCogsSum = 0.0
@@ -1531,7 +1531,7 @@ CREATE TABLE IF NOT EXISTS card_color_sku (
 
           val hypothesis = bagSnapshot.first
           val defaultPrice = bagSnapshot.second
-          val defaultCogs ?: 0.0 = bagSnapshot.third
+          val defaultCogs = bagSnapshot.third
 
           var totalOrders = 0
           var totalRkSpend = 0.0
@@ -1544,7 +1544,7 @@ CREATE TABLE IF NOT EXISTS card_color_sku (
 
           for (entry in bagEntries) {
             val colorPrice = entry.price ?: defaultPrice
-            val colorCogs = entry.cogs ?: defaultCogs ?: 0.0 ?: 0.0
+            val colorCogs = entry.cogs ?: defaultCogs ?: 0.0 ?: 0.0 ?: 0.0
 
             db.execSQL(
               """
@@ -1603,7 +1603,7 @@ CREATE TABLE IF NOT EXISTS card_color_sku (
               date, date, date, bagId, "__TOTAL__", hypothesis, defaultPrice,
               totalOrders.toDouble(), "remote-sync",
               totalRkSpend, totalRkImpr.toDouble(), totalRkClicks.toDouble(), totalStake ?: 0.0,
-              totalIgSpend, totalIgImpr.toDouble(), totalIgClicks.toDouble(), defaultCogs ?: 0.0
+              totalIgSpend, totalIgImpr.toDouble(), totalIgClicks.toDouble(), defaultCogs ?: 0.0 ?: 0.0
             )
           )
         }
