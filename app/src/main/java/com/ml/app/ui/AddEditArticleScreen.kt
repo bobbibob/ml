@@ -86,6 +86,7 @@ fun AddEditArticleScreen(
 
     var showExitDialog by remember { mutableStateOf(false) }
     var photoPath by remember { mutableStateOf<String?>(null) }
+    var saveError by remember { mutableStateOf<String?>(null) }
 
     val imagePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -504,9 +505,18 @@ fun AddEditArticleScreen(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
+                if (!saveError.isNullOrBlank()) {
+                    Text(
+                        text = saveError.orEmpty(),
+                        color = MaterialTheme.colorScheme.error
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+
                 Button(
                     onClick = {
                         scope.launch {
+                            saveError = null
                             val id = selectedBagId ?: name.trim().ifBlank { return@launch }
 
                             repo.upsertBagUser(
@@ -538,8 +548,15 @@ fun AddEditArticleScreen(
                                 }
                             )
 
-                            PackUploadManager.saveUserChangesAndUpload(ctx)
-                            onDone?.invoke()
+                            kotlin.runCatching {
+                                PackUploadManager.saveUserChangesAndUpload(ctx)
+                            }.onFailure { t ->
+                                saveError = "Сохранено локально, ошибка синхронизации: ${t.message}"
+                            }
+
+                            if (saveError.isNullOrBlank()) {
+                                onDone?.invoke()
+                            }
                         }
                     },
                     modifier = Modifier.fillMaxWidth()
