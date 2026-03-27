@@ -96,7 +96,8 @@ fun AddEditArticleScreen(
     }
 
     var selectedBagId by remember { mutableStateOf(bagId) }
-    var tab by remember { mutableStateOf(if (bagId.isNullOrBlank()) 0 else 1) }
+    var isEditMode by remember { mutableStateOf(bagId.isNullOrBlank()) }
+    var tab by remember { mutableStateOf(1) }
     var bagItems by remember { mutableStateOf<List<BagPickerRow>>(emptyList()) }
 
     var name by remember { mutableStateOf("") }
@@ -156,6 +157,8 @@ fun AddEditArticleScreen(
             }
         }
     }
+
+    val canEdit = selectedBagId.isNullOrBlank() || isEditMode
 
     val hasChanges =
         name.isNotBlank() ||
@@ -254,7 +257,22 @@ fun AddEditArticleScreen(
             )
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        
+                if (!selectedBagId.isNullOrBlank()) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        if (isEditMode) {
+                            OutlinedButton(onClick = { isEditMode = false }) {
+                                Text("Отмена")
+                            }
+                        } else {
+                            Button(onClick = { isEditMode = true }) {
+                                Text("Редактировать")
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+Spacer(modifier = Modifier.height(16.dp))
 
         if (tab == 1) {
             Text("Выберите артикул")
@@ -296,6 +314,7 @@ fun AddEditArticleScreen(
                                 onClick = {
                                     selectedBagId = bag.bagId
                                     tab = 0
+                                    isEditMode = false
                                 }
                             ) {
                                 Text("Открыть")
@@ -346,7 +365,7 @@ fun AddEditArticleScreen(
 
                 OutlinedTextField(
                     value = name,
-                    onValueChange = { name = it },
+                    onValueChange = { name = it }, enabled = canEdit,
                     label = { Text("Название") },
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -355,7 +374,7 @@ fun AddEditArticleScreen(
 
                 OutlinedTextField(
                     value = hypothesis,
-                    onValueChange = { hypothesis = it },
+                    onValueChange = { hypothesis = it }, enabled = canEdit,
                     label = { Text("Гипотеза") },
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -491,19 +510,20 @@ fun AddEditArticleScreen(
 
                 OutlinedTextField(
                     value = cost,
-                    onValueChange = { cost = it },
+                    onValueChange = { cost = it }, enabled = canEdit,
                     label = { Text("Себестоимость") }
                 )
 
                 OutlinedTextField(
                     value = deliveryFee,
-                    onValueChange = { deliveryFee = it },
+                    onValueChange = { deliveryFee = it }, enabled = canEdit,
                     label = { Text("Доставка") },
                     modifier = Modifier.fillMaxWidth()
                 )
 
                 Spacer(modifier = Modifier.height(24.dp))
 
+                if (canEdit) {
                 Button(
                     onClick = {
                         scope.launch {
@@ -543,6 +563,7 @@ fun AddEditArticleScreen(
                     Text(if (selectedBagId.isNullOrBlank()) "Сохранить" else "Сохранить изменения")
                 }
             }
+            }
         }
     }
 
@@ -552,6 +573,7 @@ fun AddEditArticleScreen(
             title = { Text("Выйти?") },
             text = { Text("Изменения могут быть потеряны") },
             confirmButton = {
+                if (canEdit) {
                 Button(
                     onClick = {
                         showExitDialog = false
@@ -562,7 +584,8 @@ fun AddEditArticleScreen(
                 }
             },
             dismissButton = {
-                OutlinedButton(
+                Outlinedif (canEdit) {
+                Button(
                     onClick = { showExitDialog = false }
                 ) {
                     Text("Нет")
