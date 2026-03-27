@@ -1729,6 +1729,99 @@ CREATE TABLE IF NOT EXISTS card_color_sku (
     }
   }
 
+
+  data class ServerCardOverride(
+    val bagId: String,
+    val name: String?,
+    val hypothesis: String?,
+    val price: Double?,
+    val cogs: Double?,
+    val deliveryFee: Double?,
+    val cardType: String?,
+    val photoPath: String?,
+    val colors: List<String>,
+    val colorPrices: Map<String, Double?>,
+    val updatedAt: String
+  )
+
+  suspend fun getServerCardOverride(bagId: String): ServerCardOverride? = withContext(Dispatchers.IO) {
+    openDbReadWrite().use { db ->
+      ensureServerCardOverridesTable(db)
+      db.rawQuery(
+        """
+        SELECT
+          bag_id,
+          name,
+          hypothesis,
+          price,
+          cogs,
+          delivery_fee,
+          card_type,
+          photo_path,
+          colors_json,
+          color_prices_json,
+          updated_at
+        FROM server_card_overrides
+        WHERE bag_id=?
+        LIMIT 1
+        """.trimIndent(),
+        arrayOf(bagId)
+      ).use { c ->
+        if (!c.moveToFirst()) return@withContext null
+
+        val colors = mutableListOf<String>()
+        val colorPrices = linkedMapOf<String, Double?>()
+
+        val colorsJson = c.getString(c.getColumnIndexOrThrow("colors_json")).orEmpty()
+        if (colorsJson.isNotBlank()) {
+          kotlin.runCatching {
+            val arr = JSONArray(colorsJson)
+            for (i in 0 until arr.length()) {
+              val value = arr.optString(i).trim()
+              if (value.isNotBlank()) colors.add(value)
+            }
+          }
+        }
+
+        val colorPricesJson = c.getString(c.getColumnIndexOrThrow("color_prices_json")).orEmpty()
+        if (colorPricesJson.isNotBlank()) {
+          kotlin.runCatching {
+            val arr = JSONArray(colorPricesJson)
+            for (i in 0 until arr.length()) {
+              val obj = arr.optJSONObject(i) ?: continue
+              val color = obj.optString("color").trim()
+              if (color.isBlank()) continue
+              val price =
+                if (!obj.has("price") || obj.isNull("price")) null
+                else obj.optDouble("price").takeIf { !it.isNaN() }
+              colorPrices[color] = price
+            }
+          }
+        }
+
+        return@withContext ServerCardOverride(
+          bagId = c.getString(c.getColumnIndexOrThrow("bag_id")),
+          name = c.getString(c.getColumnIndexOrThrow("name")),
+          hypothesis = c.getString(c.getColumnIndexOrThrow("hypothesis")),
+          price = c.getDouble(c.getColumnIndexOrThrow("price")).takeIf {
+            !c.isNull(c.getColumnIndexOrThrow("price"))
+          },
+          cogs = c.getDouble(c.getColumnIndexOrThrow("cogs")).takeIf {
+            !c.isNull(c.getColumnIndexOrThrow("cogs"))
+          },
+          deliveryFee = c.getDouble(c.getColumnIndexOrThrow("delivery_fee")).takeIf {
+            !c.isNull(c.getColumnIndexOrThrow("delivery_fee"))
+          },
+          cardType = c.getString(c.getColumnIndexOrThrow("card_type")),
+          photoPath = c.getString(c.getColumnIndexOrThrow("photo_path")),
+          colors = colors,
+          colorPrices = colorPrices,
+          updatedAt = c.getString(c.getColumnIndexOrThrow("updated_at"))
+        )
+      }
+    }
+  }
+
 }
 
 

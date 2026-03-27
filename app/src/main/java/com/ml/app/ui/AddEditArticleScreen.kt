@@ -238,6 +238,31 @@ onDone?.invoke()
                 }
             }
         }
+
+        val serverOverride = kotlin.runCatching { repo.getServerCardOverride(id) }.getOrNull()
+        if (serverOverride != null) {
+            if (!serverOverride.name.isNullOrBlank()) name = serverOverride.name
+            if (!serverOverride.hypothesis.isNullOrBlank()) hypothesis = serverOverride.hypothesis
+            if (serverOverride.price != null) priceAll = serverOverride.price.toString()
+            if (serverOverride.cogs != null) cost = serverOverride.cogs.toString()
+            if (serverOverride.deliveryFee != null) deliveryFee = serverOverride.deliveryFee.toString()
+            if (!serverOverride.cardType.isNullOrBlank()) cardType = serverOverride.cardType
+            if (!serverOverride.photoPath.isNullOrBlank()) photoPath = serverOverride.photoPath
+
+            if (serverOverride.colors.isNotEmpty()) {
+                colorDrafts.clear()
+                colorDrafts.addAll(
+                    serverOverride.colors.distinct().map { color ->
+                        ColorDraft(
+                            color = color,
+                            priceText = serverOverride.colorPrices[color]?.toString().orEmpty()
+                        )
+                    }
+                )
+            }
+
+            priceForAllEnabled = serverOverride.colorPrices.values.none { it != null }
+        }
     }
 
     Column(
