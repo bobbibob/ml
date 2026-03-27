@@ -1599,42 +1599,68 @@ CREATE TABLE IF NOT EXISTS card_color_sku (
     }
   }
 
-}
 
-fun getAllSkus(): List<String> {
+  fun getAllSkus(): List<String> {
     return listOf(
-"A21189-1","A21189-2","A21189-3","A21189-4","A21189-5","A21189-6","A21189-7",
-"A21190-1","A21190-2","A21190-3","A21190-4","A21190-5","A21190-6","A21190-7",
-"A21192-1","A21192-2","A21192-3","A21192-4","A21192-5","A21192-6","A21192-7",
-"BL20457-1","BL20457-2","BL20457-3","BL20457-4","BL20457-5","BL20457-6","BL20457-7",
-"HB50171-1","HB50171-2","HB50171-3","HB50171-4","HB50171-5","HB50171-6","HB50171-7",
-"HB50173-1","HB50173-2","HB50173-3","HB50173-4","HB50173-5","HB50173-6","HB50173-7",
-"HB50173-8","HB50173-10","HB50173-11",
-"MB80002-1","MB80002-2","MB80002-3","MB80002-4","MB80002-5","MB80002-6",
-"VJ001V","sumka10-1","sumka10-2","sumka10-3","sumka11-1","sumka11-2","sumka11-3",
-"sumka8-1","sumka8-2","sumka9-1","sumka9-2","sumka9-3","sumka9-4","sumka9-5","sumka9-6","sumka9-8","w02"
+      "A21189-1","A21189-2","A21189-3","A21189-4","A21189-5","A21189-6","A21189-7",
+      "A21190-1","A21190-2","A21190-3","A21190-4","A21190-5","A21190-6","A21190-7",
+      "A21192-1","A21192-2","A21192-3","A21192-4","A21192-5","A21192-6","A21192-7",
+      "BL20457-1","BL20457-2","BL20457-3","BL20457-4","BL20457-5","BL20457-6","BL20457-7",
+      "HB50171-1","HB50171-2","HB50171-3","HB50171-4","HB50171-5","HB50171-6","HB50171-7",
+      "HB50173-1","HB50173-2","HB50173-3","HB50173-4","HB50173-5","HB50173-6","HB50173-7",
+      "HB50173-8","HB50173-10","HB50173-11",
+      "MB80002-1","MB80002-2","MB80002-3","MB80002-4","MB80002-5","MB80002-6",
+      "VJ001V","sumka10-1","sumka10-2","sumka10-3","sumka11-1","sumka11-2","sumka11-3",
+      "sumka8-1","sumka8-2","sumka9-1","sumka9-2","sumka9-3","sumka9-4","sumka9-5","sumka9-6","sumka9-8","w02"
     )
-}
+  }
 
-fun extractArticleId(sku: String): String {
+  fun extractArticleId(sku: String): String {
     return sku.replace(Regex("-\\d+$"), "")
-}
+  }
 
-fun getSkuFor(card: String, color: String): String? {
-    val db = readableDatabase
-    val c = db.rawQuery(
+  private fun ensureCardColorSkuTable(db: SQLiteDatabase) {
+    db.execSQL(
+      """
+      CREATE TABLE IF NOT EXISTS card_color_sku(
+        card_name TEXT NOT NULL,
+        color TEXT NOT NULL,
+        sku TEXT NOT NULL,
+        article_id TEXT NOT NULL,
+        PRIMARY KEY(card_name, color)
+      )
+      """.trimIndent()
+    )
+  }
+
+  fun getSkuFor(card: String, color: String): String? {
+    openDbReadWrite().use { db ->
+      ensureCardColorSkuTable(db)
+      db.rawQuery(
         "SELECT sku FROM card_color_sku WHERE card_name=? AND color=?",
         arrayOf(card, color)
-    )
-    val res = if (c.moveToFirst()) c.getString(0) else null
-    c.close()
-    return res
-}
+      ).use { c ->
+        return if (c.moveToFirst()) c.getString(0) else null
+      }
+    }
+  }
 
-fun setSkuFor(card: String, color: String, sku: String) {
-    val db = writableDatabase
-    db.execSQL(
+  fun setSkuFor(card: String, color: String, sku: String) {
+    openDbReadWrite().use { db ->
+      ensureCardColorSkuTable(db)
+      db.execSQL(
         "INSERT OR REPLACE INTO card_color_sku(card_name,color,sku,article_id) VALUES(?,?,?,?)",
         arrayOf(card, color, sku, extractArticleId(sku))
-    )
+      )
+    }
+  }
+
 }
+
+
+
+
+
+
+
+
