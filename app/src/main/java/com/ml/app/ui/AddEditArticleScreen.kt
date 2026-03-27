@@ -549,7 +549,7 @@ fun AddEditArticleScreen(
                             )
 
                             kotlin.runCatching {
-                                PackUploadManager.saveUserChangesAndUpload(ctx)
+                                // disabled pack upload (migrating to server sync)
                             }.onFailure { t ->
                                 saveError = "Сохранено локально, ошибка синхронизации: ${t.message}"
                             }
