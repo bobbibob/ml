@@ -24,7 +24,7 @@ class SyncWorker(
             )
 
             val request = Request.Builder()
-                .url(BuildConfig.TASKS_API_BASE_URL + "/card/upsert")
+                .url("https://ml-tasks-api.your-domain.workers.dev/card/upsert")
                 .post(body)
                 .build()
 
