@@ -28,11 +28,14 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -110,6 +113,8 @@ fun AddEditArticleScreen(
     var newColor by remember { mutableStateOf("") }
 
     val colorDrafts = remember { mutableStateListOf<ColorDraft>() }
+    val skuDrafts = remember { mutableStateMapOf<String, String>() }
+    val allSkus = remember { repo.getAllSkus() }
 
     fun resetForm() {
         name = ""
@@ -121,6 +126,7 @@ fun AddEditArticleScreen(
         newColor = ""
         priceForAllEnabled = true
         colorDrafts.clear()
+        skuDrafts.clear()
     }
 
     fun loadBagFromPicker(id: String) {
@@ -140,6 +146,7 @@ fun AddEditArticleScreen(
                     priceText = if (priceForAllEnabled) "" else priceAll
                 )
             )
+            skuDrafts.putIfAbsent(value, "")
         }
         newColor = ""
     }
@@ -147,6 +154,7 @@ fun AddEditArticleScreen(
     fun removeColor(color: String) {
         val idx = colorDrafts.indexOfFirst { it.color == color }
         if (idx >= 0) colorDrafts.removeAt(idx)
+        skuDrafts.remove(color)
     }
 
     fun seedColorPricesFromCommon() {
@@ -232,6 +240,11 @@ fun AddEditArticleScreen(
                     colorDrafts[i] = item.copy(priceText = saved.toString())
                 }
             }
+        }
+
+        skuDrafts.clear()
+        kotlin.runCatching { repo.getSkuMapForCard(id) }.getOrDefault(emptyMap()).forEach { (color, sku) ->
+            skuDrafts[color] = sku
         }
     }
 
@@ -439,52 +452,51 @@ fun AddEditArticleScreen(
                         priceAll = it
                         if (!priceForAllEnabled) {
                             for (i in colorDrafts.indices) {
-                                val item = colorDrafts[i]
-                                if (item.priceText.isBlank()) {
-                                    colorDrafts[i] = item.copy(priceText = it)
-                                }
-                            }
-                        }
-                    },
-                    enabled = canEdit && priceForAllEnabled,
-                    label = { Text("Цена для всех") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedTextField(
-                        value = newColor,
-                        onValueChange = { newColor = it },
-                        enabled = canEdit,
-                        label = { Text("Новый цвет") },
-                        modifier = Modifier.weight(1f)
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Button(onClick = { addColor() }, enabled = canEdit) {
-                        Text("Добавить")
-                    }
-                }
-
-                if (colorDrafts.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                }
-
-                for (i in colorDrafts.indices) {
                     val item = colorDrafts[i]
+                    var skuExpanded by remember(item.color) { mutableStateOf(false) }
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = item.color,
-                            modifier = Modifier.weight(1f)
-                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = item.color,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+
+                            Spacer(modifier = Modifier.height(6.dp))
+
+                            if (canEdit) {
+                                OutlinedButton(
+                                    onClick = { skuExpanded = true }
+                                ) {
+                                    Text(skuDrafts[item.color].takeUnless { it.isNullOrBlank() } ?: "Выбрать SKU")
+                                }
+
+                                DropdownMenu(
+                                    expanded = skuExpanded,
+                                    onDismissRequest = { skuExpanded = false }
+                                ) {
+                                    allSkus.forEach { sku ->
+                                        DropdownMenuItem(
+                                            text = { Text(sku) },
+                                            onClick = {
+                                                skuDrafts[item.color] = sku
+                                                skuExpanded = false
+                                            }
+                                        )
+                                    }
+                                }
+                            } else {
+                                Text(
+                                    text = "SKU: " + (skuDrafts[item.color].takeUnless { it.isNullOrBlank() } ?: "—"),
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(8.dp))
 
                         if (!priceForAllEnabled) {
                             OutlinedTextField(
