@@ -97,7 +97,7 @@ fun AddEditArticleScreen(
     }
 
     var selectedBagId by remember { mutableStateOf(bagId) }
-    var tab by remember { mutableStateOf(if (bagId.isNullOrBlank()) 0 else 1) }
+    var tab by remember { mutableStateOf(1) }
     var bagItems by remember { mutableStateOf<List<BagPickerRow>>(emptyList()) }
 
     var name by remember { mutableStateOf("") }
@@ -249,9 +249,12 @@ onDone?.invoke()
                 label = { Text("Добавить") }
             )
             FilterChip(
-                selected = tab == 1 || selectedBagId != null,
-                onClick = { tab = 1 },
-                label = { Text("Редактировать") }
+                selected = tab == 1,
+                onClick = {
+                    selectedBagId = null
+                    tab = 1
+                },
+                label = { Text("Список") }
             )
         }
 
