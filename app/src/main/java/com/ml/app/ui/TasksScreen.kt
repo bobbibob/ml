@@ -488,12 +488,23 @@ private fun TaskDetailsDialog(
     onEdit: (TaskDto) -> Unit,
     onDelete: (TaskDto) -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = {},
-        title = { Text(task.title) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = Color.White
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    text = task.title,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+
                 if (!task.description.isNullOrBlank()) {
                     Text(task.description)
                 }
@@ -555,9 +566,17 @@ private fun TaskDetailsDialog(
                         }
                     }
                 }
+
+                OutlinedButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp)
+                ) {
+                    Text("Закрыть")
+                }
             }
         }
-    )
+    }
 }
 
 
