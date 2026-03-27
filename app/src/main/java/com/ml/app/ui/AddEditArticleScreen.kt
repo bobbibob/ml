@@ -170,16 +170,7 @@ fun AddEditArticleScreen(
         if (hasChanges) {
             showExitDialog = true
         } else {
-            
-                            val payload = "{\"bag_id\":\""+id+"\",\"name\":\""+name+"\"}"
-
-                            val work = androidx.work.OneTimeWorkRequestBuilder<com.ml.app.work.SyncWorker>()
-                                .setInputData(androidx.work.workDataOf("payload" to payload))
-                                .build()
-
-                            androidx.work.WorkManager.getInstance(ctx).enqueue(work)
-
-                            onDone?.invoke()
+onDone?.invoke()
         }
     }
 
