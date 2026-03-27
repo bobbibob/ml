@@ -96,6 +96,9 @@ fun AddEditArticleScreen(
     }
 
     var selectedBagId by remember { mutableStateOf(bagId) }
+
+    var isEditMode by remember { mutableStateOf(false) }
+    var originalState by remember { mutableStateOf("") }
     var tab by remember { mutableStateOf(if (bagId.isNullOrBlank()) 0 else 1) }
     var bagItems by remember { mutableStateOf<List<BagPickerRow>>(emptyList()) }
 
@@ -123,6 +126,7 @@ fun AddEditArticleScreen(
     }
 
     fun loadBagFromPicker(id: String) {
+        originalState = name + "|" + hypothesis + "|" + priceAll + "|" + cost
         val bag = bagItems.firstOrNull { it.bagId == id }
         resetForm()
         name = bag?.bagName.orEmpty()
@@ -149,6 +153,8 @@ fun AddEditArticleScreen(
     }
 
     fun seedColorPricesFromCommon() {
+
+                val allSkus = repo.getAllSkus()
         for (i in colorDrafts.indices) {
             val item = colorDrafts[i]
             if (item.priceText.isBlank()) {
@@ -192,6 +198,7 @@ fun AddEditArticleScreen(
     LaunchedEffect(selectedBagId) {
         val id = selectedBagId ?: return@LaunchedEffect
         loadBagFromPicker(id)
+        originalState = name + "|" + hypothesis + "|" + priceAll + "|" + cost
 
         val row = kotlin.runCatching { repo.getBagUser(id) }.getOrNull()
         if (row != null) {
@@ -222,6 +229,8 @@ fun AddEditArticleScreen(
         priceForAllEnabled = savedPrices.none { it.price != null }
 
         if (savedPrices.isNotEmpty()) {
+
+                val allSkus = repo.getAllSkus()
             for (i in colorDrafts.indices) {
                 val item = colorDrafts[i]
                 val saved = savedPrices.firstOrNull { it.color == item.color }?.price
@@ -396,6 +405,8 @@ fun AddEditArticleScreen(
                     onValueChange = {
                         priceAll = it
                         if (!priceForAllEnabled) {
+
+                val allSkus = repo.getAllSkus()
                             for (i in colorDrafts.indices) {
                                 val item = colorDrafts[i]
                                 if (item.priceText.isBlank()) {
@@ -431,6 +442,8 @@ fun AddEditArticleScreen(
                     Spacer(modifier = Modifier.height(12.dp))
                 }
 
+
+                val allSkus = repo.getAllSkus()
                 for (i in colorDrafts.indices) {
                     val item = colorDrafts[i]
 
@@ -541,6 +554,10 @@ fun AddEditArticleScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(if (selectedBagId.isNullOrBlank()) "Сохранить" else "Сохранить изменения")
+
+                OutlinedButton(onClick = {
+                    isEditMode = false
+                }) { Text("Отмена") }
                 }
             }
         }
