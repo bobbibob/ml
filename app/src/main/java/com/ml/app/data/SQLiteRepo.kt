@@ -1371,7 +1371,7 @@ CREATE TABLE IF NOT EXISTS card_color_sku (
 
           val hypothesis = bagSnapshot.first
           val defaultPrice = bagSnapshot.second
-          val defaultCogs = bagSnapshot.third
+          val defaultCogs ?: 0.0 = bagSnapshot.third
 
           var weightedPriceSum = 0.0
           var weightedCogsSum = 0.0
@@ -1400,7 +1400,7 @@ CREATE TABLE IF NOT EXISTS card_color_sku (
             }
 
             val colorPrice = svodkaFallback.first ?: defaultPrice
-            val colorCogs = svodkaFallback.second ?: defaultCogs
+            val colorCogs = svodkaFallback.second ?: defaultCogs ?: 0.0
 
             if (orders > 0) {
               if (colorPrice != null) {
@@ -1436,7 +1436,7 @@ CREATE TABLE IF NOT EXISTS card_color_sku (
 
           val cogs = when {
             weightedOrders > 0 && weightedCogsSum > 0.0 -> weightedCogsSum / weightedOrders.toDouble()
-            else -> defaultCogs
+            else -> defaultCogs ?: 0.0
           }
 
           db.execSQL(
@@ -1531,7 +1531,7 @@ CREATE TABLE IF NOT EXISTS card_color_sku (
 
           val hypothesis = bagSnapshot.first
           val defaultPrice = bagSnapshot.second
-          val defaultCogs = bagSnapshot.third
+          val defaultCogs ?: 0.0 = bagSnapshot.third
 
           var totalOrders = 0
           var totalRkSpend = 0.0
@@ -1544,7 +1544,7 @@ CREATE TABLE IF NOT EXISTS card_color_sku (
 
           for (entry in bagEntries) {
             val colorPrice = entry.price ?: defaultPrice
-            val colorCogs = entry.cogs ?: defaultCogs
+            val colorCogs = entry.cogs ?: defaultCogs ?: 0.0 ?: 0.0
 
             db.execSQL(
               """
@@ -1603,7 +1603,7 @@ CREATE TABLE IF NOT EXISTS card_color_sku (
               date, date, date, bagId, "__TOTAL__", hypothesis, defaultPrice,
               totalOrders.toDouble(), "remote-sync",
               totalRkSpend, totalRkImpr.toDouble(), totalRkClicks.toDouble(), totalStake ?: 0.0,
-              totalIgSpend, totalIgImpr.toDouble(), totalIgClicks.toDouble(), defaultCogs
+              totalIgSpend, totalIgImpr.toDouble(), totalIgClicks.toDouble(), defaultCogs ?: 0.0
             )
           )
         }
