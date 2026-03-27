@@ -1655,6 +1655,80 @@ CREATE TABLE IF NOT EXISTS card_color_sku (
     }
   }
 
+  private fun ensureServerCardOverridesTable(db: SQLiteDatabase) {
+    db.execSQL(
+      """
+      CREATE TABLE IF NOT EXISTS server_card_overrides(
+        bag_id TEXT PRIMARY KEY,
+        name TEXT,
+        hypothesis TEXT,
+        price REAL,
+        cogs REAL,
+        delivery_fee REAL,
+        card_type TEXT,
+        photo_path TEXT,
+        colors_json TEXT,
+        color_prices_json TEXT,
+        sku_links_json TEXT,
+        updated_at TEXT NOT NULL
+      )
+      """.trimIndent()
+    )
+  }
+
+  suspend fun upsertServerCardOverride(
+    bagId: String,
+    name: String?,
+    hypothesis: String?,
+    price: Double?,
+    cogs: Double?,
+    deliveryFee: Double?,
+    cardType: String?,
+    photoPath: String?,
+    colorsJson: String?,
+    colorPricesJson: String?,
+    skuLinksJson: String?,
+    updatedAt: String
+  ) = withContext(Dispatchers.IO) {
+    openDbReadWrite().use { db ->
+      ensureServerCardOverridesTable(db)
+      db.execSQL(
+        """
+        INSERT OR REPLACE INTO server_card_overrides(
+          bag_id, name, hypothesis, price, cogs, delivery_fee, card_type, photo_path,
+          colors_json, color_prices_json, sku_links_json, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """.trimIndent(),
+        arrayOf(
+          bagId,
+          name,
+          hypothesis,
+          price,
+          cogs,
+          deliveryFee,
+          cardType,
+          photoPath,
+          colorsJson,
+          colorPricesJson,
+          skuLinksJson,
+          updatedAt
+        )
+      )
+    }
+  }
+
+  suspend fun getLatestServerCardOverrideUpdatedAt(): String? = withContext(Dispatchers.IO) {
+    openDbReadWrite().use { db ->
+      ensureServerCardOverridesTable(db)
+      db.rawQuery(
+        "SELECT updated_at FROM server_card_overrides ORDER BY updated_at DESC LIMIT 1",
+        null
+      ).use { c ->
+        if (c.moveToFirst()) c.getString(0) else null
+      }
+    }
+  }
+
 }
 
 
