@@ -535,25 +535,7 @@ fun AddEditArticleScreen(
                             )
 
                             repo.replaceBagColorPrices(
-                            val payload = """{
-                              "bag_id": "$id",
-                              "name": "$name",
-                              "price": "$priceAll",
-                              "cogs": "$cost"
-                            }""".trimIndent()
-
-                            val work = androidx.work.OneTimeWorkRequestBuilder<com.ml.app.work.SyncCardWorker>()
-                                .setInputData(
-                                    androidx.work.workDataOf("payload" to payload)
-                                )
-                                .setConstraints(
-                                    androidx.work.Constraints.Builder()
-                                        .setRequiredNetworkType(androidx.work.NetworkType.CONNECTED)
-                                        .build()
-                                )
-                                .build()
-
-                            androidx.work.WorkManager.getInstance(ctx).enqueue(work)
+                            
 
                                 id,
                                 colorDrafts.map {
