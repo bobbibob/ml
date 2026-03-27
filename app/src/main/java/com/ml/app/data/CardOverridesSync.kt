@@ -9,15 +9,29 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
 object CardOverridesSync {
+    private fun resolveApiBaseUrl(): String {
+        val candidates = listOf("TASKS_API_BASE_URL", "API_BASE_URL", "BASE_URL")
+        for (name in candidates) {
+            val value = kotlin.runCatching {
+                val field = BuildConfig::class.java.getField(name)
+                field.get(null)?.toString().orEmpty()
+            }.getOrDefault("")
+            if (value.isNotBlank()) return value
+        }
+        return ""
+    }
+
     suspend fun refresh(context: Context) = withContext(Dispatchers.IO) {
         val repo = SQLiteRepo(context)
         val since = repo.getLatestServerCardOverrideUpdatedAt().orEmpty()
 
         val url = if (since.isBlank()) {
-            URL(BuildConfig.TASKS_API_BASE_URL + "/card_overrides")
+            URL(resolveApiBaseUrl() + "/card_overrides")
         } else {
-            URL(BuildConfig.TASKS_API_BASE_URL + "/card_overrides?since=" + java.net.URLEncoder.encode(since, "UTF-8"))
+            URL(resolveApiBaseUrl() + "/card_overrides?since=" + java.net.URLEncoder.encode(since, "UTF-8"))
         }
+
+        if (resolveApiBaseUrl().isBlank()) return@withContext
 
         val conn = (url.openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
