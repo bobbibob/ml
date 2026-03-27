@@ -497,75 +497,15 @@ private fun TaskDetailsDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
-                    text = task.title,
+                    text = task.title.ifBlank { "Задача" },
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
 
-                if (!task.description.isNullOrBlank()) {
-                    Text(task.description)
-                }
-
-                Text("Создал: ${task.created_by_name}")
-                Text("Статус: ${if (task.status == "open") "Открыта" else "Выполнена"}")
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        if (task.status == "open") {
-                            Button(
-                                onClick = { onComplete(task.task_id) },
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(20.dp)
-                            ) {
-                                Text("Выполнено")
-                            }
-                        }
-
-                        if (canEdit) {
-                            Button(
-                                onClick = { onEdit(task) },
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(20.dp)
-                            ) {
-                                Text("Редактировать")
-                            }
-                        }
-                    }
-
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        if (task.status == "open" && canRemind) {
-                            OutlinedButton(
-                                onClick = { onRemind(task.task_id) },
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(20.dp)
-                            ) {
-                                Text("Напомнить")
-                            }
-                        }
-
-                        if (canDelete) {
-                            OutlinedButton(
-                                onClick = { onDelete(task) },
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(20.dp)
-                            ) {
-                                Text("Удалить")
-                            }
-                        }
-                    }
-                }
+                Text(task.description ?: "")
 
                 OutlinedButton(
                     onClick = onDismiss,
@@ -578,7 +518,6 @@ private fun TaskDetailsDialog(
         }
     }
 }
-
 
 @Composable
 private fun CreateTaskWizard(
