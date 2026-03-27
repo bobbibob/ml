@@ -238,7 +238,7 @@ fun TasksScreen(
         } catch (e: Throwable) {
             android.util.Log.e("TASKS_CRASH", "vm.init failed", e)
             android.widget.Toast.makeText(
-                LocalContext.current,
+                ctx,
                 "TASKS CRASH: " + (e.message ?: e.javaClass.simpleName),
                 android.widget.Toast.LENGTH_LONG
             ).show()
@@ -284,7 +284,7 @@ fun TasksScreen(
               }
 
             ContextCompat.registerReceiver(
-                LocalContext.current,
+                ctx,
                 receiver,
                 IntentFilter("com.ml.app.ACTION_TASKS_REFRESH"),
                 ContextCompat.RECEIVER_NOT_EXPORTED
