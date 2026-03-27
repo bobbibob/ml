@@ -63,6 +63,63 @@ async function ensureDailySummaryTable(env: Env) {
   try { await env.DB.prepare("ALTER TABLE daily_summary_entries ADD COLUMN hypothesis TEXT").run() } catch {}
 }
 
+
+async function ensureCardOverridesTable(env: Env) {
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS card_overrides (
+      bag_id TEXT PRIMARY KEY,
+      name TEXT,
+      hypothesis TEXT,
+      price REAL,
+      cogs REAL,
+      delivery_fee REAL,
+      card_type TEXT,
+      photo_path TEXT,
+      colors_json TEXT,
+      color_prices_json TEXT,
+      sku_links_json TEXT,
+      updated_by_user_id TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )
+  `).run()
+}
+
+async function sendCardsSyncToAll(env: Env, ctx: ExecutionContext, excludeUserId?: string | null, bagId?: string | null) {
+  const rows = await env.DB.prepare(`
+    SELECT DISTINCT user_id, fcm_token
+    FROM user_devices
+    WHERE fcm_token IS NOT NULL
+      AND TRIM(fcm_token) != ''
+  `).all<{ user_id: string | null; fcm_token: string | null }>()
+
+  const items = (rows.results || []).filter(x => {
+    const uid = String(x.user_id || "").trim()
+    const token = String(x.fcm_token || "").trim()
+    if (!token) return false
+    if (excludeUserId && uid == excludeUserId) return false
+    return true
+  })
+
+  for (const item of items) {
+    const token = String(item.fcm_token || "").trim()
+    ctx.waitUntil(
+      sendPushToToken(
+        env,
+        token,
+        "sync",
+        "sync",
+        {
+          type: "cards_sync",
+          open_cards: "true",
+          ...(bagId ? { bag_id: bagId } : {})
+        }
+      ).catch((e) => {
+        console.log("cards_sync_push_error", String(e))
+      })
+    )
+  }
+}
+
 async function ensureReminderColumns(env: Env) {
   const commands = [
     "ALTER TABLE tasks ADD COLUMN reminder_type TEXT",
@@ -498,6 +555,95 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
         `).all()
         return json({ ok: true, devices: rows.results || [] })
       }
+
+
+      if (path === "/card_upsert" && request.method === "POST") {
+        const user = await getCurrentUser(request, env)
+        if (!user)
+          return json({ ok: false, error: "unauthorized" }, 401)
+
+        const body = await request.json<{
+          bag_id?: string
+          name?: string | null
+          hypothesis?: string | null
+          price?: number | string | null
+          cogs?: number | string | null
+          delivery_fee?: number | string | null
+          card_type?: string | null
+          photo_path?: string | null
+          colors?: string[] | null
+          color_prices?: Array<{ color?: string; price?: number | string | null }> | null
+          sku_links?: Array<{ color?: string; sku?: string; article_id?: string }> | null
+        }>().catch(() => null)
+
+        const bagId = String(body?.bag_id || "").trim()
+        if (!bagId)
+          return json({ ok: false, error: "bag_id required" }, 400)
+
+        const now = nowIso()
+
+        await env.DB.prepare(`
+          INSERT INTO card_overrides(
+            bag_id, name, hypothesis, price, cogs, delivery_fee, card_type, photo_path,
+            colors_json, color_prices_json, sku_links_json, updated_by_user_id, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(bag_id) DO UPDATE SET
+            name = excluded.name,
+            hypothesis = excluded.hypothesis,
+            price = excluded.price,
+            cogs = excluded.cogs,
+            delivery_fee = excluded.delivery_fee,
+            card_type = excluded.card_type,
+            photo_path = excluded.photo_path,
+            colors_json = excluded.colors_json,
+            color_prices_json = excluded.color_prices_json,
+            sku_links_json = excluded.sku_links_json,
+            updated_by_user_id = excluded.updated_by_user_id,
+            updated_at = excluded.updated_at
+        `).bind(
+          bagId,
+          body?.name == null ? null : String(body.name),
+          body?.hypothesis == null ? null : String(body.hypothesis),
+          body?.price == null || body.price === "" ? null : Number(body.price),
+          body?.cogs == null || body.cogs === "" ? null : Number(body.cogs),
+          body?.delivery_fee == null || body.delivery_fee === "" ? null : Number(body.delivery_fee),
+          body?.card_type == null ? null : String(body.card_type),
+          body?.photo_path == null ? null : String(body.photo_path),
+          JSON.stringify(body?.colors || []),
+          JSON.stringify(body?.color_prices || []),
+          JSON.stringify(body?.sku_links || []),
+          user.user_id,
+          now
+        ).run()
+
+        await sendCardsSyncToAll(env, ctx, user.user_id, bagId)
+
+        return json({ ok: true, bag_id: bagId, updated_at: now })
+      }
+
+      if (path === "/card_overrides" && request.method === "GET") {
+        const user = await getCurrentUser(request, env)
+        if (!user)
+          return json({ ok: false, error: "unauthorized" }, 401)
+
+        const since = String(url.searchParams.get("since") || "").trim()
+
+        const rows = await (since
+          ? env.DB.prepare(`
+              SELECT *
+              FROM card_overrides
+              WHERE updated_at > ?
+              ORDER BY updated_at ASC
+            `).bind(since).all()
+          : env.DB.prepare(`
+              SELECT *
+              FROM card_overrides
+              ORDER BY updated_at ASC
+            `).all())
+
+        return json({ ok: true, items: rows.results || [] })
+      }
+
 
       if (path === "/users_list" && request.method === "GET") {
         const user = await getCurrentUser(request, env)
