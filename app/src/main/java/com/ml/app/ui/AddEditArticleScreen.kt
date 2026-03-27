@@ -1,5 +1,13 @@
 package com.ml.app.ui
 
+import org.json.JSONObject
+import org.json.JSONArray
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
+import java.net.URL
+import java.net.HttpURLConnection
+import com.ml.app.data.session.PrefsSessionStorage
+import com.ml.app.BuildConfig
 import android.content.Context
 import android.net.Uri
 import androidx.activity.compose.BackHandler
@@ -84,6 +92,19 @@ fun AddEditArticleScreen(
     val ctx = LocalContext.current
     val repo = remember { SQLiteRepo(ctx) }
     val scope = rememberCoroutineScope()
+
+    fun resolveApiBaseUrl(): String {
+        val names = listOf("TASKS_API_BASE_URL", "API_BASE_URL", "BASE_URL")
+        for (name in names) {
+            val value = kotlin.runCatching {
+                val f = BuildConfig::class.java.getField(name)
+                f.get(null)?.toString().orEmpty()
+            }.getOrDefault("")
+            if (value.isNotBlank()) return value.trimEnd('/')
+        }
+        return ""
+    }
+
 
     var showExitDialog by remember { mutableStateOf(false) }
     var photoPath by remember { mutableStateOf<String?>(null) }
@@ -587,10 +608,82 @@ onDone?.invoke()
                                 }
                             )
 
-                            kotlin.runCatching {
-                                // disabled pack upload (migrating to server sync)
-                            }.onFailure { t ->
-                                saveError = "Сохранено локально, ошибка синхронизации: ${t.message}"
+                            if (saveError.isNullOrBlank()) {
+                                val apiBase = resolveApiBaseUrl()
+                                if (apiBase.isBlank()) {
+                                    saveError = "Не найден API base url"
+                                } else {
+                                    kotlin.runCatching {
+                                        withContext(Dispatchers.IO) {
+                                            val token = PrefsSessionStorage(ctx).getToken().orEmpty()
+                                            if (token.isBlank()) error("Нет токена сессии")
+
+                                            val colorsJson = JSONArray().apply {
+                                                colorDrafts.forEach { put(it.color) }
+                                            }
+
+                                            val colorPricesJson = JSONArray().apply {
+                                                colorDrafts.forEach {
+                                                    put(
+                                                        JSONObject().apply {
+                                                            put("color", it.color)
+                                                            put(
+                                                                "price",
+                                                                if (priceForAllEnabled) {
+                                                                    priceAll.replace(",", ".").toDoubleOrNull()
+                                                                } else {
+                                                                    it.priceText.replace(",", ".").toDoubleOrNull()
+                                                                }
+                                                            )
+                                                        }
+                                                    )
+                                                }
+                                            }
+
+                                            val payload = JSONObject().apply {
+                                                put("bag_id", id)
+                                                put("name", name.ifBlank { null })
+                                                put("hypothesis", hypothesis.ifBlank { null })
+                                                put("price", priceAll.replace(",", ".").toDoubleOrNull())
+                                                put("cogs", cost.replace(",", ".").toDoubleOrNull())
+                                                put("delivery_fee", deliveryFee.replace(",", ".").toDoubleOrNull())
+                                                put("card_type", cardType)
+                                                put("photo_path", photoPath)
+                                                put("colors", colorsJson)
+                                                put("color_prices", colorPricesJson)
+                                                put("sku_links", JSONArray())
+                                            }
+
+                                            val url = URL(apiBase + "/card_upsert")
+                                            val conn = (url.openConnection() as HttpURLConnection).apply {
+                                                requestMethod = "POST"
+                                                connectTimeout = 15000
+                                                readTimeout = 15000
+                                                doOutput = true
+                                                setRequestProperty("Authorization", "Bearer " + token)
+                                                setRequestProperty("Content-Type", "application/json")
+                                                setRequestProperty("Accept", "application/json")
+                                            }
+
+                                            try {
+                                                conn.outputStream.use { os ->
+                                                    os.write(payload.toString().toByteArray(Charsets.UTF_8))
+                                                }
+                                                val code = conn.responseCode
+                                                if (code !in 200..299) {
+                                                    val err = kotlin.runCatching {
+                                                        conn.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                                                    }.getOrDefault("")
+                                                    error("Server save failed: HTTP $code $err")
+                                                }
+                                            } finally {
+                                                conn.disconnect()
+                                            }
+                                        }
+                                    }.onFailure { t ->
+                                        saveError = "Ошибка сохранения на сервер: ${t.message}"
+                                    }
+                                }
                             }
 
                             if (saveError.isNullOrBlank()) {
