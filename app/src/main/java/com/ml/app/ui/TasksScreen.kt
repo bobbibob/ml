@@ -232,6 +232,8 @@ fun TasksScreen(
         onDispose { context.unregisterReceiver(receiver) }
     }
 
+    val ctx = LocalContext.current
+
     LaunchedEffect(Unit) {
         try {
             vm.init()
@@ -248,7 +250,6 @@ fun TasksScreen(
     val state = vm.state
     val visibleError = state.error
     val visibleInfo = state.info
-    val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val lifecycleOwner = LocalLifecycleOwner.current
     var pushedTask by remember { mutableStateOf<TaskDto?>(null) }
