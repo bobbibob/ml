@@ -19,5 +19,7 @@ data class TaskDto(
     val cancelled_by_name: String?,
     val reminder_type: String? = null,
     val reminder_interval_minutes: Int? = null,
-    val reminder_time_of_day: String? = null
+    val reminder_time_of_day: String? = null,
+    val notification_status: String? = null,
+    val is_urgent: Int = 0
 )

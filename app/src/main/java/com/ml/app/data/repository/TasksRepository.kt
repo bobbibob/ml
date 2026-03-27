@@ -13,6 +13,7 @@ import com.ml.app.data.remote.request.ChangeRoleRequest
 import com.ml.app.data.remote.request.CompleteTaskRequest
 import com.ml.app.data.remote.request.CreateTaskRequest
 import com.ml.app.data.remote.request.ReassignTaskRequest
+import com.ml.app.data.remote.request.TaskReminderRequest
 
 class TasksRepository(
     private val api: MlApiService
@@ -38,29 +39,50 @@ class TasksRepository(
         assigneeUserId: String,
         reminderType: String? = null,
         reminderIntervalMinutes: Int? = null,
-        reminderTimeOfDay: String? = null
+        reminderTimeOfDay: String? = null,
+        isUrgent: Boolean = false,
+        clientRequestId: String
     ): AppResult<String> {
-        return when (
-            val result = safeApiCall {
-                api.createTask(
-                    CreateTaskRequest(
-                        title = title,
-                        description = description,
-                        assignee_user_id = assigneeUserId
-                    )
+        val result = safeApiCall {
+            api.createTask(
+                CreateTaskRequest(
+                    title = title,
+                    description = description,
+                    assignee_user_id = assigneeUserId,
+                    reminder_type = if (isUrgent) null else reminderType,
+                    reminder_interval_minutes = if (isUrgent) null else reminderIntervalMinutes,
+                    reminder_time_of_day = if (isUrgent) null else reminderTimeOfDay,
+                    is_urgent = if (isUrgent) 1 else 0,
+                    client_request_id = clientRequestId
                 )
-            }
-        ) {
-            is AppResult.Error -> result
-            is AppResult.Success<*> -> {
-                val body = result.data as com.ml.app.data.remote.response.CreateTaskResponse
-                val taskId = body.task_id
-                if (body.ok && taskId != null) {
-                    AppResult.Success(taskId)
+            )
+        }
+
+        return when (result) {
+            is AppResult.Success -> {
+                val taskId = result.data.task_id
+                if (taskId.isNullOrBlank()) {
+                    AppResult.Error("Сервер не вернул task_id")
                 } else {
-                    AppResult.Error("Failed to create task")
+                    AppResult.Success(taskId)
                 }
             }
+            is AppResult.Error -> result
+        }
+    }
+
+
+    suspend fun markTaskDelivered(taskId: String): AppResult<Unit> {
+        return when (val result = safeApiCall { api.markTaskDelivered(com.ml.app.data.remote.request.CompleteTaskRequest(taskId)) }) {
+            is AppResult.Error -> result
+            is AppResult.Success<*> -> AppResult.Success(Unit)
+        }
+    }
+
+    suspend fun markTaskSeen(taskId: String): AppResult<Unit> {
+        return when (val result = safeApiCall { api.markTaskSeen(com.ml.app.data.remote.request.CompleteTaskRequest(taskId)) }) {
+            is AppResult.Error -> result
+            is AppResult.Success<*> -> AppResult.Success(Unit)
         }
     }
 
@@ -75,6 +97,48 @@ class TasksRepository(
                     AppResult.Error("Failed to load tasks")
                 }
             }
+        }
+    }
+
+
+    suspend fun getTaskById(taskId: String): AppResult<TaskDto> {
+        return try {
+            val raw = api.getTaskByIdRaw(taskId)
+            val json = JSONObject(raw.string())
+            if (!json.optBoolean("ok")) {
+                return AppResult.Error(json.optString("error", "Не удалось загрузить задачу"))
+            }
+
+            val t = json.optJSONObject("task")
+                ?: return AppResult.Error("Задача не найдена")
+
+            val task = TaskDto(
+                task_id = t.optString("task_id"),
+                title = t.optString("title"),
+                description = t.optString("description").takeIf { it.isNotBlank() },
+                status = t.optString("status"),
+                created_at = t.optString("created_at"),
+                updated_at = t.optString("updated_at"),
+                created_by_user_id = t.optString("created_by_user_id"),
+                assignee_user_id = t.optString("assignee_user_id"),
+                completed_by_user_id = t.optString("completed_by_user_id").takeIf { it.isNotBlank() },
+                completed_at = t.optString("completed_at").takeIf { it.isNotBlank() },
+                cancelled_by_user_id = t.optString("cancelled_by_user_id").takeIf { it.isNotBlank() },
+                cancelled_at = t.optString("cancelled_at").takeIf { it.isNotBlank() },
+                created_by_name = t.optString("created_by_name"),
+                assignee_name = t.optString("assignee_name"),
+                completed_by_name = t.optString("completed_by_name").takeIf { it.isNotBlank() },
+                cancelled_by_name = t.optString("cancelled_by_name").takeIf { it.isNotBlank() },
+                reminder_type = t.optString("reminder_type").takeIf { it.isNotBlank() },
+                reminder_interval_minutes = if (t.has("reminder_interval_minutes") && !t.isNull("reminder_interval_minutes")) t.optInt("reminder_interval_minutes") else null,
+                reminder_time_of_day = t.optString("reminder_time_of_day").takeIf { it.isNotBlank() },
+                notification_status = t.optString("notification_status").takeIf { it.isNotBlank() },
+                is_urgent = if (t.has("is_urgent") && !t.isNull("is_urgent")) t.optInt("is_urgent") else 0
+            )
+
+            AppResult.Success(task)
+        } catch (t: Throwable) {
+            AppResult.Error(t.message ?: "Не удалось загрузить задачу")
         }
     }
 
@@ -106,6 +170,25 @@ class TasksRepository(
                     AppResult.Success(id)
                 } else {
                     AppResult.Error("Failed to complete task")
+                }
+            }
+        }
+    }
+
+
+    suspend fun remindTask(taskId: String): AppResult<String> {
+        return when (
+            val result = safeApiCall {
+                api.taskReminder(TaskReminderRequest(task_id = taskId))
+            }
+        ) {
+            is AppResult.Error -> result
+            is AppResult.Success<*> -> {
+                val body = result.data as com.ml.app.data.remote.response.BasicOkResponse
+                if (body.ok) {
+                    AppResult.Success("Напоминание отправлено")
+                } else {
+                    AppResult.Error(body.error ?: "Не удалось отправить напоминание")
                 }
             }
         }
@@ -203,17 +286,24 @@ class TasksRepository(
         assigneeUserId: String,
         reminderType: String? = null,
         reminderIntervalMinutes: Int? = null,
-        reminderTimeOfDay: String? = null
+        reminderTimeOfDay: String? = null,
+        isUrgent: Boolean = false
     ): AppResult<Unit> {
         return try {
-            val raw = api.updateTaskRaw(
-                mapOf(
-                    "task_id" to taskId,
-                    "title" to title,
-                    "description" to description,
-                    "assignee_user_id" to assigneeUserId
-                )
-            )
+            val payload = mutableMapOf<String, String>()
+            payload["task_id"] = taskId
+            payload["title"] = title
+            payload["description"] = description
+            payload["assignee_user_id"] = assigneeUserId
+            payload["is_urgent"] = if (isUrgent) "1" else "0"
+
+            if (!isUrgent) {
+                reminderType?.let { payload["reminder_type"] = it }
+                reminderIntervalMinutes?.let { payload["reminder_interval_minutes"] = it.toString() }
+                reminderTimeOfDay?.let { payload["reminder_time_of_day"] = it }
+            }
+
+            val raw = api.updateTaskRaw(payload)
             val json = JSONObject(raw.string())
             if (json.optBoolean("ok")) {
                 AppResult.Success(Unit)
@@ -228,7 +318,7 @@ class TasksRepository(
     suspend fun deleteTask(taskId: String): AppResult<Unit> {
         return try {
             val raw = api.deleteTaskRaw(
-                mapOf(
+                mutableMapOf<String, String>(
                     "task_id" to taskId
                 )
             )

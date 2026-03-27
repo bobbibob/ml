@@ -1,7 +1,15 @@
 package com.ml.app.ui
 
-import androidx.activity.compose.BackHandler
+import com.ml.app.BuildConfig
+import com.ml.app.notifications.MlFirebaseMessagingService
+import androidx.core.content.ContextCompat
+import android.content.IntentFilter
+import android.content.Intent
+import android.content.Context
+import android.content.BroadcastReceiver
 import androidx.compose.foundation.clickable
+
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -21,6 +29,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
@@ -43,6 +52,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.animateContentSize
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -52,6 +66,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.runtime.DisposableEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import coil.compose.AsyncImage
 import com.ml.app.auth.GoogleAuthManager
 import com.ml.app.data.remote.dto.TaskDto
@@ -88,7 +106,6 @@ private fun cleanTaskDescriptionForEdit(value: String?): String {
     if (value.isNullOrBlank()) return ""
     return value
         .lines()
-        .filterNot { it.trim().startsWith("Напоминание:", ignoreCase = true) }
         .joinToString("\n")
         .trim()
 }
@@ -103,6 +120,28 @@ private fun reminderPayload(option: ReminderOption?): Triple<String?, Int?, Stri
         "morning" -> Triple("daily_time", null, "10:00")
         "evening" -> Triple("daily_time", null, "18:00")
         else -> Triple(null, null, null)
+    }
+}
+
+
+private fun shouldShowDeliveryStatus(
+    task: TaskDto,
+    currentUserId: String,
+    currentUserRole: String
+): Boolean {
+    val isAdmin = currentUserRole == "admin"
+    val isAuthor = task.created_by_user_id == currentUserId
+    return isAdmin || isAuthor
+}
+
+private fun taskStatusText(status: String?): String {
+    return when (status) {
+        "sent" -> "Отправлено"
+        "delivered" -> "Доставлено"
+        "seen" -> "Прочитано"
+        "open" -> "Открыта"
+        "done" -> "Выполнено"
+        else -> status ?: "-"
     }
 }
 
@@ -172,15 +211,92 @@ private fun SelectedAssigneeHeader(
 @Composable
 fun TasksScreen(
     onBack: () -> Unit,
-    vm: TasksViewModel = viewModel()
+    vm: TasksViewModel = viewModel(),
+    initialOpenTaskId: String? = null,
+    openSignal: Int = 0
 ) {
+
+    val context = LocalContext.current
+
+    DisposableEffect(Unit) {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(c: android.content.Context?, intent: android.content.Intent?) {
+                val taskId = intent?.getStringExtra("task_id")
+                // refresh handled by reopen
+                if (!taskId.isNullOrBlank()) {
+                    // open handled by activity
+                }
+            }
+        }
+        context.registerReceiver(receiver, IntentFilter("TASKS_UPDATED"))
+        onDispose { context.unregisterReceiver(receiver) }
+    }
+
     LaunchedEffect(Unit) {
         vm.init()
     }
 
     val state = vm.state
+    val visibleError = if (BuildConfig.ENABLE_ML) state.error else null
+    val visibleInfo = if (BuildConfig.ENABLE_ML) state.info else null
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var pushedTask by remember { mutableStateOf<TaskDto?>(null) }
+    var showPushedTaskDetails by remember { mutableStateOf(false) }
+    var lastHandledOpenSignal by remember { mutableStateOf(-1) }
+
+    DisposableEffect(lifecycleOwner, state.currentUser?.user_id, state.selectedTab) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME &&
+                state.currentUser != null &&
+                state.selectedTab != "create"
+            ) {
+                vm.refreshAllInBackground()
+            }
+        }
+
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    DisposableEffect(ctx, state.currentUser?.user_id, state.selectedTab) {
+        if (state.currentUser == null || state.selectedTab == "create") {
+            onDispose { }
+        } else {
+            val receiver = object : BroadcastReceiver() {
+                  override fun onReceive(context: Context?, intent: Intent?) {
+                      val taskId = intent?.getStringExtra("task_id")?.trim()
+                      val type = intent?.getStringExtra("type")?.trim()
+                      vm.handlePushRefresh(taskId, type)
+                  }
+              }
+
+            ContextCompat.registerReceiver(
+                ctx,
+                receiver,
+                IntentFilter(MlFirebaseMessagingService.ACTION_TASKS_REFRESH),
+                ContextCompat.RECEIVER_NOT_EXPORTED
+            )
+
+            onDispose {
+                kotlin.runCatching { ctx.unregisterReceiver(receiver) }
+            }
+        }
+    }
+
+    LaunchedEffect(state.currentUser?.user_id, state.selectedTab) {
+        if (state.currentUser == null || state.selectedTab == "create") return@LaunchedEffect
+
+        while (true) {
+            delay(3000)
+            if (state.selectedTab == "my" || state.selectedTab == "all") {
+                vm.refreshAllInBackground()
+            }
+        }
+    }
 
     if (state.currentUser == null) {
         Column(
@@ -189,8 +305,8 @@ fun TasksScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.Top
         ) {
-            state.error?.let { Text("Ошибка: $it") }
-            state.info?.let {
+            visibleError?.let { Text("Ошибка: $it") }
+            visibleInfo?.let {
                 Text(
                     text = it,
                     modifier = Modifier.padding(top = 8.dp)
@@ -223,7 +339,11 @@ fun TasksScreen(
 
     LaunchedEffect(state.currentUser.user_id, state.selectedTab) {
         when (state.selectedTab) {
-            "create" -> vm.loadUsers()
+            "create" -> {
+                if (state.users.isEmpty() && !state.loadingUsers) {
+                    vm.loadUsers(force = false)
+                }
+            }
             "all" -> if (state.currentUser.role == "plus" || state.currentUser.role == "admin") {
                 vm.loadAllTasks()
             } else {
@@ -231,6 +351,67 @@ fun TasksScreen(
             }
             else -> vm.loadMyTasks()
         }
+    }
+
+    LaunchedEffect(openSignal, initialOpenTaskId, state.currentUser.user_id) {
+        if (!initialOpenTaskId.isNullOrBlank() && openSignal != lastHandledOpenSignal) {
+            lastHandledOpenSignal = openSignal
+            vm.selectTab("my")
+            pushedTask = null
+            showPushedTaskDetails = false
+            vm.loadOpenedTaskFromPush(initialOpenTaskId)
+        }
+    }
+
+    LaunchedEffect(state.openedTaskFromPush?.task_id) {
+        val target = state.openedTaskFromPush ?: return@LaunchedEffect
+        pushedTask = target
+        showPushedTaskDetails = true
+        vm.clearOpenedTaskFromPush()
+    }
+
+
+
+        if (showPushedTaskDetails && pushedTask != null && state.currentUser != null) {
+        val task = pushedTask!!
+
+        AlertDialog(
+            onDismissRequest = {
+                showPushedTaskDetails = false
+                pushedTask = null
+                vm.selectTab("my")
+            },
+            title = {
+                Text(task.title)
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (!task.description.isNullOrBlank()) {
+                        Text(task.description)
+                    }
+                    Text("Создал: ${task.created_by_name}")
+                    Text("Статус: ${if (task.status == "open") "Открыта" else "Выполнена"}")
+                }
+            },
+            confirmButton = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Button(
+                        onClick = {
+                            showPushedTaskDetails = false
+                            pushedTask = null
+                            vm.selectTab("my")
+                        },
+                        shape = RoundedCornerShape(20.dp)
+                    ) {
+                        Text("OK")
+                    }
+                }
+            },
+            dismissButton = {}
+        )
     }
 
     when (state.selectedTab) {
@@ -247,13 +428,18 @@ fun TasksScreen(
             currentUserId = state.currentUser.user_id,
             currentUserRole = state.currentUser.role,
             onComplete = { vm.completeTask(it) },
+            onRemind = { vm.remindTask(it) },
             onEdit = { vm.loadUsers() },
-            onSaveEdit = { taskId, title, description, assigneeUserId, reminderType, reminderIntervalMinutes, reminderTimeOfDay ->
-                vm.updateTask(taskId, title, description, assigneeUserId, reminderType, reminderIntervalMinutes, reminderTimeOfDay)
+            onSaveEdit = { taskId, title, description, assigneeUserId, reminderType, reminderIntervalMinutes, reminderTimeOfDay, isUrgent ->
+                vm.updateTask(taskId, title, description, assigneeUserId, reminderType, reminderIntervalMinutes, reminderTimeOfDay, isUrgent)
             },
             onDelete = { vm.deleteTask(it) },
+            onMarkSeen = { vm.markTaskSeen(it) },
             users = state.users,
-            state = state
+            uiState = state,
+            initialOpenTaskId = if (state.selectedTab == "my") initialOpenTaskId else null,
+            openSignal = openSignal,
+            onConsumedOpenedTaskFromPush = { vm.clearOpenedTaskFromPush() }
         )
 
         else -> TasksListTab(
@@ -264,16 +450,106 @@ fun TasksScreen(
             currentUserId = state.currentUser.user_id,
             currentUserRole = state.currentUser.role,
             onComplete = { vm.completeTask(it) },
+            onRemind = { vm.remindTask(it) },
             onEdit = { vm.loadUsers() },
-            onSaveEdit = { taskId, title, description, assigneeUserId, reminderType, reminderIntervalMinutes, reminderTimeOfDay ->
-                vm.updateTask(taskId, title, description, assigneeUserId, reminderType, reminderIntervalMinutes, reminderTimeOfDay)
+            onSaveEdit = { taskId, title, description, assigneeUserId, reminderType, reminderIntervalMinutes, reminderTimeOfDay, isUrgent ->
+                vm.updateTask(taskId, title, description, assigneeUserId, reminderType, reminderIntervalMinutes, reminderTimeOfDay, isUrgent)
             },
             onDelete = { vm.deleteTask(it) },
+            onMarkSeen = { vm.markTaskSeen(it) },
             users = state.users,
-            state = state
+            uiState = state,
+            initialOpenTaskId = initialOpenTaskId,
+            openSignal = openSignal,
+            onConsumedOpenedTaskFromPush = { vm.clearOpenedTaskFromPush() }
         )
     }
 }
+
+@Composable
+private fun TaskDetailsDialog(
+    task: TaskDto,
+    canEdit: Boolean,
+    canDelete: Boolean,
+    canRemind: Boolean,
+    onDismiss: () -> Unit,
+    onComplete: (String) -> Unit,
+    onRemind: (String) -> Unit,
+    onEdit: (TaskDto) -> Unit,
+    onDelete: (TaskDto) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {},
+        title = { Text(task.title) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (!task.description.isNullOrBlank()) {
+                    Text(task.description)
+                }
+
+                Text("Создал: ${task.created_by_name}")
+                Text("Статус: ${if (task.status == "open") "Открыта" else "Выполнена"}")
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        if (task.status == "open") {
+                            Button(
+                                onClick = { onComplete(task.task_id) },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(20.dp)
+                            ) {
+                                Text("Выполнено")
+                            }
+                        }
+
+                        if (canEdit) {
+                            Button(
+                                onClick = { onEdit(task) },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(20.dp)
+                            ) {
+                                Text("Редактировать")
+                            }
+                        }
+                    }
+
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        if (task.status == "open" && canRemind) {
+                            OutlinedButton(
+                                onClick = { onRemind(task.task_id) },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(20.dp)
+                            ) {
+                                Text("Напомнить")
+                            }
+                        }
+
+                        if (canDelete) {
+                            OutlinedButton(
+                                onClick = { onDelete(task) },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(20.dp)
+                            ) {
+                                Text("Удалить")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    )
+}
+
 
 @Composable
 private fun CreateTaskWizard(
@@ -284,6 +560,7 @@ private fun CreateTaskWizard(
     var step by remember { mutableStateOf(CreateTaskStep.Assignee) }
     var selectedAssigneeId by remember { mutableStateOf("") }
     var selectedReminder by remember { mutableStateOf<ReminderOption?>(null) }
+    var isUrgent by remember { mutableStateOf(false) }
     var taskTitle by remember { mutableStateOf("") }
     var taskDescription by remember { mutableStateOf("") }
 
@@ -309,10 +586,15 @@ private fun CreateTaskWizard(
         CreateTaskStep.Reminder -> CreateTaskReminderStep(
             selectedUser = selectedAssigneeUser,
             selected = selectedReminder,
+            isUrgent = isUrgent,
             onCancel = onCancel,
-            onChoose = { selectedReminder = it },
+            onChoose = { if (!isUrgent) selectedReminder = it },
+            onUrgentChange = {
+                isUrgent = it
+                if (it) selectedReminder = null
+            },
             onNext = {
-                if (selectedReminder != null) {
+                if (isUrgent || selectedReminder != null) {
                     step = CreateTaskStep.Details
                 }
             }
@@ -324,28 +606,21 @@ private fun CreateTaskWizard(
             description = taskDescription,
             error = state.error,
             info = state.info,
+            loading = state.creatingTask,
             onTitleChange = { taskTitle = it },
             onDescriptionChange = { taskDescription = it },
             onCancel = onCancel,
             onDone = {
-                val reminderText = selectedReminder?.title ?: ""
-                val finalDescription = buildString {
-                    append(taskDescription.trim())
-                    if (reminderText.isNotBlank()) {
-                        if (isNotBlank()) append("\n\n")
-                        append("Напоминание: ")
-                        append(reminderText)
-                    }
-                }
                 val payload = reminderPayload(selectedReminder)
 
                 vm.createTask(
                     title = taskTitle.trim(),
-                    description = finalDescription,
+                    description = taskDescription.trim(),
                     assigneeUserId = selectedAssigneeId,
                     reminderType = payload.first,
                     reminderIntervalMinutes = payload.second,
-                    reminderTimeOfDay = payload.third
+                    reminderTimeOfDay = payload.third,
+                    isUrgent = isUrgent
                 )
             }
         )
@@ -427,6 +702,7 @@ private fun CreateTaskAssigneeStep(
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
+                                                        .animateContentSize()
                         .graphicsLayer {
                             this.alpha = alpha
                             scaleX = scale
@@ -497,8 +773,10 @@ private fun CreateTaskAssigneeStep(
 private fun CreateTaskReminderStep(
     selectedUser: UserDto?,
     selected: ReminderOption?,
+    isUrgent: Boolean,
     onCancel: () -> Unit,
     onChoose: (ReminderOption) -> Unit,
+    onUrgentChange: (Boolean) -> Unit,
     onNext: () -> Unit
 ) {
     Column(
@@ -523,7 +801,7 @@ private fun CreateTaskReminderStep(
 
             Button(
                 onClick = onNext,
-                enabled = selected != null
+                enabled = isUrgent || selected != null
             ) {
                 Text("Далее")
             }
@@ -535,27 +813,56 @@ private fun CreateTaskReminderStep(
             fontWeight = FontWeight.Bold
         )
 
-        LazyColumn(
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            items(ReminderOptions) { option ->
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onChoose(option) },
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = if (selected?.key == option.key) Color(0xFFE8DDF7) else Color.White
-                    )
-                ) {
-                    Text(
-                        text = option.title,
-                        modifier = Modifier.padding(18.dp),
-                        fontWeight = if (selected?.key == option.key) FontWeight.Bold else FontWeight.Normal
-                    )
-                }
-            }
+            Checkbox(
+                checked = isUrgent,
+                onCheckedChange = onUrgentChange
+            )
+            Text(
+                text = "Приоритетная задача",
+                modifier = Modifier
+                    .padding(start = 8.dp)
+                    .clickable { onUrgentChange(!isUrgent) },
+                fontWeight = FontWeight.Medium
+            )
         }
+
+          if (isUrgent) {
+              Text(
+                  text = "Для приоритетной задачи повтор напоминания отключён",
+                  color = Color.Gray
+              )
+          }
+
+          LazyColumn(
+              verticalArrangement = Arrangement.spacedBy(12.dp)
+          ) {
+              items(ReminderOptions) { option ->
+                  Card(
+                      modifier = Modifier
+                          .fillMaxWidth()
+                          .clickable(enabled = !isUrgent) { onChoose(option) },
+                      shape = RoundedCornerShape(20.dp),
+                      colors = CardDefaults.cardColors(
+                          containerColor = when {
+                              isUrgent -> Color(0xFFF1F1F1)
+                              selected?.key == option.key -> Color(0xFFE8DDF7)
+                              else -> Color.White
+                          }
+                      )
+                  ) {
+                      Text(
+                          text = option.title,
+                          modifier = Modifier.padding(18.dp),
+                          fontWeight = if (!isUrgent && selected?.key == option.key) FontWeight.Bold else FontWeight.Normal,
+                          color = if (isUrgent) Color.Gray else TextBlack
+                      )
+                  }
+              }
+          }
     }
 }
 
@@ -566,6 +873,7 @@ private fun CreateTaskDetailsStep(
     description: String,
     error: String?,
     info: String?,
+    loading: Boolean,
     onTitleChange: (String) -> Unit,
     onDescriptionChange: (String) -> Unit,
     onCancel: () -> Unit,
@@ -611,7 +919,8 @@ private fun CreateTaskDetailsStep(
             onValueChange = onTitleChange,
             modifier = Modifier.fillMaxWidth(),
             label = { Text("Название") },
-            singleLine = true
+            singleLine = true,
+            enabled = !loading
         )
 
         OutlinedTextField(
@@ -619,16 +928,17 @@ private fun CreateTaskDetailsStep(
             onValueChange = onDescriptionChange,
             modifier = Modifier.fillMaxWidth(),
             label = { Text("Описание") },
-            minLines = 4
+            minLines = 4,
+            enabled = !loading
         )
 
         Button(
             onClick = onDone,
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(24.dp),
-            enabled = title.isNotBlank()
+            enabled = title.isNotBlank() && !loading
         ) {
-            Text("Готово")
+            Text(if (loading) "Создаём..." else "Готово")
         }
     }
 }
@@ -642,15 +952,39 @@ private fun TasksListTab(
     currentUserId: String,
     currentUserRole: String,
     onComplete: (String) -> Unit,
+    onRemind: (String) -> Unit,
     onEdit: () -> Unit,
-    onSaveEdit: (String, String, String, String, String?, Int?, String?) -> Unit,
+    onSaveEdit: (String, String, String, String, String?, Int?, String?, Boolean) -> Unit,
     onDelete: (String) -> Unit,
+    onMarkSeen: (String) -> Unit,
     users: List<UserDto>,
-    state: TasksUiState
+    uiState: TasksUiState,
+    initialOpenTaskId: String? = null,
+    openSignal: Int = 0,
+    onConsumedOpenedTaskFromPush: () -> Unit = {}
 ) {
     var editTask by remember { mutableStateOf<TaskDto?>(null) }
     var deleteTask by remember { mutableStateOf<TaskDto?>(null) }
+    val deleteAnimScope = rememberCoroutineScope()
+    var deletingTaskId by remember { mutableStateOf<String?>(null) }
     var showEditWizard by remember { mutableStateOf(false) }
+    var openedTask by remember { mutableStateOf<TaskDto?>(null) }
+    var showTaskDetails by remember { mutableStateOf(false) }
+
+    LaunchedEffect(openSignal, initialOpenTaskId, tasks) {
+        // Открытие по push теперь идёт через загрузку задачи по task_id с сервера.
+    }
+
+    LaunchedEffect(uiState.openedTaskFromPush?.task_id) {
+        // Открытие задачи по push теперь обрабатывается на уровне TasksScreen.
+    }
+
+    LaunchedEffect(showTaskDetails, openedTask?.task_id, currentUserId) {
+        val task = openedTask ?: return@LaunchedEffect
+        if (showTaskDetails && task.assignee_user_id == currentUserId) {
+            onMarkSeen(task.task_id)
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -672,7 +1006,7 @@ private fun TasksListTab(
             )
         }
 
-        if (state.loading && tasks.isEmpty()) {
+        if (uiState.loadingTasks && tasks.isEmpty()) {
             Text("Загружаем задачи...")
         } else if (tasks.isEmpty()) {
             Text(titleWhenEmpty)
@@ -681,12 +1015,43 @@ private fun TasksListTab(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(tasks) { task ->
-                    val canDelete = currentUserRole == "admin" || task.created_by_user_id == currentUserId
-                    val canEdit = canDelete && task.status == "open"
+                items(items = tasks, key = { it.task_id }) { task ->
+                    val isAdmin = currentUserRole == "admin"
+                    val isAuthor = task.created_by_user_id == currentUserId
+                    val isAssignee = task.assignee_user_id == currentUserId
 
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
+                    val canDelete = isAdmin || isAuthor
+                    val canEdit = isAdmin && task.status == "open"
+                    val canRemind = task.status == "open" && (isAdmin || isAuthor)
+                    val canComplete = task.status == "open" && (isAdmin || isAssignee)
+                    val isDeleting = deletingTaskId == task.task_id
+                    val deleteProgress by animateFloatAsState(
+                        targetValue = if (isDeleting) 1f else 0f,
+                        animationSpec = tween(durationMillis = 520),
+                        label = "deleteProgress_${task.task_id}"
+                    )
+
+                    AnimatedVisibility(
+                        visible = !isDeleting,
+                        exit = slideOutHorizontally(
+                            targetOffsetX = { fullWidth -> fullWidth },
+                            animationSpec = tween(520)
+                        ) +
+                            shrinkVertically(animationSpec = tween(520)) +
+                            fadeOut(animationSpec = tween(420)) +
+                            scaleOut(targetScale = 0.68f, animationSpec = tween(520))
+                    ) {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .graphicsLayer {
+                                    alpha = 1f - (0.45f * deleteProgress)
+                                    scaleX = 1f - (0.24f * deleteProgress)
+                                    scaleY = 1f - (0.24f * deleteProgress)
+                                    translationX = 220f * deleteProgress
+                                    translationY = -18f * deleteProgress
+                                    rotationZ = -10f * deleteProgress
+                                },
                         shape = RoundedCornerShape(28.dp),
                         colors = CardDefaults.cardColors(containerColor = Color.White),
                         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
@@ -694,14 +1059,37 @@ private fun TasksListTab(
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .animateContentSize()
                                 .padding(18.dp)
                         ) {
-                            Text(
-                                text = task.title,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = TextBlack
-                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = task.title,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextBlack,
+                                    modifier = Modifier.weight(1f, fill = false)
+                                )
+
+                                if (task.is_urgent == 1) {
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = Color(0xFFFFE3E3)
+                                    ) {
+                                        Text(
+                                            text = "ПРИОРИТЕТ",
+                                            color = Color(0xFFB3261E),
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                            fontWeight = FontWeight.Bold,
+                                            style = MaterialTheme.typography.labelMedium
+                                        )
+                                    }
+                                }
+                            }
 
                             if (!task.description.isNullOrBlank()) {
                                 Text(
@@ -717,10 +1105,12 @@ private fun TasksListTab(
                                 modifier = Modifier.padding(top = 8.dp)
                             )
 
-                            Text(
-                                text = "Статус: ${task.status}",
-                                color = TextBlack
-                            )
+                            if (shouldShowDeliveryStatus(task, currentUserId, currentUserRole)) {
+                                Text(
+                                    text = "Статус: ${taskStatusText(task.notification_status ?: task.status)}",
+                                    color = TextBlack
+                                )
+                            }
 
                             Text(
                                 text = "Исполнитель: ${task.assignee_name}",
@@ -733,6 +1123,7 @@ private fun TasksListTab(
                             )
 
                             if (!task.completed_by_name.isNullOrBlank() &&
+                                task.completed_by_name != "null" &&
                                 task.completed_by_user_id != task.assignee_user_id
                             ) {
                                 Text(
@@ -742,7 +1133,9 @@ private fun TasksListTab(
                                 )
                             }
 
-                            if (!task.completed_at.isNullOrBlank()) {
+                            if (!task.completed_at.isNullOrBlank() &&
+                                task.completed_at != "null"
+                            ) {
                                 Text(
                                     text = "Выполнено: ${fmtTaskDateTime(task.completed_at)}",
                                     color = DoneGreen,
@@ -751,43 +1144,79 @@ private fun TasksListTab(
                             }
 
                             if (task.status == "open") {
-                                Button(
-                                    onClick = { onComplete(task.task_id) },
-                                    shape = RoundedCornerShape(20.dp),
-                                    modifier = Modifier.padding(top = 12.dp)
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 12.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
-                                    Text("Выполнено")
-                                }
-                            } else {
-                                Text(
-                                    text = "ВЫПОЛНЕНО",
-                                    color = DoneGreen,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(top = 12.dp)
-                                )
-                            }
+                                    Column(
+                                        modifier = Modifier.weight(1f),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        if (canComplete) {
+                                            Button(
+                                                onClick = { onComplete(task.task_id) },
+                                                shape = RoundedCornerShape(20.dp),
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Text("Выполнено")
+                                            }
+                                        }
 
-                            if (canEdit) {
-                                Button(
-                                    onClick = {
-                                        onEdit()
-                                        editTask = task
-                                        showEditWizard = true
-                                    },
-                                    shape = RoundedCornerShape(20.dp),
-                                    modifier = Modifier.padding(top = 12.dp)
-                                ) {
-                                    Text("Редактировать")
-                                }
-                            }
+                                        if (canEdit) {
+                                            Button(
+                                                onClick = {
+                                                    onEdit()
+                                                    editTask = task
+                                                    showEditWizard = true
+                                                },
+                                                shape = RoundedCornerShape(20.dp),
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Text("Редактировать")
+                                            }
+                                        }
+                                    }
 
-                            if (canDelete) {
-                                OutlinedButton(
-                                    onClick = { deleteTask = task },
-                                    shape = RoundedCornerShape(20.dp),
-                                    modifier = Modifier.padding(top = if (canEdit) 8.dp else 12.dp)
+                                    Column(
+                                        modifier = Modifier.weight(1f),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        if (canRemind) {
+                                            OutlinedButton(
+                                                onClick = { onRemind(task.task_id) },
+                                                shape = RoundedCornerShape(20.dp),
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Text("Напомнить")
+                                            }
+                                        }
+
+                                        if (canDelete) {
+                                            OutlinedButton(
+                                                onClick = { deleteTask = task },
+                                                shape = RoundedCornerShape(20.dp),
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Text("Удалить")
+                                            }
+                                        }
+                                    }
+                                }
+                            } else if (currentUserRole == "admin") {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 12.dp),
+                                    horizontalArrangement = Arrangement.Center
                                 ) {
-                                    Text("Удалить")
+                                    OutlinedButton(
+                                        onClick = { deleteTask = task },
+                                        shape = RoundedCornerShape(20.dp)
+                                    ) {
+                                        Text("Удалить")
+                                    }
                                 }
                             }
                         }
@@ -795,50 +1224,73 @@ private fun TasksListTab(
                 }
             }
         }
+        }
     }
 
-      if (showEditWizard && editTask != null) {
-          EditTaskWizard(
-              task = editTask!!,
-              users = users,
-              error = error,
-              info = info,
-              onCancel = {
-                  showEditWizard = false
-                  editTask = null
+      if (showTaskDetails && openedTask != null) {
+          val task = openedTask!!
+          val canDelete = currentUserRole == "admin" || task.created_by_user_id == currentUserId
+          val canEdit = canDelete && task.status == "open"
+          val canRemind = currentUserRole == "admin" || task.created_by_user_id == currentUserId
+
+          TaskDetailsDialog(
+              task = task,
+              canEdit = canEdit,
+              canDelete = canDelete,
+              onDismiss = {
+                  showTaskDetails = false
+                  openedTask = null
               },
-              onSave = { taskId: String, title: String, description: String, assigneeUserId: String, reminderType: String?, reminderIntervalMinutes: Int?, reminderTimeOfDay: String? ->
-                  onSaveEdit(taskId, title, description, assigneeUserId, reminderType, reminderIntervalMinutes, reminderTimeOfDay)
-                  showEditWizard = false
-                  editTask = null
+              onComplete = {
+                  showTaskDetails = false
+                  onComplete(it)
+              },
+              onRemind = { onRemind(it) },
+              canRemind = canRemind,
+              onEdit = {
+                  showTaskDetails = false
+                  onEdit()
+                  editTask = it
+                  showEditWizard = true
+              },
+              onDelete = {
+                  showTaskDetails = false
+                  deleteTask = it
               }
           )
       }
 
       deleteTask?.let { task ->
-        AlertDialog(
-            onDismissRequest = { deleteTask = null },
-            title = { Text("Удалить задачу?") },
-            text = { Text(task.title) },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        onDelete(task.task_id)
-                        deleteTask = null
-                    }
-                ) {
-                    Text("Удалить")
-                }
-            },
-            dismissButton = {
-                OutlinedButton(onClick = { deleteTask = null }) {
-                    Text("Отмена")
-                }
-            }
-        )
-    }
-}
+          AlertDialog(
+              onDismissRequest = { deleteTask = null },
+              title = { Text("Удалить задачу?") },
+              text = { Text(task.title) },
+              confirmButton = {
+                    Button(
+                        onClick = {
+                            deletingTaskId = task.task_id
+                            deleteTask = null
 
+                            deleteAnimScope.launch {
+                                delay(520)
+                                onDelete(task.task_id)
+                                if (deletingTaskId == task.task_id) {
+                                    deletingTaskId = null
+                                }
+                            }
+                        }
+                    ) {
+                        Text("Удалить")
+                    }
+                },
+                dismissButton = {
+                  OutlinedButton(onClick = { deleteTask = null }) {
+                      Text("Отмена")
+                  }
+              }
+          )
+      }
+}
 
 @Composable
 private fun EditTaskWizard(
@@ -847,7 +1299,7 @@ private fun EditTaskWizard(
     error: String?,
     info: String?,
     onCancel: () -> Unit,
-    onSave: (String, String, String, String, String?, Int?, String?) -> Unit
+    onSave: (String, String, String, String, String?, Int?, String?, Boolean) -> Unit
 ) {
     var step by remember(task.task_id) { mutableStateOf(1) }
     var assigneeUserId by remember(task.task_id) { mutableStateOf(task.assignee_user_id) }
@@ -865,6 +1317,7 @@ private fun EditTaskWizard(
             }
         )
     }
+    var isUrgent by remember(task.task_id) { mutableStateOf(task.is_urgent == 1) }
     var title by remember(task.task_id) { mutableStateOf(task.title) }
     var description by remember(task.task_id) { mutableStateOf(cleanTaskDescriptionForEdit(task.description)) }
 
@@ -950,57 +1403,84 @@ private fun EditTaskWizard(
                         }
                     }
 
-                    2 -> {
-                        Text(
-                            text = "Частота напоминания",
-                            fontWeight = FontWeight.Bold,
-                            color = TextBlack
-                        )
+                      2 -> {
+                          Text(
+                              text = "Частота напоминания",
+                              fontWeight = FontWeight.Bold,
+                              color = TextBlack
+                          )
 
-                        LazyColumn(
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            items(ReminderOptions) { option ->
-                                val selected = selectedReminder?.key == option.key
-                                Card(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable { selectedReminder = option },
-                                    shape = RoundedCornerShape(18.dp),
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = if (selected) Color(0xFFE8DDF7) else Color.White
-                                    )
-                                ) {
-                                    Text(
-                                        text = option.title,
-                                        modifier = Modifier.padding(14.dp),
-                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
-                                    )
-                                }
-                            }
-                        }
+                          Row(
+                              modifier = Modifier.fillMaxWidth(),
+                              verticalAlignment = Alignment.CenterVertically
+                          ) {
+                              Checkbox(
+                                  checked = isUrgent,
+                                  onCheckedChange = {
+                                      isUrgent = it
+                                      if (it) selectedReminder = null
+                                  }
+                              )
+                              Text(
+                                  text = "Приоритетная задача",
+                                  modifier = Modifier
+                                      .padding(start = 8.dp)
+                                      .clickable {
+                                          isUrgent = !isUrgent
+                                          if (isUrgent) selectedReminder = null
+                                      },
+                                  fontWeight = FontWeight.Medium
+                              )
+                          }
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            OutlinedButton(
-                                onClick = { step = 1 },
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(24.dp)
-                            ) {
-                                Text("Назад")
-                            }
+                          LazyColumn(
+                              verticalArrangement = Arrangement.spacedBy(10.dp)
+                          ) {
+                              items(ReminderOptions) { option ->
+                                  val selected = selectedReminder?.key == option.key
+                                  Card(
+                                      modifier = Modifier
+                                          .fillMaxWidth()
+                                          .clickable(enabled = !isUrgent) { selectedReminder = option },
+                                      shape = RoundedCornerShape(18.dp),
+                                      colors = CardDefaults.cardColors(
+                                          containerColor = when {
+                                              isUrgent -> Color(0xFFF1F1F1)
+                                              selected -> Color(0xFFE8DDF7)
+                                              else -> Color.White
+                                          }
+                                      )
+                                  ) {
+                                      Text(
+                                          text = option.title,
+                                          modifier = Modifier.padding(14.dp),
+                                          fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                                      )
+                                  }
+                              }
+                          }
 
-                            Button(
-                                onClick = { step = 3 },
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(24.dp)
-                            ) {
-                                Text("Далее")
-                            }
-                        }
-                    }
+                          Row(
+                              modifier = Modifier.fillMaxWidth(),
+                              horizontalArrangement = Arrangement.spacedBy(12.dp)
+                          ) {
+                              OutlinedButton(
+                                  onClick = { step = 1 },
+                                  modifier = Modifier.weight(1f),
+                                  shape = RoundedCornerShape(24.dp)
+                              ) {
+                                  Text("Назад")
+                              }
+
+                              Button(
+                                  onClick = { step = 3 },
+                                  modifier = Modifier.weight(1f),
+                                  shape = RoundedCornerShape(24.dp)
+                              ) {
+                                  Text("Далее")
+                              }
+                          }
+                      }
 
                     else -> {
                         Text(
@@ -1047,7 +1527,8 @@ private fun EditTaskWizard(
                                         assigneeUserId,
                                         payload.first,
                                         payload.second,
-                                        payload.third
+                                        payload.third,
+                                        isUrgent
                                     )
                                 },
                                 modifier = Modifier.weight(1f),
@@ -1063,4 +1544,3 @@ private fun EditTaskWizard(
         }
     }
 }
-
