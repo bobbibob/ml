@@ -7,6 +7,7 @@ import java.net.URL
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import com.ml.app.data.session.PrefsSessionStorage
 
 object CardOverridesSync {
     private fun resolveApiBaseUrl(): String {
@@ -34,6 +35,10 @@ object CardOverridesSync {
         if (resolveApiBaseUrl().isBlank()) return@withContext
 
         val conn = (url.openConnection() as HttpURLConnection).apply {
+            val token = PrefsSessionStorage(context).getToken()
+            if (!token.isNullOrBlank()) {
+                setRequestProperty("Authorization", "Bearer $token")
+            }
             requestMethod = "GET"
             connectTimeout = 15000
             readTimeout = 15000
