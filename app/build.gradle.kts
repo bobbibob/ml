@@ -47,6 +47,12 @@ android {
 
 
   buildTypes {
+    debug {
+        buildConfigField("String","TASKS_API_BASE_URL","\"https://ml-tasks-api.bboobb666.workers.dev\"")
+    }
+    release {
+        buildConfigField("String","TASKS_API_BASE_URL","\"https://ml-tasks-api-release.bboobb666.workers.dev\"")
+    }
     getByName("debug") {
       signingConfig = if ((System.getenv("KEYSTORE_PATH") ?: "").isNotBlank()) {
         signingConfigs.getByName("release")
