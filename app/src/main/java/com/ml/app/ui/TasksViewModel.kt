@@ -340,8 +340,13 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
         if (pendingFlushJob?.isActive == true) return
 
         pendingFlushJob = viewModelScope.launch {
-            if (delayMs > 0) delay(delayMs)
-            flushPendingOperationsBeforeRefresh()
+            state = state.copy(
+                creatingTask = false,
+                info = "Задача поставлена в очередь",
+                error = null,
+                selectedTab = targetTab
+            )
+            refreshAllInBackground()
         }
     }
 
