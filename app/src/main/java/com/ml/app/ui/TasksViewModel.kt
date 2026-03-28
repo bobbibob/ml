@@ -257,7 +257,6 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
 
         viewModelScope.launch {
             val allPendingSynced = flushPendingOperationsBeforeRefresh()
-            syncPendingCreatesBeforeRefresh()
 
             if (!allPendingSynced || pendingOperations.isNotEmpty()) {
                 return@launch
@@ -696,19 +695,7 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
         val cleanTitle = title.trim()
         val cleanDescription = description.trim()
         val clientRequestId = java.util.UUID.randomUUID().toString()
-        val tempTaskId = "local_" + clientRequestId
         val targetTab = state.lastTasksTab
-
-        insertCreatedTaskLocally(
-            tempTaskId = tempTaskId,
-            title = cleanTitle,
-            description = cleanDescription,
-            assigneeUserId = assigneeUserId,
-            reminderType = reminderType,
-            reminderIntervalMinutes = reminderIntervalMinutes,
-            reminderTimeOfDay = reminderTimeOfDay,
-            isUrgent = isUrgent
-        )
 
         TaskSyncScheduler.enqueueCreate(
             context = getApplication<Application>().applicationContext,
