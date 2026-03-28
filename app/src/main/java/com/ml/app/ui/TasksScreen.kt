@@ -228,13 +228,8 @@ fun TasksScreen(
                 }
             }
         }
-        ContextCompat.registerReceiver(
-            context,
-            receiver,
-            IntentFilter("TASKS_UPDATED"),
-            ContextCompat.RECEIVER_NOT_EXPORTED
-        )
-        onDispose { kotlin.runCatching { context.unregisterReceiver(receiver) } }
+        context.registerReceiver(receiver, IntentFilter("TASKS_UPDATED"))
+        onDispose { context.unregisterReceiver(receiver) }
     }
 
     LaunchedEffect(Unit) {
@@ -242,8 +237,8 @@ fun TasksScreen(
     }
 
     val state = vm.state
-    val visibleError = state.error
-    val visibleInfo = state.info
+    val visibleError = if (BuildConfig.ENABLE_ML) state.error else null
+    val visibleInfo = if (BuildConfig.ENABLE_ML) state.info else null
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -282,7 +277,7 @@ fun TasksScreen(
             ContextCompat.registerReceiver(
                 ctx,
                 receiver,
-                IntentFilter("com.ml.app.ACTION_TASKS_REFRESH"),
+                IntentFilter(MlFirebaseMessagingService.ACTION_TASKS_REFRESH),
                 ContextCompat.RECEIVER_NOT_EXPORTED
             )
 
@@ -562,7 +557,6 @@ private fun CreateTaskWizard(
     onCancel: () -> Unit
 ) {
     val state = vm.state
-    val ctx = LocalContext.current
     var step by remember { mutableStateOf(CreateTaskStep.Assignee) }
     var selectedAssigneeId by remember { mutableStateOf("") }
     var selectedReminder by remember { mutableStateOf<ReminderOption?>(null) }
@@ -619,23 +613,15 @@ private fun CreateTaskWizard(
             onDone = {
                 val payload = reminderPayload(selectedReminder)
 
-                try {
-                    vm.createTask(
-                        title = taskTitle.trim(),
-                        description = taskDescription.trim(),
-                        assigneeUserId = selectedAssigneeId,
-                        reminderType = payload.first,
-                        reminderIntervalMinutes = payload.second,
-                        reminderTimeOfDay = payload.third,
-                        isUrgent = isUrgent
-                    )
-                } catch (e: Throwable) {
-                    android.widget.Toast.makeText(
-                        ctx,
-                        "CREATE CRASH: " + (e.message ?: e.javaClass.simpleName),
-                        android.widget.Toast.LENGTH_LONG
-                    ).show()
-                }
+                vm.createTask(
+                    title = taskTitle.trim(),
+                    description = taskDescription.trim(),
+                    assigneeUserId = selectedAssigneeId,
+                    reminderType = payload.first,
+                    reminderIntervalMinutes = payload.second,
+                    reminderTimeOfDay = payload.third,
+                    isUrgent = isUrgent
+                )
             }
         )
     }

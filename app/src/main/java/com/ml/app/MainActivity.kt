@@ -175,7 +175,10 @@ class MainActivity : ComponentActivity() {
         setContent {
             MaterialTheme {
                 Surface {
-                    SummaryScreen()
+                    SummaryScreen(
+                        openTasksSignal = openTasksSignalState.value,
+                        initialTaskId = openTaskIdState.value
+                    )
                 }
             }
         }

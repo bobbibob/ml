@@ -82,7 +82,6 @@ object UrgentTaskNotifier {
 
     fun show(context: Context, task: TaskDto, currentUserId: String) {
         if (!canNotify(context)) return
-        if (task.task_id.startsWith("local_")) return
         if (task.status != "open" || task.is_urgent != 1) return
         if (task.assignee_user_id != currentUserId) return
 
@@ -138,7 +137,6 @@ object UrgentTaskNotifier {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
         val urgentForMe = tasks.filter {
-            !it.task_id.startsWith("local_") &&
             it.status == "open" &&
             it.is_urgent == 1 &&
             it.assignee_user_id == currentUserId
