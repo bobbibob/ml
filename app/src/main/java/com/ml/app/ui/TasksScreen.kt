@@ -237,8 +237,8 @@ fun TasksScreen(
     }
 
     val state = vm.state
-    val visibleError = if (BuildConfig.ENABLE_ML) state.error else null
-    val visibleInfo = if (BuildConfig.ENABLE_ML) state.info else null
+    val visibleError = state.error
+    val visibleInfo = state.info
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -277,7 +277,7 @@ fun TasksScreen(
             ContextCompat.registerReceiver(
                 ctx,
                 receiver,
-                IntentFilter(MlFirebaseMessagingService.ACTION_TASKS_REFRESH),
+                IntentFilter("com.ml.app.ACTION_TASKS_REFRESH"),
                 ContextCompat.RECEIVER_NOT_EXPORTED
             )
 
