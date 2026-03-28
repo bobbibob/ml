@@ -92,7 +92,7 @@ class MlFirebaseMessagingService : FirebaseMessagingService() {
     override fun onMessageReceived(message: RemoteMessage) {
         super.onMessageReceived(message)
 
-        if (BuildConfig.ENABLE_ML) Log.d("ML_PUSH", "onMessageReceived data=${message.data} notification=${message.notification}")
+        if (true) Log.d("ML_PUSH", "onMessageReceived data=${message.data} notification=${message.notification}")
 
         val title = message.notification?.title
             ?: message.data["title"]

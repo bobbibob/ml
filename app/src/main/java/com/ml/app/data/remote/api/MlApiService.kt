@@ -28,7 +28,6 @@ import com.ml.app.data.remote.response.BasicOkResponse
 import com.ml.app.data.remote.dto.DailySummaryUpsertResponse
 import com.ml.app.data.remote.dto.DailySummaryUpsertRequest
 import com.ml.app.data.remote.dto.DailySummaryByDateResponse
-import com.ml.app.data.remote.dto.DailySummaryDeleteResponse
 import com.ml.app.data.remote.dto.DailySummaryRecentDatesResponse
 import retrofit2.http.Body
 import retrofit2.http.GET
@@ -126,7 +125,7 @@ interface MlApiService {
     @retrofit2.http.POST("daily_summary_delete")
     suspend fun deleteDailySummary(
         @retrofit2.http.Field("summary_date") summaryDate: String
-    ): DailySummaryDeleteResponse
+    ): BasicOkResponse
 
     @GET("daily_summary_by_date")
     suspend fun getDailySummaryByDate(
