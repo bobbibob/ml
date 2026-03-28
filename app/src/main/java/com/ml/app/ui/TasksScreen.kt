@@ -228,8 +228,13 @@ fun TasksScreen(
                 }
             }
         }
-        context.registerReceiver(receiver, IntentFilter("TASKS_UPDATED"))
-        onDispose { context.unregisterReceiver(receiver) }
+        ContextCompat.registerReceiver(
+            context,
+            receiver,
+            IntentFilter("TASKS_UPDATED"),
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+        onDispose { kotlin.runCatching { context.unregisterReceiver(receiver) } }
     }
 
     LaunchedEffect(Unit) {
