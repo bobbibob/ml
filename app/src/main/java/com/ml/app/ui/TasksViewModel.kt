@@ -730,125 +730,14 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
         )
 
         viewModelScope.launch {
-            when (
-                val res = tasksRepo.createTask(
-                    title = cleanTitle,
-                    description = cleanDescription,
-                    assigneeUserId = assigneeUserId,
-                    reminderType = reminderType,
-                    reminderIntervalMinutes = reminderIntervalMinutes,
-                    reminderTimeOfDay = reminderTimeOfDay,
-                    isUrgent = isUrgent,
-                    clientRequestId = clientRequestId
-                )
-            ) {
-                is AppResult.Success -> {
-                    replaceOptimisticTaskId(tempTaskId, res.data)
-                    state = state.copy(
-                        creatingTask = false,
-                        info = "Задача создана",
-                        error = null,
-                        selectedTab = targetTab
-                    )
-                    refreshAllInBackground()
-                }
-                is AppResult.Error -> {
-                    val msg = res.message.lowercase()
-                    if ("timeout" in msg || "слишком долго" in msg) {
-                        state = state.copy(
-                            creatingTask = false,
-                            error = null,
-                            info = "Задача ещё не подтверждена сервером",
-                            selectedTab = targetTab
-                        )
-
-                        delay(1500)
-
-                        when (
-                            val retryRes = tasksRepo.createTask(
-                                title = cleanTitle,
-                                description = cleanDescription,
-                                assigneeUserId = assigneeUserId,
-                                reminderType = reminderType,
-                                reminderIntervalMinutes = reminderIntervalMinutes,
-                                reminderTimeOfDay = reminderTimeOfDay,
-                                isUrgent = isUrgent,
-                                clientRequestId = clientRequestId
-                            )
-                        ) {
-                            is AppResult.Success -> {
-                                replaceOptimisticTaskId(tempTaskId, retryRes.data)
-                                state = state.copy(
-                                    creatingTask = false,
-                                    error = null,
-                                    info = "Задача подтверждена сервером",
-                                    selectedTab = targetTab
-                                )
-                                refreshAllInBackground()
-                            }
-                            is AppResult.Error -> {
-                                enqueuePendingOperation {
-                                    when (
-                                        val pendingRes = tasksRepo.createTask(
-                                            title = cleanTitle,
-                                            description = cleanDescription,
-                                            assigneeUserId = assigneeUserId,
-                                            reminderType = reminderType,
-                                            reminderIntervalMinutes = reminderIntervalMinutes,
-                                            reminderTimeOfDay = reminderTimeOfDay,
-                                            isUrgent = isUrgent,
-                                            clientRequestId = clientRequestId
-                                        )
-                                    ) {
-                                        is AppResult.Success -> {
-                                            replaceOptimisticTaskId(tempTaskId, pendingRes.data)
-                                            true
-                                        }
-                                        is AppResult.Error -> false
-                                    }
-                                }
-
-                                state = state.copy(
-                                    creatingTask = false,
-                                    error = null,
-                                    info = "Локальная задача сохранена. Отправлю при обновлении.",
-                                    selectedTab = targetTab
-                                )
-                            }
-                        }
-                    } else {
-                        enqueuePendingOperation {
-                            when (
-                                val pendingRes = tasksRepo.createTask(
-                                    title = cleanTitle,
-                                    description = cleanDescription,
-                                    assigneeUserId = assigneeUserId,
-                                    reminderType = reminderType,
-                                    reminderIntervalMinutes = reminderIntervalMinutes,
-                                    reminderTimeOfDay = reminderTimeOfDay,
-                                    isUrgent = isUrgent,
-                                    clientRequestId = clientRequestId
-                                )
-                            ) {
-                                is AppResult.Success -> {
-                                    replaceOptimisticTaskId(tempTaskId, pendingRes.data)
-                                    true
-                                }
-                                is AppResult.Error -> false
-                            }
-                        }
-
-                        state = state.copy(
-                            creatingTask = false,
-                            error = null,
-                            info = "Локальная задача сохранена. Отправлю при обновлении.",
-                            selectedTab = targetTab
-                        )
-                    }
-                }
-            }
+            state = state.copy(
+                creatingTask = false,
+                info = "Задача поставлена в очередь",
+                error = null,
+                selectedTab = targetTab
+            )
+            refreshAllInBackground()
         }
-    }
 
     fun completeTask(taskId: String) {
         markTaskCompletedLocally(taskId)
