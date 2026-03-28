@@ -45,7 +45,7 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
 
     private val session = PrefsSessionStorage(app.applicationContext)
     private val api = ApiModule.createApi(
-        baseUrl = "https://127.0.0.1/",
+        baseUrl = BuildConfig.TASKS_API_BASE_URL,
         sessionStorage = session
     )
     private val authRepo = AuthRepository(api, session)

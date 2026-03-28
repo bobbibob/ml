@@ -228,33 +228,18 @@ fun TasksScreen(
                 }
             }
         }
-        ContextCompat.registerReceiver(
-            context,
-            receiver,
-            IntentFilter("TASKS_UPDATED"),
-            ContextCompat.RECEIVER_NOT_EXPORTED
-        )
-        onDispose { kotlin.runCatching { context.unregisterReceiver(receiver) } }
+        context.registerReceiver(receiver, IntentFilter("TASKS_UPDATED"))
+        onDispose { context.unregisterReceiver(receiver) }
     }
 
-    val ctx = LocalContext.current
-
     LaunchedEffect(Unit) {
-        try {
-            vm.init()
-        } catch (e: Throwable) {
-            android.util.Log.e("TASKS_CRASH", "vm.init failed", e)
-            android.widget.Toast.makeText(
-                ctx,
-                "TASKS CRASH: " + (e.message ?: e.javaClass.simpleName),
-                android.widget.Toast.LENGTH_LONG
-            ).show()
-        }
+        vm.init()
     }
 
     val state = vm.state
-    val visibleError = state.error
-    val visibleInfo = state.info
+    val visibleError = if (BuildConfig.ENABLE_ML) state.error else null
+    val visibleInfo = if (BuildConfig.ENABLE_ML) state.info else null
+    val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val lifecycleOwner = LocalLifecycleOwner.current
     var pushedTask by remember { mutableStateOf<TaskDto?>(null) }
@@ -292,7 +277,7 @@ fun TasksScreen(
             ContextCompat.registerReceiver(
                 ctx,
                 receiver,
-                IntentFilter("com.ml.app.ACTION_TASKS_REFRESH"),
+                IntentFilter(MlFirebaseMessagingService.ACTION_TASKS_REFRESH),
                 ContextCompat.RECEIVER_NOT_EXPORTED
             )
 
@@ -352,8 +337,7 @@ fun TasksScreen(
         return
     }
 
-    LaunchedEffect(state.currentUser?.user_id, state.selectedTab) {
-        if (state.currentUser == null) return@LaunchedEffect
+    LaunchedEffect(state.currentUser.user_id, state.selectedTab) {
         when (state.selectedTab) {
             "create" -> {
                 if (state.users.isEmpty() && !state.loadingUsers) {
@@ -494,36 +478,78 @@ private fun TaskDetailsDialog(
     onEdit: (TaskDto) -> Unit,
     onDelete: (TaskDto) -> Unit
 ) {
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            shape = RoundedCornerShape(24.dp),
-            color = Color.White
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Text(
-                    text = task.title.ifBlank { "Задача" },
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {},
+        title = { Text(task.title) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (!task.description.isNullOrBlank()) {
+                    Text(task.description)
+                }
 
-                Text(task.description ?: "")
+                Text("Создал: ${task.created_by_name}")
+                Text("Статус: ${if (task.status == "open") "Открыта" else "Выполнена"}")
 
-                OutlinedButton(
-                    onClick = onDismiss,
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(20.dp)
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text("Закрыть")
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        if (task.status == "open") {
+                            Button(
+                                onClick = { onComplete(task.task_id) },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(20.dp)
+                            ) {
+                                Text("Выполнено")
+                            }
+                        }
+
+                        if (canEdit) {
+                            Button(
+                                onClick = { onEdit(task) },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(20.dp)
+                            ) {
+                                Text("Редактировать")
+                            }
+                        }
+                    }
+
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        if (task.status == "open" && canRemind) {
+                            OutlinedButton(
+                                onClick = { onRemind(task.task_id) },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(20.dp)
+                            ) {
+                                Text("Напомнить")
+                            }
+                        }
+
+                        if (canDelete) {
+                            OutlinedButton(
+                                onClick = { onDelete(task) },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(20.dp)
+                            ) {
+                                Text("Удалить")
+                            }
+                        }
+                    }
                 }
             }
         }
-    }
+    )
 }
+
 
 @Composable
 private fun CreateTaskWizard(
@@ -1033,10 +1059,6 @@ private fun TasksListTab(
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable {
-                                    openedTask = task
-                                    showTaskDetails = true
-                                }
                                 .animateContentSize()
                                 .padding(18.dp)
                         ) {

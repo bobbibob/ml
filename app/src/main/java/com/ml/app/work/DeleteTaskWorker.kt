@@ -25,7 +25,7 @@ class DeleteTaskWorker(
         }
 
         val api = ApiModule.createApi(
-            baseUrl = "https://127.0.0.1/",
+            baseUrl = BuildConfig.TASKS_API_BASE_URL,
             sessionStorage = session
         )
         val repo = TasksRepository(api)
