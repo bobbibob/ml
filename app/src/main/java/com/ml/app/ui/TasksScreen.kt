@@ -562,6 +562,7 @@ private fun CreateTaskWizard(
     onCancel: () -> Unit
 ) {
     val state = vm.state
+    val ctx = LocalContext.current
     var step by remember { mutableStateOf(CreateTaskStep.Assignee) }
     var selectedAssigneeId by remember { mutableStateOf("") }
     var selectedReminder by remember { mutableStateOf<ReminderOption?>(null) }
@@ -618,15 +619,23 @@ private fun CreateTaskWizard(
             onDone = {
                 val payload = reminderPayload(selectedReminder)
 
-                vm.createTask(
-                    title = taskTitle.trim(),
-                    description = taskDescription.trim(),
-                    assigneeUserId = selectedAssigneeId,
-                    reminderType = payload.first,
-                    reminderIntervalMinutes = payload.second,
-                    reminderTimeOfDay = payload.third,
-                    isUrgent = isUrgent
-                )
+                try {
+                    vm.createTask(
+                        title = taskTitle.trim(),
+                        description = taskDescription.trim(),
+                        assigneeUserId = selectedAssigneeId,
+                        reminderType = payload.first,
+                        reminderIntervalMinutes = payload.second,
+                        reminderTimeOfDay = payload.third,
+                        isUrgent = isUrgent
+                    )
+                } catch (e: Throwable) {
+                    android.widget.Toast.makeText(
+                        ctx,
+                        "CREATE CRASH: " + (e.message ?: e.javaClass.simpleName),
+                        android.widget.Toast.LENGTH_LONG
+                    ).show()
+                }
             }
         )
     }
