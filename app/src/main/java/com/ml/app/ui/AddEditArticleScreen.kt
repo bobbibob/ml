@@ -611,10 +611,20 @@ onDone?.invoke()
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                val suffixOptions = (1..colorDrafts.size.coerceAtLeast(1)).map { it.toString() }
+                val allSuffixOptions = (1..colorDrafts.size.coerceAtLeast(1)).map { it.toString() }
 
                 colorDrafts.forEachIndexed { index, item ->
                     var expanded by remember(item.color) { mutableStateOf(false) }
+
+                    val usedByOthers = colorDrafts
+                        .mapIndexedNotNull { i, draft ->
+                            if (i == index) null else draft.skuText.trim().takeIf { it.isNotBlank() }
+                        }
+                        .toSet()
+
+                    val suffixOptions = allSuffixOptions.filter { option ->
+                        option == item.skuText || option !in usedByOthers
+                    }
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
