@@ -124,12 +124,79 @@ async function ensureReminderColumns(env: Env) {
   const commands = [
     "ALTER TABLE tasks ADD COLUMN reminder_type TEXT",
     "ALTER TABLE tasks ADD COLUMN reminder_interval_minutes INTEGER",
-    "ALTER TABLE tasks ADD COLUMN reminder_time_of_day TEXT"
+    "ALTER TABLE tasks ADD COLUMN reminder_time_of_day TEXT",
+    "ALTER TABLE tasks ADD COLUMN last_reminder_at TEXT"
   ]
   for (const sql of commands) {
     try {
       await env.DB.prepare(sql).run()
     } catch {}
+  }
+}
+
+async function ensureUrgentColumn(env: Env) {
+  try {
+    await env.DB.prepare("ALTER TABLE tasks ADD COLUMN is_urgent INTEGER NOT NULL DEFAULT 0").run()
+  } catch {}
+}
+
+
+async function ensureTaskNotificationColumns(env: Env) {
+  const commands = [
+    "ALTER TABLE tasks ADD COLUMN notification_sent_at TEXT",
+    "ALTER TABLE tasks ADD COLUMN notification_delivered_at TEXT",
+    "ALTER TABLE tasks ADD COLUMN notification_seen_at TEXT"
+  ]
+  for (const sql of commands) {
+    try {
+      await env.DB.prepare(sql).run()
+    } catch {}
+  }
+}
+
+async function ensureClientRequestIdColumn(env: Env) {
+  try {
+    await env.DB.prepare("ALTER TABLE tasks ADD COLUMN client_request_id TEXT").run()
+  } catch {}
+
+  try {
+    await env.DB.prepare(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_client_request_id
+      ON tasks(created_by_user_id, client_request_id)
+      WHERE client_request_id IS NOT NULL
+    `).run()
+  } catch (e) {
+    console.log("ensureClientRequestIdColumn error", String(e))
+  }
+}
+
+
+async function ensureUserDeviceTokenIndex(env: Env) {
+  try {
+    await env.DB.prepare(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_user_devices_fcm_token
+      ON user_devices(fcm_token)
+      WHERE fcm_token IS NOT NULL
+    `).run()
+  } catch (e) {
+    console.log("ensureUserDeviceTokenIndex error", String(e))
+  }
+}
+
+
+async function deleteUserDeviceToken(env: Env, token: string) {
+  const cleanToken = String(token || "").trim()
+  if (!cleanToken) return
+
+  try {
+    await env.DB.prepare(`
+      DELETE FROM user_devices
+      WHERE fcm_token = ?
+    `).bind(cleanToken).run()
+
+    console.log("deleteUserDeviceToken removed", cleanToken.slice(0, 12))
+  } catch (e) {
+    console.log("deleteUserDeviceToken error", String(e))
   }
 }
 
@@ -173,6 +240,48 @@ async function ensureUserDevicesTable(env: Env) {
   } catch (e) {
     console.log("ensureUserDevicesTable error", String(e))
   }
+}
+
+async function ensureIndexes(env: Env) {
+  const statements = [
+    "CREATE INDEX IF NOT EXISTS idx_tasks_assignee_user_id ON tasks(assignee_user_id)",
+    "CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status)",
+    "CREATE INDEX IF NOT EXISTS idx_tasks_created_at ON tasks(created_at)",
+    "CREATE INDEX IF NOT EXISTS idx_tasks_is_urgent ON tasks(is_urgent)",
+    "CREATE INDEX IF NOT EXISTS idx_tasks_created_by_user_id ON tasks(created_by_user_id)",
+    "CREATE INDEX IF NOT EXISTS idx_user_devices_user_id ON user_devices(user_id)",
+    "CREATE INDEX IF NOT EXISTS idx_user_sessions_token ON user_sessions(token)"
+  ]
+  for (const sql of statements) {
+    try {
+      await env.DB.prepare(sql).run()
+    } catch (e) {
+      console.log("ensureIndexes error", sql, String(e))
+    }
+  }
+}
+
+let schemaReadyPromise: Promise<void> | null = null
+
+async function ensureSchemaOnce(env: Env) {
+  if (!schemaReadyPromise) {
+    schemaReadyPromise = (async () => {
+      await ensureFcmTokenColumn(env)
+      await ensureUserDevicesTable(env)
+      await ensureDailySummaryTable(env)
+      await ensureReminderColumns(env)
+      await ensureUrgentColumn(env)
+      await ensureTaskNotificationColumns(env)
+      await ensureClientRequestIdColumn(env)
+      await ensureUserDeviceTokenIndex(env)
+      await ensureIndexes(env)
+    })().catch((e) => {
+      schemaReadyPromise = null
+      throw e
+    })
+  }
+
+  return schemaReadyPromise
 }
 
 function randomId(prefix: string): string {
@@ -326,15 +435,245 @@ async function getGoogleAccessToken(env: Env): Promise<string> {
   return json.access_token
 }
 
+type ReminderTaskRow = {
+  task_id: string
+  title: string | null
+  description: string | null
+  assignee_user_id: string
+  reminder_type: string | null
+  reminder_interval_minutes: number | null
+  reminder_time_of_day: string | null
+  created_at: string | null
+  updated_at: string | null
+  last_reminder_at: string | null
+}
+
+function getMoscowNowParts() {
+  const parts = new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Europe/Moscow",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false
+  }).formatToParts(new Date())
+
+  const get = (type: string) => parts.find(p => p.type === type)?.value || "00"
+  return {
+    year: get("year"),
+    month: get("month"),
+    day: get("day"),
+    hour: get("hour"),
+    minute: get("minute"),
+    second: get("second"),
+    hhmm: `${get("hour")}:${get("minute")}`,
+    dayStartIso: `${get("year")}-${get("month")}-${get("day")}T00:00:00+03:00`,
+  }
+}
+
+async function wasIntervalReminderSentRecently(env: Env, taskId: string, intervalMinutes: number) {
+  const cutoff = new Date(Date.now() - intervalMinutes * 60 * 1000).toISOString()
+  const row = await env.DB.prepare(`
+    SELECT created_at
+    FROM action_log
+    WHERE entity_type = 'task'
+      AND entity_id = ?
+      AND action_type = 'task_reminder_auto'
+      AND unixepoch(created_at) >= unixepoch(?)
+    ORDER BY created_at DESC
+    LIMIT 1
+  `).bind(taskId, cutoff).first<any>()
+
+  return !!row
+}
+
+async function wasDailyReminderSentToday(env: Env, taskId: string, dayStartIso: string) {
+  const row = await env.DB.prepare(`
+    SELECT created_at
+    FROM action_log
+    WHERE entity_type = 'task'
+      AND entity_id = ?
+      AND action_type = 'task_reminder_auto'
+      AND unixepoch(created_at) >= unixepoch(?)
+    ORDER BY created_at DESC
+    LIMIT 1
+  `).bind(taskId, dayStartIso).first<any>()
+
+  return !!row
+}
+
+async function runReminderScheduler(env: Env, ctx: ExecutionContext) {
+  const now = getMoscowNowParts()
+
+  const rows = await env.DB.prepare(`
+    SELECT
+      task_id,
+      title,
+      description,
+      assignee_user_id,
+      reminder_type,
+      reminder_interval_minutes,
+      reminder_time_of_day,
+      created_at,
+        updated_at,
+        last_reminder_at
+    FROM tasks
+    WHERE status = 'open'
+      AND is_urgent = 0
+      AND (
+        (reminder_type = 'interval' AND reminder_interval_minutes IS NOT NULL)
+        OR
+        (reminder_type = 'daily_time' AND reminder_time_of_day IS NOT NULL)
+      )
+  `).all<ReminderTaskRow>()
+
+  const tasks = rows.results || []
+  console.log("reminder_scheduler_scan", tasks.length, now.hhmm)
+
+  for (const task of tasks) {
+    let due = false
+
+      if (task.reminder_type === "interval" && task.reminder_interval_minutes) {
+        const interval = Number(task.reminder_interval_minutes)
+        const referenceIso = task.last_reminder_at || task.created_at
+
+        if (interval > 0 && referenceIso) {
+          const row = await env.DB.prepare(`
+            SELECT
+              CASE
+                WHEN (unixepoch(?) - unixepoch(?)) >= (? * 60) THEN 1
+                ELSE 0
+              END AS due
+          `).bind(nowIso(), referenceIso, interval).first<{ due: number }>()
+
+          due = Number(row?.due || 0) === 1
+        }
+      }
+
+    if (task.reminder_type === "daily_time" && task.reminder_time_of_day) {
+      if (task.reminder_time_of_day === now.hhmm) {
+        const sentToday = await wasDailyReminderSentToday(env, task.task_id, now.dayStartIso)
+        due = !sentToday
+      }
+    }
+
+    if (!due) continue
+
+    const device = await env.DB.prepare(`
+      SELECT fcm_token
+      FROM user_devices
+      WHERE user_id = ?
+      ORDER BY updated_at DESC
+      LIMIT 1
+    `).bind(task.assignee_user_id).first<{ fcm_token: string | null }>()
+
+    const tokens = [String(device?.fcm_token || "").trim()].filter(Boolean)
+
+    if (tokens.length === 0) {
+      console.log("reminder_scheduler_no_tokens", task.task_id, task.assignee_user_id)
+      continue
+    }
+
+    const pushBody = task.description
+      ? `${String(task.title || "Задача")}\n${String(task.description || "")}`
+      : String(task.title || "Напоминание по задаче")
+
+      let sent = 0
+      for (const token of tokens) {
+        try {
+          await sendPushToToken(
+            env,
+            token,
+            "Напоминание",
+            pushBody,
+            {
+              type: "task_reminder",
+              task_id: task.task_id,
+              open_tasks: "true",
+              task_title: String(task.title || ""),
+            }
+          )
+          sent++
+        } catch (e) {
+          console.log("task_reminder_auto_push_error", task.task_id, String(e))
+        }
+      }
+
+      if (sent > 0) {
+          await env.DB.prepare(`
+            UPDATE tasks
+            SET last_reminder_at = ?, updated_at = ?
+            WHERE task_id = ?
+          `).bind(nowIso(), nowIso(), task.task_id).run()
+
+        await logAction(env, "task", task.task_id, "task_reminder_auto", task.assignee_user_id, {
+          reminder_type: task.reminder_type,
+          reminder_interval_minutes: task.reminder_interval_minutes,
+          reminder_time_of_day: task.reminder_time_of_day
+        })
+        console.log("task_reminder_auto_ok", task.task_id, sent)
+      }
+  }
+}
+
+async function sendTasksSyncToUser(
+  env: Env,
+  userId: string,
+  reason: string,
+  taskId?: string
+) {
+  const devices = await env.DB.prepare(`
+    SELECT fcm_token
+    FROM user_devices
+    WHERE user_id = ?
+    ORDER BY updated_at DESC
+  `).bind(userId).all<{ fcm_token: string | null }>()
+
+  const tokens = Array.from(new Set((devices.results || [])
+    .map(x => String(x.fcm_token || "").trim())
+    .filter(Boolean)))
+
+  if (tokens.length === 0) {
+    console.log("tasks_sync_no_tokens", userId, reason, taskId || "")
+    return
+  }
+
+  for (const token of tokens) {
+    try {
+      await sendPushToToken(
+        env,
+        token,
+        "sync",
+        "sync",
+        {
+          type: "tasks_sync",
+          reason,
+          open_tasks: "true",
+          ...(taskId ? { task_id: taskId } : {})
+        }
+      )
+    } catch (e) {
+      console.log("tasks_sync_push_error", userId, reason, taskId || "", String(e))
+    }
+  }
+
+  console.log("tasks_sync_push_ok", userId, reason, taskId || "", tokens.length)
+}
+
 async function sendPushToToken(
   env: Env,
   token: string,
   title: string,
-  body: string
+  body: string,
+  extraData: Record<string, string> = {}
 ) {
   if (!token) return
 
   const accessToken = await getGoogleAccessToken(env)
+
+  console.log("FCM_REQUEST_SENT", JSON.stringify({ token: token.slice(0, 12), extraData }))
 
   const resp = await fetch(
     `https://fcm.googleapis.com/v1/projects/${env.FIREBASE_PROJECT_ID}/messages:send`,
@@ -350,13 +689,10 @@ async function sendPushToToken(
           data: {
             title,
             body,
+            ...extraData,
           },
           android: {
             priority: "high",
-            notification: {
-              channel_id: "ml_tasks_channel",
-              sound: "default",
-            },
           },
         },
       }),
@@ -364,7 +700,7 @@ async function sendPushToToken(
   )
 
   const text = await resp.text()
-  console.log("FCM_RESPONSE", text)
+  console.log("FCM_RESPONSE", resp.status, text)
 
   if (!resp.ok) {
     throw new Error(`fcm_send_failed: ${text}`)
@@ -372,7 +708,7 @@ async function sendPushToToken(
 }
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     if (request.method === "OPTIONS") return json({ ok: true, fcm_debug: debugText })
 
     const url = new URL(request.url)
@@ -384,6 +720,15 @@ export default {
 await ensureDailySummaryTable(env)
     await ensureReminderColumns(env)
 try {
+if (path === "/run_reminder_scheduler" && request.method === "POST") {
+          const user = await getCurrentUser(request, env)
+          if (!user) return json({ ok: false, error: "unauthorized" }, 401)
+          if (user.role !== "admin") return json({ ok: false, error: "forbidden" }, 403)
+
+          await runReminderScheduler(env, ctx)
+          return json({ ok: true, message: "reminder scheduler started" })
+        }
+
       if (path === "/google_login" && request.method === "POST") {
         const body = await request.json<{ id_token?: string }>().catch(() => null)
         if (!body?.id_token) return json({ ok: false, error: "id_token required" }, 400)
@@ -1102,7 +1447,8 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
 
 if (path === "/create_task" && request.method === "POST") {
         const user = await getCurrentUser(request, env)
-        if (!user) console.log("DEBUG: bypass auth for send_push")
+        if (!user)
+          return json({ ok: false, error: "unauthorized" }, 401)
 
         const body = await request.json<{
           title?: string
@@ -1111,78 +1457,328 @@ if (path === "/create_task" && request.method === "POST") {
           reminder_type?: string | null
           reminder_interval_minutes?: number | null
           reminder_time_of_day?: string | null
+          is_urgent?: boolean | number | null
+          client_request_id?: string | null
         }>().catch(() => null)
+
         const title = String(body?.title || "").trim()
         const description = String(body?.description || "").trim()
         const assigneeUserId = String(body?.assignee_user_id || "").trim()
         const reminderType = body?.reminder_type == null ? null : String(body.reminder_type).trim() || null
         const reminderIntervalMinutes = body?.reminder_interval_minutes == null ? null : Number(body.reminder_interval_minutes)
         const reminderTimeOfDay = body?.reminder_time_of_day == null ? null : String(body.reminder_time_of_day).trim() || null
+        const isUrgent = body?.is_urgent === true || body?.is_urgent === 1 || body?.is_urgent === "1"
+          const effectiveReminderType = isUrgent ? null : reminderType
+          const effectiveReminderIntervalMinutes = isUrgent ? null : (Number.isFinite(reminderIntervalMinutes) ? reminderIntervalMinutes : null)
+          const effectiveReminderTimeOfDay = isUrgent ? null : reminderTimeOfDay
+        const clientRequestId = body?.client_request_id == null ? null : String(body.client_request_id).trim() || null
 
-        if (!title || !assigneeUserId) return json({ ok: false, error: "title and assignee_user_id required" }, 400)
+        if (!title || !assigneeUserId)
+          return json({ ok: false, error: "title and assignee_user_id required" }, 400)
+
+        if (clientRequestId) {
+          const existingByClientRequest = await env.DB.prepare(`
+            SELECT task_id
+            FROM tasks
+            WHERE created_by_user_id = ?
+              AND client_request_id = ?
+            LIMIT 1
+          `).bind(
+            user.user_id,
+            clientRequestId
+          ).first<{ task_id: string }>()
+
+          if (existingByClientRequest?.task_id) {
+            console.log("create_task_deduplicated_by_client_request_id", existingByClientRequest.task_id)
+            return json({
+              ok: true,
+              task_id: existingByClientRequest.task_id,
+              deduplicated: true
+            })
+          }
+        } else {
+          const cutoffIso = new Date(Date.now() - 2 * 60 * 1000).toISOString()
+          const existingTask = await env.DB.prepare(`
+            SELECT task_id
+            FROM tasks
+            WHERE created_by_user_id = ?
+              AND assignee_user_id = ?
+              AND title = ?
+              AND COALESCE(description, '') = ?
+              AND status = 'open'
+              AND created_at >= ?
+            ORDER BY created_at DESC
+            LIMIT 1
+          `).bind(
+            user.user_id,
+            assigneeUserId,
+            title,
+            description,
+            cutoffIso
+          ).first<{ task_id: string }>()
+
+          if (existingTask?.task_id) {
+            console.log("create_task_deduplicated_legacy", existingTask.task_id)
+            return json({ ok: true, task_id: existingTask.task_id, deduplicated: true })
+          }
+        }
 
         const taskId = randomId("t")
+        const createdAt = nowIso()
+        const updatedAt = createdAt
 
-        await env.DB.prepare(`
-          INSERT INTO tasks (
-            task_id, title, description, status, created_by_user_id, assignee_user_id,
-            reminder_type, reminder_interval_minutes, reminder_time_of_day,
-            created_at, updated_at
-          ) VALUES (?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?)
-        `).bind(
-          taskId,
-          title,
-          description,
-          user.user_id,
-          assigneeUserId,
-          reminderType,
-          Number.isFinite(reminderIntervalMinutes) ? reminderIntervalMinutes : null,
-          reminderTimeOfDay,
-          nowIso(),
-          nowIso()
-        ).run()
+        try {
+          await env.DB.prepare(`
+            INSERT INTO tasks (
+              task_id, title, description, status, created_by_user_id, assignee_user_id,
+              reminder_type, reminder_interval_minutes, reminder_time_of_day, is_urgent,
+              client_request_id, created_at, updated_at
+            ) VALUES (?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `).bind(
+              taskId,
+              title,
+              description,
+              user.user_id,
+              assigneeUserId,
+              effectiveReminderType,
+              effectiveReminderIntervalMinutes,
+              effectiveReminderTimeOfDay,
+              isUrgent ? 1 : 0,
+              clientRequestId,
+              createdAt,
+              updatedAt
+          ).run()
+        } catch (e) {
+          if (clientRequestId) {
+            const existingAfterConflict = await env.DB.prepare(`
+              SELECT task_id
+              FROM tasks
+              WHERE created_by_user_id = ?
+                AND client_request_id = ?
+              LIMIT 1
+            `).bind(
+              user.user_id,
+              clientRequestId
+            ).first<{ task_id: string }>()
 
-        await logAction(env, "task", taskId, "task_created", user.user_id, {
-          title,
-          assignee_user_id: assigneeUserId
-        })
+            if (existingAfterConflict?.task_id) {
+              console.log("create_task_conflict_resolved_by_client_request_id", existingAfterConflict.task_id)
+              return json({
+                ok: true,
+                task_id: existingAfterConflict.task_id,
+                deduplicated: true
+              })
+            }
+          }
+
+          throw e
+        }
+
+                  await env.DB.prepare(`
+            UPDATE tasks
+            SET notification_sent_at = ?, updated_at = ?
+            WHERE task_id = ?
+          `).bind(createdAt, createdAt, taskId).run()
+
+await logAction(env, "task", taskId, "task_created", user.user_id, {
+            title,
+            assignee_user_id: assigneeUserId,
+            is_urgent: isUrgent ? 1 : 0,
+            client_request_id: clientRequestId
+          })
 
         const assignee = await env.DB.prepare(`
-          SELECT display_name, fcm_token
+          SELECT display_name
           FROM users
           WHERE user_id = ?
           LIMIT 1
         `).bind(assigneeUserId).first<any>()
 
+        const assigneeDevices = await env.DB.prepare(`
+          SELECT fcm_token
+          FROM user_devices
+          WHERE user_id = ?
+          ORDER BY updated_at DESC
+        `).bind(assigneeUserId).all<{ fcm_token: string | null }>()
+
+        const assigneeTokens = Array.from(new Set((assigneeDevices.results || [])
+          .map(x => String(x.fcm_token || "").trim())
+          .filter(Boolean)))
+
         console.log("push_debug", JSON.stringify({
           assignee_user_id: assigneeUserId,
-          has_token: !!assignee?.fcm_token,
+          assignee_name: assignee?.display_name || null,
+          token_count: assigneeTokens.length,
           title
         }))
 
-        if (assignee?.fcm_token) {
-          try {
-            await sendPushToToken(
-              env,
-              assignee.fcm_token,
-              "Новая задача",
-              title
-            )
-            console.log("push_send_ok", assigneeUserId)
-          } catch (e) {
-            console.log("push_send_error", String(e))
-          }
+        if (assigneeTokens.length > 0) {
+          const authorName = String(user.display_name || user.email || "Автор").trim() || "Автор"
+          ctx.waitUntil((async () => {
+            const pushBody = description
+              ? `От: ${authorName}\n${description}`
+              : `От: ${authorName}`
+
+            let sent = 0
+            for (const token of assigneeTokens) {
+              try {
+                await sendPushToToken(
+                  env,
+                  token,
+                  "Новая задача",
+                  pushBody,
+                  {
+                    type: "task_created",
+                    task_id: taskId,
+                      is_urgent: isUrgent ? "1" : "0",
+                    open_tasks: "true",
+                    task_title: title,
+                    author_name: authorName
+                  }
+                )
+                sent++
+              } catch (e) {
+                const errorText = String(e)
+                console.log("push_send_error", assigneeUserId, errorText)
+
+                if (
+                  errorText.includes("registration-token-not-registered") ||
+                  errorText.includes("Requested entity was not found") ||
+                  errorText.includes("UNREGISTERED") ||
+                  errorText.includes("invalid-registration-token") ||
+                  errorText.includes("Invalid registration token")
+                ) {
+                  await deleteUserDeviceToken(env, token)
+                }
+              }
+            }
+
+            if (sent > 0) {
+              console.log("push_send_ok", assigneeUserId, sent)
+            } else {
+              console.log("push_send_skipped_no_valid_token", assigneeUserId)
+            }
+          })())
         } else {
           console.log("push_send_skipped_no_token", assigneeUserId)
         }
 
+        return json({ ok: true, task_id: taskId })
+      }
+
+      
+
+if (path === "/task_notification_delivered" && request.method === "POST") {
+        const user = await getCurrentUser(request, env)
+        if (!user)
+          return json({ ok: false, error: "unauthorized" }, 401)
+
+        const body = await request.json<{ task_id?: string }>().catch(() => null)
+        const taskId = String(body?.task_id || "").trim()
+        if (!taskId)
+          return json({ ok: false, error: "task_id required" }, 400)
+
+        await env.DB.prepare(`
+          UPDATE tasks
+          SET notification_delivered_at = COALESCE(notification_delivered_at, ?), updated_at = ?
+          WHERE task_id = ? AND assignee_user_id = ?
+        `).bind(nowIso(), nowIso(), taskId, user.user_id).run()
 
         return json({ ok: true, task_id: taskId })
       }
 
-      if (path === "/my_tasks" && request.method === "GET") {
+if (path === "/task_seen" && request.method === "POST") {
         const user = await getCurrentUser(request, env)
-        if (!user) console.log("DEBUG: bypass auth for send_push")
+        if (!user)
+          return json({ ok: false, error: "unauthorized" }, 401)
+
+        const body = await request.json<{ task_id?: string }>().catch(() => null)
+        const taskId = String(body?.task_id || "").trim()
+        if (!taskId)
+          return json({ ok: false, error: "task_id required" }, 400)
+
+        await env.DB.prepare(`
+          UPDATE tasks
+          SET notification_seen_at = COALESCE(notification_seen_at, ?), updated_at = ?
+          WHERE task_id = ? AND assignee_user_id = ?
+        `).bind(nowIso(), nowIso(), taskId, user.user_id).run()
+
+        return json({ ok: true, task_id: taskId })
+      }
+
+if (path === "/task_by_id" && request.method
+ === "GET") {
+        const user = await getCurrentUser(request, env)
+        if (!user) 
+
+        return json({ ok: false, error: "unauthorized" }, 401)
+
+        const url = new URL(request.url)
+        const taskId = String(url.searchParams.get("task_id") || "").trim()
+        if (!taskId) 
+
+        return json({ ok: false, error: "task_id_required" }, 400)
+
+        const task = await env.DB.prepare(`
+          SELECT
+            t.task_id,
+            t.title,
+            t.description,
+            t.status,
+            t.created_at,
+            t.updated_at,
+            t.created_by_user_id,
+            t.assignee_user_id,
+            t.completed_by_user_id,
+            t.completed_at,
+            t.cancelled_by_user_id,
+            t.cancelled_at,
+            cu.display_name AS created_by_name,
+            au.display_name AS assignee_name,
+            compu.display_name AS completed_by_name,
+            cancelu.display_name AS cancelled_by_name,
+            t.reminder_type,
+            t.reminder_interval_minutes,
+            t.reminder_time_of_day,
+            CASE
+              WHEN t.notification_seen_at IS NOT NULL THEN 'seen'
+              WHEN t.notification_delivered_at IS NOT NULL THEN 'delivered'
+              WHEN t.notification_sent_at IS NOT NULL THEN 'sent'
+              ELSE NULL
+            END AS notification_status,
+            COALESCE(t.is_urgent, 0) AS is_urgent
+          FROM tasks t
+          LEFT JOIN users cu ON cu.user_id = t.created_by_user_id
+          LEFT JOIN users au ON au.user_id = t.assignee_user_id
+          LEFT JOIN users compu ON compu.user_id = t.completed_by_user_id
+          LEFT JOIN users cancelu ON cancelu.user_id = t.cancelled_by_user_id
+          WHERE t.task_id = ?
+          LIMIT 1
+        `).bind(taskId).first<any>()
+
+        if (!task) {
+
+        return json({ ok: false, error: "task_not_found" }, 404)
+        }
+
+        const isAdmin = user.role === "admin"
+        const isAuthor = task.created_by_user_id === user.user_id
+        const isAssignee = task.assignee_user_id === user.user_id
+
+        if (!isAdmin && !isAuthor && !isAssignee) {
+
+        return json({ ok: false, error: "forbidden" }, 403)
+        }
+
+        return json({ ok: true, task })
+      }
+
+      
+if (path === "/my_tasks" && request.method
+ === "GET") {
+        const user = await getCurrentUser(request, env)
+        if (!user)
+          return json({ ok: false, error: "unauthorized" }, 401)
 
         const rows = await env.DB.prepare(`
           SELECT
@@ -1196,6 +1792,13 @@ if (path === "/create_task" && request.method === "POST") {
             t.assignee_user_id,
             t.completed_by_user_id,
             t.completed_at,
+            CASE
+              WHEN t.notification_seen_at IS NOT NULL THEN 'seen'
+              WHEN t.notification_delivered_at IS NOT NULL THEN 'delivered'
+              WHEN t.notification_sent_at IS NOT NULL THEN 'sent'
+              ELSE NULL
+            END AS notification_status,
+            COALESCE(t.is_urgent, 0) AS is_urgent,
             cu.display_name AS created_by_name,
             au.display_name AS assignee_name,
             compu.display_name AS completed_by_name
@@ -1212,9 +1815,11 @@ if (path === "/create_task" && request.method === "POST") {
 
       if (path === "/all_tasks" && request.method === "GET") {
         const user = await getCurrentUser(request, env)
-        if (!user) console.log("DEBUG: bypass auth for send_push")
+        if (!user)
+          return json({ ok: false, error: "unauthorized" }, 401)
         if (!(user.role === "plus" || user.role === "admin")) {
-          return json({ ok: false, error: "permission denied" }, 403)
+
+        return json({ ok: false, error: "permission denied" }, 403)
         }
 
         const rows = await env.DB.prepare(`
@@ -1229,6 +1834,13 @@ if (path === "/create_task" && request.method === "POST") {
             t.assignee_user_id,
             t.completed_by_user_id,
             t.completed_at,
+            CASE
+              WHEN t.notification_seen_at IS NOT NULL THEN 'seen'
+              WHEN t.notification_delivered_at IS NOT NULL THEN 'delivered'
+              WHEN t.notification_sent_at IS NOT NULL THEN 'sent'
+              ELSE NULL
+            END AS notification_status,
+            COALESCE(t.is_urgent, 0) AS is_urgent,
             cu.display_name AS created_by_name,
             au.display_name AS assignee_name,
             compu.display_name AS completed_by_name
@@ -1255,9 +1867,11 @@ if (path === "/create_task" && request.method === "POST") {
         const reminderType = body?.reminder_type == null ? null : String(body.reminder_type).trim() || null
         const reminderIntervalMinutes = body?.reminder_interval_minutes == null ? null : Number(body.reminder_interval_minutes)
         const reminderTimeOfDay = body?.reminder_time_of_day == null ? null : String(body.reminder_time_of_day).trim() || null
+        const isUrgent = body?.is_urgent === true || body?.is_urgent === 1 || body?.is_urgent === "1"
 
         if (!taskId || !title || !assigneeUserId) {
-          return json({ ok: false, error: "task_id, title and assignee_user_id required" }, 400)
+
+        return json({ ok: false, error: "task_id, title and assignee_user_id required" }, 400)
         }
 
         const task = await env.DB.prepare(`
@@ -1267,59 +1881,213 @@ if (path === "/create_task" && request.method === "POST") {
           LIMIT 1
         `).bind(taskId).first<any>()
 
-        if (!task) return json({ ok: false, error: "task not found" }, 404)
+        if (!task) 
+
+        return json({ ok: false, error: "task not found" }, 404)
 
         const canEdit = user.role === "admin" || task.created_by_user_id === user.user_id
-        if (!canEdit) return json({ ok: false, error: "permission denied" }, 403)
-        if (task.status !== "open") return json({ ok: false, error: "only open tasks can be edited" }, 400)
+        if (!canEdit) 
+
+        return json({ ok: false, error: "permission denied" }, 403)
+        if (task.status !== "open") 
+
+        return json({ ok: false, error: "only open tasks can be edited" }, 400)
 
         await env.DB.prepare(`
           UPDATE tasks
-          SET title = ?, description = ?, assignee_user_id = ?, reminder_type = ?, reminder_interval_minutes = ?, reminder_time_of_day = ?, updated_at = ?
+          SET title = ?, description = ?, assignee_user_id = ?, reminder_type = ?, reminder_interval_minutes = ?, reminder_time_of_day = ?, is_urgent = ?, updated_at = ?
           WHERE task_id = ?
-        `).bind(title, description, assigneeUserId, reminderType, Number.isFinite(reminderIntervalMinutes) ? reminderIntervalMinutes : null, reminderTimeOfDay, nowIso(), taskId).run()
+        `).bind(title, description, assigneeUserId, reminderType, Number.isFinite(reminderIntervalMinutes) ? reminderIntervalMinutes : null, reminderTimeOfDay, isUrgent ? 1 : 0, nowIso(), taskId).run()
 
         await logAction(env, "task", taskId, "task_updated", user.user_id, {
           title,
           assignee_user_id: assigneeUserId,
           reminder_type: reminderType,
           reminder_interval_minutes: Number.isFinite(reminderIntervalMinutes) ? reminderIntervalMinutes : null,
-          reminder_time_of_day: reminderTimeOfDay
+          reminder_time_of_day: reminderTimeOfDay,
+          is_urgent: isUrgent ? 1 : 0
         })
 
         return json({ ok: true, task_id: taskId })
       }
 
-      if (path === "/delete_task" && request.method === "POST") {
+      
+if (path === "/delete_task" && request.method
+ === "POST") {
         const user = await getCurrentUser(request, env)
-        if (!user) console.log("DEBUG: bypass auth for send_push")
+        if (!user) 
+
+        return json({ ok: false, error: "unauthorized" }, 401)
 
         const body = await request.json<{ task_id?: string }>().catch(() => null)
         const taskId = String(body?.task_id || "").trim()
-        if (!taskId) return json({ ok: false, error: "task_id required" }, 400)
+        if (!taskId) 
+
+        return json({ ok: false, error: "task_id required" }, 400)
 
         const task = await env.DB.prepare(`
-          SELECT task_id, created_by_user_id, title
+            SELECT task_id, created_by_user_id, assignee_user_id, title
           FROM tasks
           WHERE task_id = ?
           LIMIT 1
         `).bind(taskId).first<any>()
 
-        if (!task) return json({ ok: false, error: "task not found" }, 404)
+        if (!task) 
+
+        return json({ ok: false, error: "task not found" }, 404)
 
         const canDelete = user.role === "admin" || task.created_by_user_id === user.user_id
-        if (!canDelete) return json({ ok: false, error: "permission denied" }, 403)
+        if (!canDelete) 
+
+        return json({ ok: false, error: "permission denied" }, 403)
+
+        await logAction(env, "task", taskId, "task_deleted", user.user_id, {
+          title: task.title || ""
+        })
 
         await env.DB.prepare(`
           DELETE FROM tasks
           WHERE task_id = ?
         `).bind(taskId).run()
 
-        await logAction(env, "task", taskId, "task_deleted", user.user_id, {
-          title: task.title || ""
-        })
+          if (task.assignee_user_id) {
+            const assigneeDevice = await env.DB.prepare(`
+              SELECT fcm_token
+              FROM user_devices
+              WHERE user_id = ?
+              ORDER BY updated_at DESC
+              LIMIT 1
+            `).bind(task.assignee_user_id).first<{ fcm_token: string | null }>()
+
+            const assigneeToken = String(assigneeDevice?.fcm_token || "").trim()
+            if (assigneeToken) {
+              ctx.waitUntil((async () => {
+                try {
+                  await sendPushToToken(
+                    env,
+                    assigneeToken,
+                    "Задача удалена",
+                    `Задача "${String(task.title || "")}" была удалена`,
+                    {
+                      type: "task_deleted",
+                      task_id: taskId,
+                      open_tasks: "true",
+                      task_title: String(task.title || "")
+                    }
+                  )
+                } catch (e) {
+                  console.log("task_deleted_push_error", taskId, String(e))
+                }
+              })())
+            }
+          }
+
+
+          if (task.created_by_user_id) {
+            ctx.waitUntil(sendTasksSyncToUser(env, task.created_by_user_id, "task_deleted", taskId))
+          }
+          if (task.assignee_user_id && task.assignee_user_id !== task.created_by_user_id) {
+            ctx.waitUntil(sendTasksSyncToUser(env, task.assignee_user_id, "task_deleted", taskId))
+          }
 
         return json({ ok: true, task_id: taskId })
+      }
+
+      
+if (path === "/task_reminder" && request.method
+ === "POST") {
+        const user = await getCurrentUser(request, env)
+        if (!user) 
+
+        return json({ ok: false, error: "unauthorized" }, 401)
+
+        const body = await request.json().catch(() => null) as { task_id?: string } | null
+        const taskId = String(body?.task_id || "").trim()
+        if (!taskId) 
+
+        return json({ ok: false, error: "task_id_required" }, 400)
+
+        const task = await env.DB.prepare(`
+          SELECT
+            t.task_id,
+            t.title,
+            t.assignee_user_id,
+            t.created_by_user_id,
+            u.display_name AS assignee_name,
+            u.fcm_token AS assignee_fcm_token
+          FROM tasks t
+          LEFT JOIN users u ON u.user_id = t.assignee_user_id
+          WHERE t.task_id = ?
+          LIMIT 1
+        `).bind(taskId).first<any>()
+
+        if (!task) {
+
+        return json({ ok: false, error: "task_not_found" }, 404)
+        }
+
+        const isAdmin = user.role === "admin"
+        const isAuthor = task.created_by_user_id === user.user_id
+        if (!isAdmin && !isAuthor) {
+
+        return json({ ok: false, error: "forbidden" }, 403)
+        }
+
+        const assigneeDevices = await env.DB.prepare(`
+          SELECT fcm_token
+          FROM user_devices
+          WHERE user_id = ?
+          ORDER BY updated_at DESC
+        `).bind(task.assignee_user_id).all<{ fcm_token: string | null }>()
+
+        const assigneeTokens = Array.from(new Set((assigneeDevices.results || [])
+          .map(x => String(x.fcm_token || "").trim())
+          .filter(Boolean)))
+
+        if (assigneeTokens.length === 0) {
+
+        return json({ ok: false, error: "assignee_has_no_push_token" }, 400)
+        }
+
+        const authorName = String(user.display_name || user.email || "Автор").trim() || "Автор"
+
+        ctx.waitUntil((async () => {
+          let sent = 0
+          for (const token of assigneeTokens) {
+            try {
+              await sendPushToToken(
+                env,
+                token,
+                "Напоминание",
+                `Напоминание по задаче "${task.title}" от ${authorName}`,
+                {
+                  type: "task_reminder",
+                  task_id: taskId,
+                  open_tasks: "true",
+                  task_title: String(task.title || ""),
+                  author_name: authorName
+                }
+              )
+              sent++
+            } catch (e) {
+              console.log("task_reminder_push_error", taskId, String(e))
+            }
+          }
+
+          console.log("task_reminder_push_ok", taskId, task.assignee_user_id, sent)
+        })())
+
+          await env.DB.prepare(`
+            UPDATE tasks
+            SET last_reminder_at = ?, updated_at = ?
+            WHERE task_id = ?
+          `).bind(nowIso(), nowIso(), taskId).run()
+
+        await logAction(env, "task", taskId, "task_reminder", user.user_id, {
+          assignee_user_id: task.assignee_user_id
+        })
+
+        return json({ ok: true, message: "Напоминание отправлено", task_id: taskId })
       }
 
       if (path === "/complete_task" && request.method === "POST") {
@@ -1328,24 +2096,31 @@ if (path === "/create_task" && request.method === "POST") {
 
         const body = await request.json<{ task_id?: string }>().catch(() => null)
         const taskId = String(body?.task_id || "").trim()
-        if (!taskId) return json({ ok: false, error: "task_id required" }, 400)
+        if (!taskId) 
+
+        return json({ ok: false, error: "task_id required" }, 400)
 
         const task = await env.DB.prepare(`
-          SELECT task_id, status, assignee_user_id
+          SELECT task_id, title, status, assignee_user_id, created_by_user_id
           FROM tasks
           WHERE task_id = ?
           LIMIT 1
         `).bind(taskId).first<any>()
 
-        if (!task) return json({ ok: false, error: "task not found" }, 404)
-        if (task.status === "done") return json({ ok: false, error: "task already completed" }, 400)
+        if (!task) 
+
+        return json({ ok: false, error: "task not found" }, 404)
+        if (task.status === "done") 
+
+        return json({ ok: false, error: "task already completed" }, 400)
 
         const canComplete =
-          (user.role === "basic" && task.assignee_user_id === user.user_id) ||
-          user.role === "plus" ||
+          task.assignee_user_id === user.user_id ||
           user.role === "admin"
 
-        if (!canComplete) return json({ ok: false, error: "permission denied" }, 403)
+        if (!canComplete) 
+
+        return json({ ok: false, error: "permission denied" }, 403)
 
         await env.DB.prepare(`
           UPDATE tasks
@@ -1358,6 +2133,43 @@ if (path === "/create_task" && request.method === "POST") {
           completed_by_user_id: user.user_id
         })
 
+        if (task.created_by_user_id && task.created_by_user_id !== user.user_id) {
+          const authorDevices = await env.DB.prepare(`
+            SELECT fcm_token
+            FROM user_devices
+            WHERE user_id = ?
+            ORDER BY updated_at DESC
+          `).bind(task.created_by_user_id).all<{ fcm_token: string | null }>()
+
+          const authorTokens = Array.from(new Set((authorDevices.results || [])
+            .map(x => String(x.fcm_token || "").trim())
+            .filter(Boolean)))
+
+          const completedByName = String(user.display_name || user.email || "Исполнитель").trim() || "Исполнитель"
+
+          ctx.waitUntil((async () => {
+            for (const token of authorTokens) {
+              try {
+                await sendPushToToken(
+                  env,
+                  token,
+                  "Задача выполнена",
+                  `Задача "${String(task.title || "")}" выполнена — ${completedByName}`,
+                  {
+                    type: "task_completed",
+                    task_id: taskId,
+                    open_tasks: "true",
+                    task_title: String(task.title || ""),
+                    completed_by_name: completedByName
+                  }
+                )
+              } catch (e) {
+                console.log("task_completed_push_error", taskId, String(e))
+              }
+            }
+          })())
+        }
+
         return json({ ok: true, task_id: taskId })
       }
 
@@ -1365,6 +2177,10 @@ if (path === "/create_task" && request.method === "POST") {
     } catch (e: any) {
       return json({ ok: false, error: e?.message || "internal error" }, 500)
     }
+  }
+  async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    await ensureSchemaOnce(env)
+    await runReminderScheduler(env, ctx)
   }
 }
 
