@@ -36,6 +36,10 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.ExposedDropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -606,15 +610,54 @@ onDone?.invoke()
 
                 Spacer(modifier = Modifier.height(8.dp))
 
+                val suffixOptions = (1..colorDrafts.size.coerceAtLeast(1)).map { it.toString() }
+
                 colorDrafts.forEachIndexed { index, item ->
-                    OutlinedTextField(
-                        value = item.skuText,
-                        onValueChange = { value ->
-                            colorDrafts[index] = item.copy(skuText = value.filter { ch -> ch.isDigit() })
-                        },
-                        label = { Text("Цифра — ${item.color}") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    var expanded by remember(item.color) { mutableStateOf(false) }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = item.color,
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        ExposedDropdownMenuBox(
+                            expanded = expanded,
+                            onExpandedChange = { expanded = !expanded }
+                        ) {
+                            OutlinedTextField(
+                                value = item.skuText,
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("Номер") },
+                                trailingIcon = {
+                                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+                                },
+                                modifier = Modifier
+                                    .width(140.dp)
+                                    .menuAnchor()
+                            )
+
+                            ExposedDropdownMenu(
+                                expanded = expanded,
+                                onDismissRequest = { expanded = false }
+                            ) {
+                                suffixOptions.forEach { option ->
+                                    DropdownMenuItem(
+                                        text = { Text(option) },
+                                        onClick = {
+                                            colorDrafts[index] = item.copy(skuText = option)
+                                            expanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     Spacer(modifier = Modifier.height(8.dp))
                 }
 
