@@ -129,6 +129,7 @@ fun AddEditArticleScreen(
     var deliveryFee by remember { mutableStateOf("") }
     var priceForAllEnabled by remember { mutableStateOf(true) }
     var priceAll by remember { mutableStateOf("") }
+    var articleBase by remember { mutableStateOf("") }
     var cardType by remember { mutableStateOf("classic") }
     var newColor by remember { mutableStateOf("") }
 
@@ -140,6 +141,7 @@ fun AddEditArticleScreen(
         cost = ""
         photoPath = null
         priceAll = ""
+        articleBase = ""
         cardType = "classic"
         newColor = ""
         priceForAllEnabled = true
@@ -157,10 +159,12 @@ fun AddEditArticleScreen(
         val value = newColor.trim()
         if (value.isBlank()) return
         if (colorDrafts.none { it.color == value }) {
+            val nextSuffix = ((colorDrafts.mapNotNull { it.skuText.trim().toIntOrNull() }.maxOrNull() ?: 0) + 1).toString()
             colorDrafts.add(
                 ColorDraft(
                     color = value,
-                    priceText = if (priceForAllEnabled) "" else priceAll
+                    priceText = if (priceForAllEnabled) "" else priceAll,
+                    skuText = nextSuffix
                 )
             )
         }
@@ -265,7 +269,16 @@ onDone?.invoke()
             val item = colorDrafts[i]
             val savedSku = kotlin.runCatching { repo.getSkuFor(id, item.color) }.getOrNull().orEmpty()
             if (savedSku.isNotBlank()) {
-                colorDrafts[i] = item.copy(skuText = savedSku)
+                val dash = savedSku.lastIndexOf("-")
+                if (dash > 0 && dash < savedSku.lastIndex) {
+                    val base = savedSku.substring(0, dash)
+                    val suffix = savedSku.substring(dash + 1)
+                    if (articleBase.isBlank()) articleBase = base
+                    colorDrafts[i] = item.copy(skuText = suffix)
+                } else {
+                    if (articleBase.isBlank()) articleBase = savedSku
+                    colorDrafts[i] = item.copy(skuText = "")
+                }
             }
         }
 
@@ -571,7 +584,23 @@ onDone?.invoke()
                 Spacer(modifier = Modifier.height(24.dp))
 
                 Text(
-                    text = "Артикулы по цветам",
+                    text = "Артикул карточки",
+                    style = MaterialTheme.typography.titleMedium
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                OutlinedTextField(
+                    value = articleBase,
+                    onValueChange = { articleBase = it },
+                    label = { Text("Базовый артикул") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = "Цифра после - по цветам",
                     style = MaterialTheme.typography.titleMedium
                 )
 
@@ -581,9 +610,9 @@ onDone?.invoke()
                     OutlinedTextField(
                         value = item.skuText,
                         onValueChange = { value ->
-                            colorDrafts[index] = item.copy(skuText = value)
+                            colorDrafts[index] = item.copy(skuText = value.filter { ch -> ch.isDigit() })
                         },
-                        label = { Text("Артикул / SKU — ${item.color}") },
+                        label = { Text("Цифра — ${item.color}") },
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(8.dp))
@@ -638,6 +667,14 @@ onDone?.invoke()
                                 }
                             )
 
+                            val articleBaseClean = articleBase.trim()
+                            colorDrafts.forEach {
+                                val suffix = it.skuText.trim()
+                                if (articleBaseClean.isNotBlank() && suffix.isNotBlank()) {
+                                    repo.setSkuFor(id, it.color, articleBaseClean + "-" + suffix)
+                                }
+                            }
+
                             if (saveError.isNullOrBlank()) {
                                 val apiBase = resolveApiBaseUrl()
                                 if (apiBase.isBlank()) {
@@ -670,10 +707,13 @@ onDone?.invoke()
                                                 }
                                             }
 
+                                            val articleBaseClean = articleBase.trim()
+
                                             val skuLinksJson = JSONArray().apply {
                                                 colorDrafts.forEach {
-                                                    val sku = it.skuText.trim()
-                                                    if (sku.isNotBlank()) {
+                                                    val suffix = it.skuText.trim()
+                                                    if (articleBaseClean.isNotBlank() && suffix.isNotBlank()) {
+                                                        val sku = articleBaseClean + "-" + suffix
                                                         put(
                                                             JSONObject().apply {
                                                                 put("color", it.color)
