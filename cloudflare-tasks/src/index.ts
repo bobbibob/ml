@@ -1111,8 +1111,6 @@ if (path === "/create_task" && request.method === "POST") {
           reminder_type?: string | null
           reminder_interval_minutes?: number | null
           reminder_time_of_day?: string | null
-          is_urgent?: number | boolean | null
-          client_request_id?: string | null
         }>().catch(() => null)
         const title = String(body?.title || "").trim()
         const description = String(body?.description || "").trim()
@@ -1120,46 +1118,26 @@ if (path === "/create_task" && request.method === "POST") {
         const reminderType = body?.reminder_type == null ? null : String(body.reminder_type).trim() || null
         const reminderIntervalMinutes = body?.reminder_interval_minutes == null ? null : Number(body.reminder_interval_minutes)
         const reminderTimeOfDay = body?.reminder_time_of_day == null ? null : String(body.reminder_time_of_day).trim() || null
-        const isUrgent = body?.is_urgent === true || Number(body?.is_urgent || 0) === 1 ? 1 : 0
-        const clientRequestId = body?.client_request_id == null ? null : String(body.client_request_id).trim() || null
 
         if (!title || !assigneeUserId) return json({ ok: false, error: "title and assignee_user_id required" }, 400)
 
-        if (clientRequestId) {
-          try { await env.DB.prepare("ALTER TABLE tasks ADD COLUMN client_request_id TEXT").run() } catch {}
-          const existing = await env.DB.prepare(`
-            SELECT task_id
-            FROM tasks
-            WHERE created_by_user_id = ? AND client_request_id = ?
-            LIMIT 1
-          `).bind(user.user_id, clientRequestId).first<any>()
-          if (existing?.task_id) {
-            return json({ ok: true, task_id: existing.task_id, duplicate: true })
-          }
-        }
-
         const taskId = randomId("t")
-
-        try { await env.DB.prepare("ALTER TABLE tasks ADD COLUMN is_urgent INTEGER NOT NULL DEFAULT 0").run() } catch {}
-        try { await env.DB.prepare("ALTER TABLE tasks ADD COLUMN client_request_id TEXT").run() } catch {}
 
         await env.DB.prepare(`
           INSERT INTO tasks (
             task_id, title, description, status, created_by_user_id, assignee_user_id,
-            reminder_type, reminder_interval_minutes, reminder_time_of_day, is_urgent, client_request_id,
+            reminder_type, reminder_interval_minutes, reminder_time_of_day,
             created_at, updated_at
-          ) VALUES (?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ) VALUES (?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?)
         `).bind(
           taskId,
           title,
           description,
           user.user_id,
           assigneeUserId,
-          isUrgent === 1 ? null : reminderType,
-          isUrgent === 1 ? null : (Number.isFinite(reminderIntervalMinutes) ? reminderIntervalMinutes : null),
-          isUrgent === 1 ? null : reminderTimeOfDay,
-          isUrgent,
-          clientRequestId,
+          reminderType,
+          Number.isFinite(reminderIntervalMinutes) ? reminderIntervalMinutes : null,
+          reminderTimeOfDay,
           nowIso(),
           nowIso()
         ).run()
@@ -1187,8 +1165,8 @@ if (path === "/create_task" && request.method === "POST") {
             await sendPushToToken(
               env,
               assignee.fcm_token,
-              isUrgent === 1 ? "Приоритетная задача" : "Новая задача",
-              description || title
+              "Новая задача",
+              title
             )
             console.log("push_send_ok", assigneeUserId)
           } catch (e) {
@@ -1218,10 +1196,6 @@ if (path === "/create_task" && request.method === "POST") {
             t.assignee_user_id,
             t.completed_by_user_id,
             t.completed_at,
-            t.reminder_type,
-            t.reminder_interval_minutes,
-            t.reminder_time_of_day,
-            COALESCE(t.is_urgent, 0) AS is_urgent,
             cu.display_name AS created_by_name,
             au.display_name AS assignee_name,
             compu.display_name AS completed_by_name
@@ -1255,10 +1229,6 @@ if (path === "/create_task" && request.method === "POST") {
             t.assignee_user_id,
             t.completed_by_user_id,
             t.completed_at,
-            t.reminder_type,
-            t.reminder_interval_minutes,
-            t.reminder_time_of_day,
-            COALESCE(t.is_urgent, 0) AS is_urgent,
             cu.display_name AS created_by_name,
             au.display_name AS assignee_name,
             compu.display_name AS completed_by_name
@@ -1273,52 +1243,11 @@ if (path === "/create_task" && request.method === "POST") {
       }
 
 
-
-      if (path === "/task_reminder" && request.method === "POST") {
-        const user = await getCurrentUser(request, env)
-        if (!user) console.log("DEBUG: bypass auth for send_push")
-
-        const body = await request.json<{ task_id?: string }>().catch(() => null)
-        const taskId = String(body?.task_id || "").trim()
-        if (!taskId) return json({ ok: false, error: "task_id required" }, 400)
-
-        const task = await env.DB.prepare(`
-          SELECT t.task_id, t.title, t.description, t.status, t.created_by_user_id, t.assignee_user_id, COALESCE(t.is_urgent, 0) AS is_urgent,
-                 u.fcm_token AS assignee_fcm_token
-          FROM tasks t
-          LEFT JOIN users u ON u.user_id = t.assignee_user_id
-          WHERE t.task_id = ?
-          LIMIT 1
-        `).bind(taskId).first<any>()
-
-        if (!task) return json({ ok: false, error: "task not found" }, 404)
-
-        const canRemind = user.role === "admin" || task.created_by_user_id === user.user_id
-        if (!canRemind) return json({ ok: false, error: "permission denied" }, 403)
-        if (task.status !== "open") return json({ ok: false, error: "only open tasks can be reminded" }, 400)
-
-        if (task.assignee_fcm_token) {
-          try {
-            await sendPushToToken(
-              env,
-              task.assignee_fcm_token,
-              Number(task.is_urgent || 0) === 1 ? "Приоритетная задача" : "Напоминание по задаче",
-              String(task.description || task.title || "").trim() || "Открой задачи"
-            )
-          } catch (e) {
-            console.log("task_reminder_push_error", String(e))
-          }
-        }
-
-        await logAction(env, "task", taskId, "task_reminder", user.user_id, {})
-        return json({ ok: true })
-      }
-
       if (path === "/update_task" && request.method === "POST") {
         const user = await getCurrentUser(request, env)
         if (!user) console.log("DEBUG: bypass auth for send_push")
 
-        const body = await request.json<{ task_id?: string; title?: string; description?: string; assignee_user_id?: string; reminder_type?: string | null; reminder_interval_minutes?: number | null; reminder_time_of_day?: string | null; is_urgent?: number | boolean | null }>().catch(() => null)
+        const body = await request.json<{ task_id?: string; title?: string; description?: string; assignee_user_id?: string }>().catch(() => null)
         const taskId = String(body?.task_id || "").trim()
         const title = String(body?.title || "").trim()
         const description = String(body?.description || "").trim()
@@ -1326,7 +1255,6 @@ if (path === "/create_task" && request.method === "POST") {
         const reminderType = body?.reminder_type == null ? null : String(body.reminder_type).trim() || null
         const reminderIntervalMinutes = body?.reminder_interval_minutes == null ? null : Number(body.reminder_interval_minutes)
         const reminderTimeOfDay = body?.reminder_time_of_day == null ? null : String(body.reminder_time_of_day).trim() || null
-        const isUrgent = body?.is_urgent === true || Number(body?.is_urgent || 0) === 1 ? 1 : 0
 
         if (!taskId || !title || !assigneeUserId) {
           return json({ ok: false, error: "task_id, title and assignee_user_id required" }, 400)
@@ -1345,31 +1273,18 @@ if (path === "/create_task" && request.method === "POST") {
         if (!canEdit) return json({ ok: false, error: "permission denied" }, 403)
         if (task.status !== "open") return json({ ok: false, error: "only open tasks can be edited" }, 400)
 
-        try { await env.DB.prepare("ALTER TABLE tasks ADD COLUMN is_urgent INTEGER NOT NULL DEFAULT 0").run() } catch {}
-
         await env.DB.prepare(`
           UPDATE tasks
-          SET title = ?, description = ?, assignee_user_id = ?, reminder_type = ?, reminder_interval_minutes = ?, reminder_time_of_day = ?, is_urgent = ?, updated_at = ?
+          SET title = ?, description = ?, assignee_user_id = ?, reminder_type = ?, reminder_interval_minutes = ?, reminder_time_of_day = ?, updated_at = ?
           WHERE task_id = ?
-        `).bind(
-          title,
-          description,
-          assigneeUserId,
-          isUrgent === 1 ? null : reminderType,
-          isUrgent === 1 ? null : (Number.isFinite(reminderIntervalMinutes) ? reminderIntervalMinutes : null),
-          isUrgent === 1 ? null : reminderTimeOfDay,
-          isUrgent,
-          nowIso(),
-          taskId
-        ).run()
+        `).bind(title, description, assigneeUserId, reminderType, Number.isFinite(reminderIntervalMinutes) ? reminderIntervalMinutes : null, reminderTimeOfDay, nowIso(), taskId).run()
 
         await logAction(env, "task", taskId, "task_updated", user.user_id, {
           title,
           assignee_user_id: assigneeUserId,
-          reminder_type: isUrgent === 1 ? null : reminderType,
-          reminder_interval_minutes: isUrgent === 1 ? null : (Number.isFinite(reminderIntervalMinutes) ? reminderIntervalMinutes : null),
-          reminder_time_of_day: isUrgent === 1 ? null : reminderTimeOfDay,
-          is_urgent: isUrgent
+          reminder_type: reminderType,
+          reminder_interval_minutes: Number.isFinite(reminderIntervalMinutes) ? reminderIntervalMinutes : null,
+          reminder_time_of_day: reminderTimeOfDay
         })
 
         return json({ ok: true, task_id: taskId })
