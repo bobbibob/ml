@@ -2177,11 +2177,12 @@ if (path === "/task_reminder" && request.method
     } catch (e: any) {
       return json({ ok: false, error: e?.message || "internal error" }, 500)
     }
-  }
+  },
   async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     await ensureSchemaOnce(env)
     await runReminderScheduler(env, ctx)
   }
+
 }
 
 // trigger deploy
