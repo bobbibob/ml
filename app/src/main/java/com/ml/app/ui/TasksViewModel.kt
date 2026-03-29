@@ -375,36 +375,8 @@ class TasksViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private suspend fun syncPendingCreatesBeforeRefresh() {
-        val pendingLocalTasks = (state.myTasks + state.allTasks)
-            .distinctBy { it.task_id }
-            .filter { it.task_id.startsWith("local_") }
-
-        for (task in pendingLocalTasks) {
-            val clientRequestId = task.task_id.removePrefix("local_").trim()
-            if (clientRequestId.isBlank()) continue
-
-            when (
-                val res = tasksRepo.createTask(
-                    title = task.title,
-                    description = task.description ?: "",
-                    assigneeUserId = task.assignee_user_id,
-                    reminderType = task.reminder_type,
-                    reminderIntervalMinutes = task.reminder_interval_minutes,
-                    reminderTimeOfDay = task.reminder_time_of_day,
-                    isUrgent = task.is_urgent == 1,
-                    clientRequestId = clientRequestId
-                )
-            ) {
-                is AppResult.Success -> {
-                    replaceOptimisticTaskId(task.task_id, res.data)
-                }
-                is AppResult.Error -> {
-                    // оставляем локальную задачу как есть; refresh не должен её терять
-                }
-            }
-        }
+        return
     }
-
 
     fun loadMyTasks() {
         if (state.loadingTasks) return
