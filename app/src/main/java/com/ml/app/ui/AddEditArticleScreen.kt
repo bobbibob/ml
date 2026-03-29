@@ -62,7 +62,8 @@ import kotlinx.coroutines.launch
 
 private data class ColorDraft(
     val color: String,
-    val priceText: String = ""
+    val priceText: String = "",
+    val skuText: String = ""
 )
 
 private fun copyImageToInternalStorage(context: Context, uri: Uri): String? {
@@ -257,6 +258,14 @@ onDone?.invoke()
                 if (saved != null) {
                     colorDrafts[i] = item.copy(priceText = saved.toString())
                 }
+            }
+        }
+
+        for (i in colorDrafts.indices) {
+            val item = colorDrafts[i]
+            val savedSku = kotlin.runCatching { repo.getSkuFor(id, item.color) }.getOrNull().orEmpty()
+            if (savedSku.isNotBlank()) {
+                colorDrafts[i] = item.copy(skuText = savedSku)
             }
         }
 
@@ -561,6 +570,27 @@ onDone?.invoke()
 
                 Spacer(modifier = Modifier.height(24.dp))
 
+                Text(
+                    text = "Артикулы по цветам",
+                    style = MaterialTheme.typography.titleMedium
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                colorDrafts.forEachIndexed { index, item ->
+                    OutlinedTextField(
+                        value = item.skuText,
+                        onValueChange = { value ->
+                            colorDrafts[index] = item.copy(skuText = value)
+                        },
+                        label = { Text("Артикул / SKU — ${item.color}") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
                 if (!saveError.isNullOrBlank()) {
                     Text(
                         text = saveError.orEmpty(),
@@ -640,6 +670,21 @@ onDone?.invoke()
                                                 }
                                             }
 
+                                            val skuLinksJson = JSONArray().apply {
+                                                colorDrafts.forEach {
+                                                    val sku = it.skuText.trim()
+                                                    if (sku.isNotBlank()) {
+                                                        put(
+                                                            JSONObject().apply {
+                                                                put("color", it.color)
+                                                                put("sku", sku)
+                                                                put("article_id", repo.extractArticleId(sku))
+                                                            }
+                                                        )
+                                                    }
+                                                }
+                                            }
+
                                             val payload = JSONObject().apply {
                                                 put("bag_id", id)
                                                 put("name", name.ifBlank { null })
@@ -651,7 +696,7 @@ onDone?.invoke()
                                                 put("photo_path", photoPath)
                                                 put("colors", colorsJson)
                                                 put("color_prices", colorPricesJson)
-                                                put("sku_links", JSONArray())
+                                                put("sku_links", skuLinksJson)
                                             }
 
                                             val url = URL(apiBase + "/card_upsert")
