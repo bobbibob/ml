@@ -719,7 +719,7 @@ onDone?.invoke()
                     onClick = {
                         scope.launch {
                             saveError = null
-                            val id = selectedBagId ?: name.trim().ifBlank { return@launch }
+                            val id = selectedBagId ?: ("bag_" + System.currentTimeMillis())
 
                             repo.upsertBagUser(
                                 bagId = id,
