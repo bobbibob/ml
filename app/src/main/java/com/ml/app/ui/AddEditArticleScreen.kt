@@ -298,13 +298,15 @@ onDone?.invoke()
             if (!serverOverride.photoPath.isNullOrBlank()) photoPath = serverOverride.photoPath
 
             if (serverOverride.colors.isNotEmpty()) {
+                val previousDrafts = colorDrafts.associateBy { it.color }
                 colorDrafts.clear()
                 colorDrafts.addAll(
                     serverOverride.colors.distinct().map { color ->
+                        val prev = previousDrafts[color]
                         ColorDraft(
                             color = color,
                             priceText = serverOverride.colorPrices[color]?.toString().orEmpty(),
-                            skuText = ""
+                            skuText = prev?.skuText.orEmpty()
                         )
                     }
                 )
