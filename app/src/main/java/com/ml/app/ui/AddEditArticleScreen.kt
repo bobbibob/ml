@@ -303,10 +303,35 @@ onDone?.invoke()
                     serverOverride.colors.distinct().map { color ->
                         ColorDraft(
                             color = color,
-                            priceText = serverOverride.colorPrices[color]?.toString().orEmpty()
+                            priceText = serverOverride.colorPrices[color]?.toString().orEmpty(),
+                            skuText = ""
                         )
                     }
                 )
+            }
+
+            if (serverOverride.skuLinks.isNotEmpty()) {
+                val skuByColor = serverOverride.skuLinks.associateBy { it.color }
+
+                if (articleBase.isBlank()) {
+                    val firstSku = serverOverride.skuLinks.firstOrNull()?.sku.orEmpty()
+                    val dash = firstSku.lastIndexOf("-")
+                    if (dash > 0) {
+                        articleBase = firstSku.substring(0, dash)
+                    }
+                }
+
+                for (i in colorDrafts.indices) {
+                    val item = colorDrafts[i]
+                    val serverSku = skuByColor[item.color]?.sku.orEmpty()
+                    if (serverSku.isBlank()) continue
+
+                    val dash = serverSku.lastIndexOf("-")
+                    if (dash > 0 && dash < serverSku.lastIndex) {
+                        val suffix = serverSku.substring(dash + 1)
+                        colorDrafts[i] = item.copy(skuText = suffix)
+                    }
+                }
             }
 
             priceForAllEnabled = serverOverride.colorPrices.values.none { it != null }
@@ -728,16 +753,19 @@ onDone?.invoke()
                             )
 
                             val articleBaseClean = articleBase.trim()
-
-val skuItems = colorDrafts.mapNotNull {
-    val s = it.skuText.trim()
-    if (articleBaseClean.isBlank() || s.isBlank() || !s.all { c -> c.isDigit() }) null
-    else it.color to "-"
-}
-
-repo.replaceSkuForCard(id, skuItems)
-
+                            val skuItems = colorDrafts.mapNotNull {
+                                val suffix = it.skuText.trim()
+                                if (
+                                    articleBaseClean.isBlank() ||
+                                    suffix.isBlank() ||
+                                    !suffix.all { ch -> ch.isDigit() }
+                                ) {
+                                    null
+                                } else {
+                                    it.color to "-"
+                                }
                             }
+                            repo.replaceSkuForCard(id, skuItems)
 
                             if (saveError.isNullOrBlank()) {
                                 val apiBase = resolveApiBaseUrl()
@@ -776,8 +804,12 @@ repo.replaceSkuForCard(id, skuItems)
                                             val skuLinksJson = JSONArray().apply {
                                                 colorDrafts.forEach {
                                                     val suffix = it.skuText.trim()
-                                                    if (articleBaseClean.isNotBlank() && suffix.isNotBlank()) {
-                                                        val sku = articleBaseClean + "-" + suffix
+                                                    if (
+                                                        articleBaseClean.isNotBlank() &&
+                                                        suffix.isNotBlank() &&
+                                                        suffix.all { ch -> ch.isDigit() }
+                                                    ) {
+                                                        val sku = "-"
                                                         put(
                                                             JSONObject().apply {
                                                                 put("color", it.color)

@@ -101,6 +101,63 @@ async function ensureCardOverridesTable(env: Env) {
   }
 }
 
+function normalizeSkuLinks(
+  rawSkuLinks: Array<{ color?: string; sku?: string; article_id?: string }> | null | undefined,
+  allowedColors: string[]
+) {
+  const seenColors = new Set<string>()
+  const seenSuffixes = new Set<string>()
+  const allowedColorSet = new Set(
+    (allowedColors || []).map((x) => String(x || "").trim()).filter(Boolean)
+  )
+
+  const result: Array<{ color: string; sku: string; article_id: string }> = []
+
+  for (const x of Array.isArray(rawSkuLinks) ? rawSkuLinks : []) {
+    const color = String(x?.color || "").trim()
+    const sku = String(x?.sku || "").trim()
+
+    if (!color || !sku) {
+      return { ok: false as const, error: "invalid_sku_links" }
+    }
+
+    if (allowedColorSet.size > 0 && !allowedColorSet.has(color)) {
+      return { ok: false as const, error: "sku_color_not_in_colors" }
+    }
+
+    const dash = sku.lastIndexOf("-")
+    if (dash <= 0 || dash >= sku.length - 1) {
+      return { ok: false as const, error: "invalid_sku_format" }
+    }
+
+    const articleId = sku.substring(0, dash).trim()
+    const suffix = sku.substring(dash + 1).trim()
+
+    if (!articleId || !suffix || !/^d+.test(suffix)) {
+      return { ok: false as const, error: "invalid_sku_format" }
+    }
+
+    if (seenColors.has(color)) {
+      return { ok: false as const, error: "duplicate_sku_color" }
+    }
+
+    if (seenSuffixes.has(suffix)) {
+      return { ok: false as const, error: "duplicate_sku_suffix" }
+    }
+
+    seenColors.add(color)
+    seenSuffixes.add(suffix)
+
+    result.push({
+      color,
+      sku: `-`,
+      article_id: articleId,
+    })
+  }
+
+  return { ok: true as const, items: result }
+}
+
 async function sendCardsSyncToAll(env: Env, ctx: ExecutionContext, excludeUserId?: string | null, bagId?: string | null) {
   const rows = await env.DB.prepare(`
     SELECT DISTINCT user_id, fcm_token
@@ -924,6 +981,8 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
         if (!user)
           return json({ ok: false, error: "unauthorized" }, 401)
 
+        await ensureCardOverridesTable(env)
+
         const body = await request.json<{
           bag_id?: string
           name?: string | null
@@ -945,7 +1004,7 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
         const now = nowIso()
 
         const colors = Array.isArray(body?.colors)
-          ? body.colors.map(x => String(x || "").trim()).filter(Boolean)
+          ? body!.colors!.map((x) => String(x || "").trim()).filter(Boolean)
           : []
 
         const normalizedSkuLinks = normalizeSkuLinks(body?.sku_links, colors)
@@ -999,6 +1058,8 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
         const user = await getCurrentUser(request, env)
         if (!user)
           return json({ ok: false, error: "unauthorized" }, 401)
+
+        await ensureCardOverridesTable(env)
 
         const since = String(url.searchParams.get("since") || "").trim()
 
