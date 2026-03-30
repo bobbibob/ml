@@ -762,7 +762,7 @@ onDone?.invoke()
                                 ) {
                                     null
                                 } else {
-                                    it.color to "-"
+                                    it.color to "$articleBaseClean-$suffix"
                                 }
                             }
                             repo.replaceSkuForCard(id, skuItems)
@@ -809,7 +809,7 @@ onDone?.invoke()
                                                         suffix.isNotBlank() &&
                                                         suffix.all { ch -> ch.isDigit() }
                                                     ) {
-                                                        val sku = "-"
+                                                        val sku = "$articleBaseClean-$suffix"
                                                         put(
                                                             JSONObject().apply {
                                                                 put("color", it.color)
