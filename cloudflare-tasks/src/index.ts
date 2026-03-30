@@ -133,7 +133,7 @@ function normalizeSkuLinks(
     const articleId = sku.substring(0, dash).trim()
     const suffix = sku.substring(dash + 1).trim()
 
-    if (!articleId || !suffix || !/^d+.test(suffix)) {
+    if (!articleId || !suffix || !/^\d+$/.test(suffix)) {
       return { ok: false as const, error: "invalid_sku_format" }
     }
 
