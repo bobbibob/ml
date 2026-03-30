@@ -346,22 +346,11 @@ onDone?.invoke()
 
             LazyColumn(modifier = Modifier.fillMaxSize()) {
                 items(bagItems, key = { it.bagId }) { bag ->
-                    val bagRow = kotlin.runCatching { repo.getBagUser(bag.bagId) }.getOrNull()
-                    val displayName = when {
-                        !bagRow?.name.isNullOrBlank() -> bagRow?.name.orEmpty()
-                        !bag.bagName.startsWith("bag_") -> bag.bagName
-                        else -> "Карточка"
+                    val displayName = if (!bag.bagName.startsWith("bag_")) {
+                        bag.bagName
+                    } else {
+                        "Карточка"
                     }
-
-                    val colors = kotlin.runCatching { repo.getBagUserColors(bag.bagId) }.getOrDefault(emptyList())
-                    val baseArticle = colors.asSequence()
-                        .mapNotNull { color -> kotlin.runCatching { repo.getSkuFor(bag.bagId, color) }.getOrNull() }
-                        .map { sku ->
-                            val dash = sku.lastIndexOf("-")
-                            if (dash > 0) sku.substring(0, dash) else sku
-                        }
-                        .firstOrNull()
-                        .orEmpty()
 
                     Card(
                         colors = CardDefaults.cardColors(),
@@ -391,13 +380,6 @@ onDone?.invoke()
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.SemiBold
                                 )
-                                if (baseArticle.isNotBlank()) {
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = "Артикул: $baseArticle",
-                                        style = MaterialTheme.typography.bodyMedium
-                                    )
-                                }
                             }
 
                             OutlinedButton(
