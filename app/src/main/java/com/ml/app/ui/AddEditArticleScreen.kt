@@ -868,6 +868,8 @@ onDone?.invoke()
                             }
 
                             if (saveError.isNullOrBlank()) {
+                                selectedBagId = id
+                                kotlin.runCatching { CardOverridesSync.refresh(ctx) }
                                 onDone?.invoke()
                             }
                         }
