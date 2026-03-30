@@ -82,6 +82,23 @@ async function ensureCardOverridesTable(env: Env) {
       updated_at TEXT NOT NULL
     )
   `).run()
+
+  const alterCommands = [
+    "ALTER TABLE card_overrides ADD COLUMN delivery_fee REAL",
+    "ALTER TABLE card_overrides ADD COLUMN card_type TEXT",
+    "ALTER TABLE card_overrides ADD COLUMN photo_path TEXT",
+    "ALTER TABLE card_overrides ADD COLUMN colors_json TEXT",
+    "ALTER TABLE card_overrides ADD COLUMN color_prices_json TEXT",
+    "ALTER TABLE card_overrides ADD COLUMN sku_links_json TEXT",
+    "ALTER TABLE card_overrides ADD COLUMN updated_by_user_id TEXT",
+    "ALTER TABLE card_overrides ADD COLUMN updated_at TEXT"
+  ]
+
+  for (const sql of alterCommands) {
+    try {
+      await env.DB.prepare(sql).run()
+    } catch {}
+  }
 }
 
 async function sendCardsSyncToAll(env: Env, ctx: ExecutionContext, excludeUserId?: string | null, bagId?: string | null) {
