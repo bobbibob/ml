@@ -1049,7 +1049,11 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
           now
         ).run()
 
-        await sendCardsSyncToAll(env, ctx, user.user_id, bagId)
+        ctx.waitUntil(
+          sendCardsSyncToAll(env, ctx, user.user_id, bagId).catch((e) => {
+            console.log("card_upsert_sendCardsSyncToAll_error", String(e))
+          })
+        )
 
         return json({ ok: true, bag_id: bagId, updated_at: now })
       }
