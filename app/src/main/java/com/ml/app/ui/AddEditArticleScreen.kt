@@ -728,11 +728,15 @@ onDone?.invoke()
                             )
 
                             val articleBaseClean = articleBase.trim()
-                            colorDrafts.forEach {
-                                val suffix = it.skuText.trim()
-                                if (articleBaseClean.isNotBlank() && suffix.isNotBlank()) {
-                                    repo.setSkuFor(id, it.color, articleBaseClean + "-" + suffix)
-                                }
+
+val skuItems = colorDrafts.mapNotNull {
+    val s = it.skuText.trim()
+    if (articleBaseClean.isBlank() || s.isBlank() || !s.all { c -> c.isDigit() }) null
+    else it.color to "-"
+}
+
+repo.replaceSkuForCard(id, skuItems)
+
                             }
 
                             if (saveError.isNullOrBlank()) {

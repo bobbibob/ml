@@ -1669,6 +1669,21 @@ CREATE TABLE IF NOT EXISTS card_color_sku (
         arrayOf(card, color, sku, extractArticleId(sku))
       )
     }
+
+
+fun replaceSkuForCard(card: String, items: List<Pair<String, String>>) {
+  openDbReadWrite().use { db ->
+    ensureCardColorSkuTable(db)
+    db.execSQL("DELETE FROM card_color_sku WHERE card_name=?", arrayOf(card))
+
+    items.forEach {
+      db.execSQL(
+        "INSERT OR REPLACE INTO card_color_sku(card_name,color,sku,article_id) VALUES(?,?,?,?)",
+        arrayOf(it.first, it.second, it.second.substringBeforeLast("-"))
+      )
+    }
+  }
+}
   }
 
   private fun ensureServerCardOverridesTable(db: SQLiteDatabase) {
@@ -1746,19 +1761,26 @@ CREATE TABLE IF NOT EXISTS card_color_sku (
   }
 
 
-  data class ServerCardOverride(
-    val bagId: String,
-    val name: String?,
-    val hypothesis: String?,
-    val price: Double?,
-    val cogs: Double?,
-    val deliveryFee: Double?,
-    val cardType: String?,
-    val photoPath: String?,
-    val colors: List<String>,
-    val colorPrices: Map<String, Double?>,
-    val updatedAt: String
-  )
+  data class ServerSkuLink(
+  val color: String,
+  val sku: String,
+  val articleId: String?
+)
+
+data class ServerCardOverride(
+  val bagId: String,
+  val name: String?,
+  val hypothesis: String?,
+  val price: Double?,
+  val cogs: Double?,
+  val deliveryFee: Double?,
+  val cardType: String?,
+  val photoPath: String?,
+  val colors: List<String>,
+  val colorPrices: Map<String, Double?>,
+  val skuLinks: List<ServerSkuLink>,
+  val updatedAt: String
+)
 
   suspend fun getServerCardOverride(bagId: String): ServerCardOverride? = withContext(Dispatchers.IO) {
     openDbReadWrite().use { db ->

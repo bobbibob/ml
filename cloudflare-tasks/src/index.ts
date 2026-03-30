@@ -944,25 +944,16 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
 
         const now = nowIso()
 
-        const rawSkuLinks = Array.isArray(body?.sku_links) ? body.sku_links : []
+        const colors = Array.isArray(body?.colors)
+          ? body.colors.map(x => String(x || "").trim()).filter(Boolean)
+          : []
 
-        const skuLinks = rawSkuLinks
-          .map((x) => {
-            const color = String(x?.color || "").trim()
-            const sku = String(x?.sku || "").trim()
+        const normalizedSkuLinks = normalizeSkuLinks(body?.sku_links, colors)
+        if (!normalizedSkuLinks.ok) {
+          return json({ ok: false, error: normalizedSkuLinks.error }, 400)
+        }
 
-            if (!color || !sku) return null
-
-            const dash = sku.lastIndexOf("-")
-            const articleId = dash > 0 ? sku.substring(0, dash) : sku
-
-            return {
-              color,
-              sku,
-              article_id: articleId,
-            }
-          })
-          .filter(Boolean)
+        const skuLinks = normalizedSkuLinks.items
 
 
         await env.DB.prepare(`
@@ -992,7 +983,7 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
           body?.delivery_fee == null || body.delivery_fee === "" ? null : Number(body.delivery_fee),
           body?.card_type == null ? null : String(body.card_type),
           body?.photo_path == null ? null : String(body.photo_path),
-          JSON.stringify(body?.colors || []),
+          JSON.stringify(colors),
           JSON.stringify(body?.color_prices || []),
           JSON.stringify(skuLinks),
           user.user_id,
