@@ -944,6 +944,27 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
 
         const now = nowIso()
 
+        const rawSkuLinks = Array.isArray(body?.sku_links) ? body.sku_links : []
+
+        const skuLinks = rawSkuLinks
+          .map((x) => {
+            const color = String(x?.color || "").trim()
+            const sku = String(x?.sku || "").trim()
+
+            if (!color || !sku) return null
+
+            const dash = sku.lastIndexOf("-")
+            const articleId = dash > 0 ? sku.substring(0, dash) : sku
+
+            return {
+              color,
+              sku,
+              article_id: articleId,
+            }
+          })
+          .filter(Boolean)
+
+
         await env.DB.prepare(`
           INSERT INTO card_overrides(
             bag_id, name, hypothesis, price, cogs, delivery_fee, card_type, photo_path,
@@ -973,7 +994,7 @@ await logAction(env, "user", user.user_id, "profile_updated", user.user_id, {
           body?.photo_path == null ? null : String(body.photo_path),
           JSON.stringify(body?.colors || []),
           JSON.stringify(body?.color_prices || []),
-          JSON.stringify(body?.sku_links || []),
+          JSON.stringify(skuLinks),
           user.user_id,
           now
         ).run()
