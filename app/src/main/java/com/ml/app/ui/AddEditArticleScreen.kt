@@ -252,16 +252,6 @@ onDone?.invoke()
             )
         }
 
-        val localColors = kotlin.runCatching { repo.getBagUserColors(id) }.getOrDefault(emptyList())
-        if (localColors.isNotEmpty()) {
-            colorDrafts.clear()
-            colorDrafts.addAll(
-                localColors.distinct().map { color ->
-                    ColorDraft(color = color, priceText = "")
-                }
-            )
-        }
-
 
         val seed = kotlin.runCatching { repo.getBagEditorSeed(id) }.getOrNull()
         if (seed != null) {
