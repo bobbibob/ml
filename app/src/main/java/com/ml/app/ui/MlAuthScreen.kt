@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -66,7 +65,7 @@ fun MlAuthScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("ML", style = MaterialTheme.typography.titleLarge)
-            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.fillMaxWidth())
             IconButton(onClick = onClose) {
                 Icon(Icons.Default.Close, contentDescription = "close")
             }
@@ -628,7 +627,7 @@ fun MlAuthScreen(
         )
 
         AndroidView(
-            modifier = Modifier.fillMaxWidth().weight(1f),
+            modifier = Modifier.fillMaxWidth().fillMaxWidth(),
             factory = {
                 buildMlWebView(
                     context = context,
