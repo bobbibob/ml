@@ -1004,9 +1004,7 @@ private fun AdminScreen(
     verticalArrangement = Arrangement.spacedBy(12.dp)
   ) {
     Row(
-      modifier = Modifier
-        .fillMaxWidth()
-        .horizontalScroll(rememberScrollState()),
+      modifier = Modifier.fillMaxWidth(),
       horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
       Button(
