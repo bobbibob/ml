@@ -335,6 +335,11 @@ class SQLiteRepo(private val context: Context) {
     return db
   }
 
+
+  private fun openSkuDb(): SQLiteDatabase {
+    return context.openOrCreateDatabase("user_state.sqlite", Context.MODE_PRIVATE, null)
+  }
+
   data class BagUserRow(
     val bagId: String,
     val name: String?,
@@ -1650,7 +1655,7 @@ CREATE TABLE IF NOT EXISTS card_color_sku (
   }
 
   fun getSkuFor(card: String, color: String): String? {
-    openDbReadWrite().use { db ->
+    openSkuDb().use { db ->
       ensureCardColorSkuTable(db)
       db.rawQuery(
         "SELECT sku FROM card_color_sku WHERE card_name=? AND color=?",
@@ -1662,7 +1667,7 @@ CREATE TABLE IF NOT EXISTS card_color_sku (
   }
 
   fun setSkuFor(card: String, color: String, sku: String) {
-    openDbReadWrite().use { db ->
+    openSkuDb().use { db ->
       ensureCardColorSkuTable(db)
       db.execSQL(
         "INSERT OR REPLACE INTO card_color_sku(card_name,color,sku,article_id) VALUES(?,?,?,?)",
@@ -1677,7 +1682,7 @@ CREATE TABLE IF NOT EXISTS card_color_sku (
   }
 
   fun countSkuRows(card: String): Int {
-    openDbReadWrite().use { db ->
+    openSkuDb().use { db ->
       ensureCardColorSkuTable(db)
       db.rawQuery(
         "SELECT COUNT(*) FROM card_color_sku WHERE card_name=?",
