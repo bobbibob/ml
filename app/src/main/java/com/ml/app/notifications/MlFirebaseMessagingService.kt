@@ -17,6 +17,7 @@ import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import com.ml.app.MainActivity
 import com.ml.app.core.network.ApiModule
+import com.ml.app.data.CardOverridesSync
 import com.ml.app.data.repository.AuthRepository
 import com.ml.app.data.repository.TasksRepository
 import com.ml.app.data.session.PrefsSessionStorage
@@ -134,6 +135,10 @@ class MlFirebaseMessagingService : FirebaseMessagingService() {
                 putExtra("type", type)
             }
         )
+
+        CoroutineScope(Dispatchers.IO).launch {
+            kotlin.runCatching { CardOverridesSync.refresh(applicationContext) }
+        }
 
         if (type != "task_deleted" && type != "tasks_sync") {
             showNotification(title, body, taskId)
