@@ -1746,6 +1746,12 @@ CREATE TABLE IF NOT EXISTS card_color_sku (
   }
 
 
+  data class ServerSkuLink(
+    val color: String,
+    val sku: String,
+    val articleId: String?
+  )
+
   data class ServerCardOverride(
     val bagId: String,
     val name: String?,
@@ -1757,6 +1763,7 @@ CREATE TABLE IF NOT EXISTS card_color_sku (
     val photoPath: String?,
     val colors: List<String>,
     val colorPrices: Map<String, Double?>,
+    val skuLinks: List<ServerSkuLink>,
     val updatedAt: String
   )
 
@@ -1787,6 +1794,7 @@ CREATE TABLE IF NOT EXISTS card_color_sku (
 
         val colors = mutableListOf<String>()
         val colorPrices = linkedMapOf<String, Double?>()
+        val skuLinks = mutableListOf<ServerSkuLink>()
 
         val colorsJson = c.getString(c.getColumnIndexOrThrow("colors_json")).orEmpty()
         if (colorsJson.isNotBlank()) {
@@ -1815,6 +1823,27 @@ CREATE TABLE IF NOT EXISTS card_color_sku (
           }
         }
 
+        val skuLinksJson = c.getString(c.getColumnIndexOrThrow("sku_links_json")).orEmpty()
+        if (skuLinksJson.isNotBlank()) {
+          kotlin.runCatching {
+            val arr = JSONArray(skuLinksJson)
+            for (i in 0 until arr.length()) {
+              val obj = arr.optJSONObject(i) ?: continue
+              val color = obj.optString("color").trim()
+              val sku = obj.optString("sku").trim()
+              val articleId = obj.optString("article_id").trim().ifBlank { null }
+              if (color.isBlank() || sku.isBlank()) continue
+              skuLinks.add(
+                ServerSkuLink(
+                  color = color,
+                  sku = sku,
+                  articleId = articleId
+                )
+              )
+            }
+          }
+        }
+
         return@withContext ServerCardOverride(
           bagId = c.getString(c.getColumnIndexOrThrow("bag_id")),
           name = c.getString(c.getColumnIndexOrThrow("name")),
@@ -1832,6 +1861,7 @@ CREATE TABLE IF NOT EXISTS card_color_sku (
           photoPath = c.getString(c.getColumnIndexOrThrow("photo_path")),
           colors = colors,
           colorPrices = colorPrices,
+          skuLinks = skuLinks,
           updatedAt = c.getString(c.getColumnIndexOrThrow("updated_at"))
         )
       }
