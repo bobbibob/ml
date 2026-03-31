@@ -1048,7 +1048,7 @@ private fun AdminScreen(
         users = users,
         onSendPush = onSendPush
       )
-      "ml" -> MlAuthScreen()
+      "ml" -> MlAuthScreen(onClose = {}, onSuccess = {})
       else -> AdminUsersTab(
         users = users,
         onChangeRole = onChangeRole,
