@@ -115,7 +115,6 @@ fun AddEditArticleScreen(
     var showExitDialog by remember { mutableStateOf(false) }
     var photoPath by remember { mutableStateOf<String?>(null) }
         var saveError by remember { mutableStateOf<String?>(null) }
-    var debugInfo by remember { mutableStateOf("") }
     
     val imagePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -290,15 +289,6 @@ onDone?.invoke()
 
         val serverOverride = kotlin.runCatching { repo.getServerCardOverride(id) }.getOrNull()
 
-        debugInfo = buildString {
-            append("LOAD id=").append(id)
-            append("\ndbPath=").append(kotlin.runCatching { repo.debugDbPath() }.getOrNull().orEmpty())
-            append("\nskuRowCount=").append(kotlin.runCatching { repo.countSkuRows(id) }.getOrNull()?.toString().orEmpty())
-            append("\nlocalColors=").append(colorDrafts.joinToString { it.color + ":" + it.skuText })
-            append("\narticleBase=").append(articleBase)
-            append("\nserverColors=").append(serverOverride?.colors?.joinToString().orEmpty())
-            append("\nserverSkuLinks=").append(serverOverride?.skuLinks?.joinToString { it.color + ":" + it.sku }.orEmpty())
-        }
         if (serverOverride != null) {
             if (!serverOverride.name.isNullOrBlank()) name = serverOverride.name
             if (!serverOverride.hypothesis.isNullOrBlank()) hypothesis = serverOverride.hypothesis
@@ -730,11 +720,6 @@ onDone?.invoke()
                     Spacer(modifier = Modifier.height(12.dp))
                 }
 
-                if (debugInfo.isNotBlank()) {
-                    Text(text = debugInfo)
-                    Spacer(modifier = Modifier.height(12.dp))
-                }
-
                 Button(
                     onClick = {
                         scope.launch {
@@ -879,20 +864,7 @@ onDone?.invoke()
                             }
 
                             if (saveError.isNullOrBlank()) {
-                                debugInfo = buildString {
-                                    append("SAVE id=").append(id)
-                                    append("\ndbPath=").append(kotlin.runCatching { repo.debugDbPath() }.getOrNull().orEmpty())
-                                    append("\nskuRowCount=").append(kotlin.runCatching { repo.countSkuRows(id) }.getOrNull()?.toString().orEmpty())
-                                    append("\narticleBase=").append(articleBaseClean)
-                                    append("\ncolorDrafts=").append(colorDrafts.joinToString { it.color + ":" + it.skuText })
-                                    append("\nlocalSku=").append(
-                                        colorDrafts.joinToString {
-                                            val sku = kotlin.runCatching { repo.getSkuFor(id, it.color) }.getOrNull().orEmpty()
-                                            it.color + ":" + sku
-                                        }
-                                    )
-                                }
-                                // debug: keep screen open after save
+                                onDone?.invoke()
                             }
                         }
                     },
