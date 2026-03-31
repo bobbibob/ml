@@ -297,12 +297,15 @@ onDone?.invoke()
             if (!serverOverride.cardType.isNullOrBlank()) cardType = serverOverride.cardType
             if (!serverOverride.photoPath.isNullOrBlank()) photoPath = serverOverride.photoPath
 
-            if (serverOverride.colors.isNotEmpty()) {
+            val allColors = (serverOverride.colors + serverOverride.skuLinks.map { it.color })
+                .distinct()
+
+            if (allColors.isNotEmpty()) {
                 val prevByColor = colorDrafts.associateBy { it.color }
 
                 colorDrafts.clear()
                 colorDrafts.addAll(
-                    serverOverride.colors.distinct().map { color ->
+                    allColors.map { color ->
                         val prev = prevByColor[color]
                         ColorDraft(
                             color = color,
