@@ -180,7 +180,7 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     kotlin.runCatching {
-      PackDbSync.refreshMergedDb(ctx)
+      Unit
     }
 
     _state.value = _state.value.copy(
@@ -209,7 +209,7 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     kotlin.runCatching {
-      PackDbSync.refreshMergedDb(ctx)
+      Unit
     }
 
     _state.value = _state.value.copy(
@@ -229,7 +229,7 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
             _state.value = _state.value.copy(hasPack = hasHealthyLocal)
 
             if (hasHealthyLocal) {
-                kotlin.runCatching { PackDbSync.refreshMergedDb(ctx) }
+                kotlin.runCatching { Unit }
                 _state.value = _state.value.copy(status = "Открываем локальную базу…")
                 refreshTimeline()
 
