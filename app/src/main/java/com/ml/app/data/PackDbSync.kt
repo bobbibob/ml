@@ -416,6 +416,71 @@ object PackDbSync {
             }
           }
         }
+
+        if (tableExists(fromDb, T_CARD_COLOR_SKU)) {
+          fromDb.rawQuery("SELECT card_name, color, sku, article_id FROM $T_CARD_COLOR_SKU", null).use { c ->
+            val iCard = c.getColumnIndexOrThrow("card_name")
+            val iColor = c.getColumnIndexOrThrow("color")
+            val iSku = c.getColumnIndexOrThrow("sku")
+            val iArticle = c.getColumnIndexOrThrow("article_id")
+            while (c.moveToNext()) {
+              toDb.execSQL(
+                "INSERT INTO $T_CARD_COLOR_SKU(card_name,color,sku,article_id) VALUES(?,?,?,?) " +
+                  "ON CONFLICT(card_name,color) DO UPDATE SET sku=excluded.sku, article_id=excluded.article_id",
+                arrayOf(
+                  c.getString(iCard),
+                  c.getString(iColor),
+                  c.getString(iSku),
+                  if (c.isNull(iArticle)) null else c.getString(iArticle)
+                )
+              )
+            }
+          }
+        }
+
+        if (tableExists(fromDb, T_SERVER_CARD_OVERRIDES)) {
+          fromDb.rawQuery(
+            "SELECT bag_id, name, hypothesis, price, cogs, delivery_fee, card_type, photo_path, colors_json, color_prices_json, sku_links_json, updated_at FROM $T_SERVER_CARD_OVERRIDES",
+            null
+          ).use { c ->
+            val iBagId = c.getColumnIndexOrThrow("bag_id")
+            val iName = c.getColumnIndexOrThrow("name")
+            val iHyp = c.getColumnIndexOrThrow("hypothesis")
+            val iPrice = c.getColumnIndexOrThrow("price")
+            val iCogs = c.getColumnIndexOrThrow("cogs")
+            val iDelivery = c.getColumnIndexOrThrow("delivery_fee")
+            val iCardType = c.getColumnIndexOrThrow("card_type")
+            val iPhoto = c.getColumnIndexOrThrow("photo_path")
+            val iColors = c.getColumnIndexOrThrow("colors_json")
+            val iColorPrices = c.getColumnIndexOrThrow("color_prices_json")
+            val iSkuLinks = c.getColumnIndexOrThrow("sku_links_json")
+            val iUpdatedAt = c.getColumnIndexOrThrow("updated_at")
+
+            while (c.moveToNext()) {
+              toDb.execSQL(
+                "INSERT INTO $T_SERVER_CARD_OVERRIDES(bag_id,name,hypothesis,price,cogs,delivery_fee,card_type,photo_path,colors_json,color_prices_json,sku_links_json,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?) " +
+                  "ON CONFLICT(bag_id) DO UPDATE SET " +
+                  "name=excluded.name, hypothesis=excluded.hypothesis, price=excluded.price, cogs=excluded.cogs, " +
+                  "delivery_fee=excluded.delivery_fee, card_type=excluded.card_type, photo_path=excluded.photo_path, " +
+                  "colors_json=excluded.colors_json, color_prices_json=excluded.color_prices_json, sku_links_json=excluded.sku_links_json, updated_at=excluded.updated_at",
+                arrayOf(
+                  c.getString(iBagId),
+                  if (c.isNull(iName)) null else c.getString(iName),
+                  if (c.isNull(iHyp)) null else c.getString(iHyp),
+                  if (c.isNull(iPrice)) null else c.getDouble(iPrice),
+                  if (c.isNull(iCogs)) null else c.getDouble(iCogs),
+                  if (c.isNull(iDelivery)) null else c.getDouble(iDelivery),
+                  if (c.isNull(iCardType)) null else c.getString(iCardType),
+                  if (c.isNull(iPhoto)) null else c.getString(iPhoto),
+                  if (c.isNull(iColors)) null else c.getString(iColors),
+                  if (c.isNull(iColorPrices)) null else c.getString(iColorPrices),
+                  if (c.isNull(iSkuLinks)) null else c.getString(iSkuLinks),
+                  c.getString(iUpdatedAt)
+                )
+              )
+            }
+          }
+        }
         if (tableExists(fromDb, "svodka") && tableExists(toDb, "svodka")) {
           kotlin.runCatching { toDb.execSQL("ALTER TABLE svodka ADD COLUMN delivery_fee REAL") }
 
