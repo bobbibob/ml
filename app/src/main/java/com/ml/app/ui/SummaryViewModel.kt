@@ -180,7 +180,6 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     kotlin.runCatching {
-      PackDbSync.mergedDbFile(ctx).delete()
       PackDbSync.refreshMergedDb(ctx)
     }
 
@@ -210,7 +209,6 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     kotlin.runCatching {
-      PackDbSync.mergedDbFile(ctx).delete()
       PackDbSync.refreshMergedDb(ctx)
     }
 
