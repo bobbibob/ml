@@ -11,6 +11,8 @@ object PackDbSync {
   private const val T_BAG_USER_COLORS = "bag_user_colors"
   private const val T_BAG_USER_COLOR_PRICE = "bag_user_color_price"
   private const val T_BAG_STOCK_OVERRIDE = "bag_stock_override"
+  private const val T_CARD_COLOR_SKU = "card_color_sku"
+  private const val T_SERVER_CARD_OVERRIDES = "server_card_overrides"
 
   fun mergedDbFile(ctx: Context): File {
     val dir = File(ctx.filesDir, "local_pack")
@@ -116,6 +118,38 @@ object PackDbSync {
     db.execSQL("CREATE INDEX IF NOT EXISTS idx_bag_stock_override_date_bag_color ON $T_BAG_STOCK_OVERRIDE(effective_date, bag_id, color)")
     db.execSQL("CREATE INDEX IF NOT EXISTS idx_bag_stock_override_bag_color_date ON $T_BAG_STOCK_OVERRIDE(bag_id, color, effective_date)")
     db.execSQL("CREATE INDEX IF NOT EXISTS idx_${T_BAG_USER_COLOR_PRICE}_bag ON $T_BAG_USER_COLOR_PRICE(bag_id);")
+
+    db.execSQL(
+      """
+      CREATE TABLE IF NOT EXISTS $T_CARD_COLOR_SKU(
+        card_name TEXT,
+        color TEXT,
+        sku TEXT,
+        article_id TEXT,
+        PRIMARY KEY(card_name, color)
+      );
+      """.trimIndent()
+    )
+    db.execSQL("CREATE INDEX IF NOT EXISTS idx_${T_CARD_COLOR_SKU}_card ON $T_CARD_COLOR_SKU(card_name);")
+
+    db.execSQL(
+      """
+      CREATE TABLE IF NOT EXISTS $T_SERVER_CARD_OVERRIDES(
+        bag_id TEXT PRIMARY KEY,
+        name TEXT,
+        hypothesis TEXT,
+        price REAL,
+        cogs REAL,
+        delivery_fee REAL,
+        card_type TEXT,
+        photo_path TEXT,
+        colors_json TEXT,
+        color_prices_json TEXT,
+        sku_links_json TEXT,
+        updated_at TEXT NOT NULL
+      );
+      """.trimIndent()
+    )
   }
 
 
