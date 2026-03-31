@@ -527,24 +527,14 @@ class SQLiteRepo(private val context: Context) {
         """
         SELECT
           s.bag_id AS bag_id,
-          COALESCE(
-            NULLIF(u.name,),
-            NULLIF(so.name,),
-            s.bag_id
-          ) AS bag_name,
-          COALESCE(
-            NULLIF(u.photo_path,),
-            NULLIF(so.photo_path,)
-          ) AS photo_path
+          COALESCE(NULLIF(u.name,''), b.bag_name, s.bag_id) AS bag_name,
+          u.photo_path AS photo_path
         FROM (
-          SELECT DISTINCT bag_id FROM svodka WHERE bag_id IS NOT NULL AND bag_id != 
-          UNION
-          SELECT DISTINCT bag_id FROM bag_user WHERE bag_id IS NOT NULL AND bag_id != 
-          UNION
-          SELECT DISTINCT bag_id FROM server_card_overrides WHERE bag_id IS NOT NULL AND bag_id != 
+          SELECT DISTINCT bag_id
+          FROM svodka
+          WHERE bag_id IS NOT NULL AND bag_id != ''
         ) s
-        LEFT JOIN bag_user u ON u.bag_id = s.bag_id
-        LEFT JOIN server_card_overrides so ON so.bag_id = s.bag_id
+                LEFT JOIN bag_user u ON u.bag_id = s.bag_id
         ORDER BY bag_name COLLATE NOCASE
         """.trimIndent(),
         null
@@ -1681,44 +1671,6 @@ CREATE TABLE IF NOT EXISTS card_color_sku (
     }
   }
 
-  fun clearSkuForCard(card: String) {
-    openDbReadWrite().use { db ->
-      ensureCardColorSkuTable(db)
-      db.execSQL(
-        "DELETE FROM card_color_sku WHERE card_name=?",
-        arrayOf(card)
-      )
-    }
-  }
-
-  fun replaceSkuForCard(card: String, items: List<Pair<String, String>>) {
-    openDbReadWrite().use { db ->
-      ensureCardColorSkuTable(db)
-      db.beginTransaction()
-      try {
-        db.execSQL(
-          "DELETE FROM card_color_sku WHERE card_name=?",
-          arrayOf(card)
-        )
-
-        items.forEach { (color, sku) ->
-          val cleanColor = color.trim()
-          val cleanSku = sku.trim()
-          if (cleanColor.isBlank() || cleanSku.isBlank()) return
-
-          db.execSQL(
-            "INSERT OR REPLACE INTO card_color_sku(card_name,color,sku,article_id) VALUES(?,?,?,?)",
-            arrayOf(card, cleanColor, cleanSku, extractArticleId(cleanSku))
-          )
-        }
-
-        db.setTransactionSuccessful()
-      } finally {
-        db.endTransaction()
-      }
-    }
-  }
-
   private fun ensureServerCardOverridesTable(db: SQLiteDatabase) {
     db.execSQL(
       """
@@ -1794,12 +1746,6 @@ CREATE TABLE IF NOT EXISTS card_color_sku (
   }
 
 
-  data class ServerSkuLink(
-    val color: String,
-    val sku: String,
-    val articleId: String?
-  )
-
   data class ServerCardOverride(
     val bagId: String,
     val name: String?,
@@ -1811,7 +1757,6 @@ CREATE TABLE IF NOT EXISTS card_color_sku (
     val photoPath: String?,
     val colors: List<String>,
     val colorPrices: Map<String, Double?>,
-    val skuLinks: List<ServerSkuLink>,
     val updatedAt: String
   )
 
@@ -1831,7 +1776,6 @@ CREATE TABLE IF NOT EXISTS card_color_sku (
           photo_path,
           colors_json,
           color_prices_json,
-          sku_links_json,
           updated_at
         FROM server_card_overrides
         WHERE bag_id=?
@@ -1843,7 +1787,6 @@ CREATE TABLE IF NOT EXISTS card_color_sku (
 
         val colors = mutableListOf<String>()
         val colorPrices = linkedMapOf<String, Double?>()
-        val skuLinks = mutableListOf<ServerSkuLink>()
 
         val colorsJson = c.getString(c.getColumnIndexOrThrow("colors_json")).orEmpty()
         if (colorsJson.isNotBlank()) {
@@ -1872,29 +1815,6 @@ CREATE TABLE IF NOT EXISTS card_color_sku (
           }
         }
 
-        val skuLinksJson = c.getString(c.getColumnIndexOrThrow("sku_links_json")).orEmpty()
-        if (skuLinksJson.isNotBlank()) {
-          kotlin.runCatching {
-            val arr = JSONArray(skuLinksJson)
-            for (i in 0 until arr.length()) {
-              val obj = arr.optJSONObject(i) ?: continue
-              val color = obj.optString("color").trim()
-              val sku = obj.optString("sku").trim()
-              val articleId = obj.optString("article_id").trim().ifBlank { null }
-
-              if (color.isBlank() || sku.isBlank()) continue
-
-              skuLinks.add(
-                ServerSkuLink(
-                  color = color,
-                  sku = sku,
-                  articleId = articleId
-                )
-              )
-            }
-          }
-        }
-
         return@withContext ServerCardOverride(
           bagId = c.getString(c.getColumnIndexOrThrow("bag_id")),
           name = c.getString(c.getColumnIndexOrThrow("name")),
@@ -1912,7 +1832,6 @@ CREATE TABLE IF NOT EXISTS card_color_sku (
           photoPath = c.getString(c.getColumnIndexOrThrow("photo_path")),
           colors = colors,
           colorPrices = colorPrices,
-          skuLinks = skuLinks,
           updatedAt = c.getString(c.getColumnIndexOrThrow("updated_at"))
         )
       }

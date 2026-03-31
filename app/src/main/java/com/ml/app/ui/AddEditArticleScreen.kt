@@ -242,19 +242,8 @@ onDone?.invoke()
             if (!row.photoPath.isNullOrBlank()) photoPath = row.photoPath
         }
 
-        val localColors = kotlin.runCatching { repo.getBagUserColors(id) }.getOrDefault(emptyList())
-        if (localColors.isNotEmpty()) {
-            colorDrafts.clear()
-            colorDrafts.addAll(
-                localColors.distinct().map { color ->
-                    ColorDraft(color = color, priceText = "")
-                }
-            )
-        }
-
-
         val seed = kotlin.runCatching { repo.getBagEditorSeed(id) }.getOrNull()
-        if (seed != null && colorDrafts.isEmpty()) {
+        if (seed != null) {
             if (name.isBlank()) name = seed.bagName
             if (hypothesis.isBlank()) hypothesis = seed.hypothesis.orEmpty()
             if (priceAll.isBlank()) priceAll = seed.price?.toString().orEmpty()
@@ -309,42 +298,15 @@ onDone?.invoke()
             if (!serverOverride.photoPath.isNullOrBlank()) photoPath = serverOverride.photoPath
 
             if (serverOverride.colors.isNotEmpty()) {
-                val previousDrafts = colorDrafts.associateBy { it.color }
                 colorDrafts.clear()
                 colorDrafts.addAll(
                     serverOverride.colors.distinct().map { color ->
-                        val prev = previousDrafts[color]
                         ColorDraft(
                             color = color,
-                            priceText = serverOverride.colorPrices[color]?.toString().orEmpty(),
-                            skuText = prev?.skuText.orEmpty()
+                            priceText = serverOverride.colorPrices[color]?.toString().orEmpty()
                         )
                     }
                 )
-            }
-
-            if (serverOverride.skuLinks.isNotEmpty()) {
-                val skuByColor = serverOverride.skuLinks.associateBy { it.color }
-
-                if (articleBase.isBlank()) {
-                    val firstSku = serverOverride.skuLinks.firstOrNull()?.sku.orEmpty()
-                    val dash = firstSku.lastIndexOf("-")
-                    if (dash > 0) {
-                        articleBase = firstSku.substring(0, dash)
-                    }
-                }
-
-                for (i in colorDrafts.indices) {
-                    val item = colorDrafts[i]
-                    val serverSku = skuByColor[item.color]?.sku.orEmpty()
-                    if (serverSku.isBlank()) continue
-
-                    val dash = serverSku.lastIndexOf("-")
-                    if (dash > 0 && dash < serverSku.lastIndex) {
-                        val suffix = serverSku.substring(dash + 1)
-                        colorDrafts[i] = item.copy(skuText = suffix)
-                    }
-                }
             }
 
             priceForAllEnabled = serverOverride.colorPrices.values.none { it != null }
@@ -730,7 +692,7 @@ onDone?.invoke()
                     onClick = {
                         scope.launch {
                             saveError = null
-                            val id = selectedBagId ?: ("bag_" + System.currentTimeMillis())
+                            val id = selectedBagId ?: name.trim().ifBlank { return@launch }
 
                             repo.upsertBagUser(
                                 bagId = id,
@@ -766,19 +728,12 @@ onDone?.invoke()
                             )
 
                             val articleBaseClean = articleBase.trim()
-                            val skuItems = colorDrafts.mapNotNull {
+                            colorDrafts.forEach {
                                 val suffix = it.skuText.trim()
-                                if (
-                                    articleBaseClean.isBlank() ||
-                                    suffix.isBlank() ||
-                                    !suffix.all { ch -> ch.isDigit() }
-                                ) {
-                                    null
-                                } else {
-                                    it.color to "$articleBaseClean-$suffix"
+                                if (articleBaseClean.isNotBlank() && suffix.isNotBlank()) {
+                                    repo.setSkuFor(id, it.color, articleBaseClean + "-" + suffix)
                                 }
                             }
-                            repo.replaceSkuForCard(id, skuItems)
 
                             if (saveError.isNullOrBlank()) {
                                 val apiBase = resolveApiBaseUrl()
@@ -817,12 +772,8 @@ onDone?.invoke()
                                             val skuLinksJson = JSONArray().apply {
                                                 colorDrafts.forEach {
                                                     val suffix = it.skuText.trim()
-                                                    if (
-                                                        articleBaseClean.isNotBlank() &&
-                                                        suffix.isNotBlank() &&
-                                                        suffix.all { ch -> ch.isDigit() }
-                                                    ) {
-                                                        val sku = "$articleBaseClean-$suffix"
+                                                    if (articleBaseClean.isNotBlank() && suffix.isNotBlank()) {
+                                                        val sku = articleBaseClean + "-" + suffix
                                                         put(
                                                             JSONObject().apply {
                                                                 put("color", it.color)
@@ -881,8 +832,6 @@ onDone?.invoke()
                             }
 
                             if (saveError.isNullOrBlank()) {
-                                selectedBagId = id
-                                kotlin.runCatching { CardOverridesSync.refresh(ctx) }
                                 onDone?.invoke()
                             }
                         }

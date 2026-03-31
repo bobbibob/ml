@@ -15,7 +15,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.mutableStateOf
 import com.ml.app.ui.SummaryScreen
-import com.ml.app.data.CardOverridesSync
 import com.ml.app.ui.TasksScreen
 import com.google.android.gms.tasks.Tasks
 import kotlinx.coroutines.CoroutineScope
@@ -154,9 +153,6 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         syncFcmTokenNow()
-        CoroutineScope(Dispatchers.IO).launch {
-            kotlin.runCatching { CardOverridesSync.refresh(applicationContext) }
-        }
         applyLaunchIntent()
     }
 
