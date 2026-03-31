@@ -292,6 +292,8 @@ onDone?.invoke()
 
         debugInfo = buildString {
             append("LOAD id=").append(id)
+            append("\ndbPath=").append(kotlin.runCatching { repo.debugDbPath() }.getOrNull().orEmpty())
+            append("\nskuRowCount=").append(kotlin.runCatching { repo.countSkuRows(id) }.getOrNull()?.toString().orEmpty())
             append("\nlocalColors=").append(colorDrafts.joinToString { it.color + ":" + it.skuText })
             append("\narticleBase=").append(articleBase)
             append("\nserverColors=").append(serverOverride?.colors?.joinToString().orEmpty())
@@ -879,6 +881,8 @@ onDone?.invoke()
                             if (saveError.isNullOrBlank()) {
                                 debugInfo = buildString {
                                     append("SAVE id=").append(id)
+                                    append("\ndbPath=").append(kotlin.runCatching { repo.debugDbPath() }.getOrNull().orEmpty())
+                                    append("\nskuRowCount=").append(kotlin.runCatching { repo.countSkuRows(id) }.getOrNull()?.toString().orEmpty())
                                     append("\narticleBase=").append(articleBaseClean)
                                     append("\ncolorDrafts=").append(colorDrafts.joinToString { it.color + ":" + it.skuText })
                                     append("\nlocalSku=").append(

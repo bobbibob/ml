@@ -1671,6 +1671,23 @@ CREATE TABLE IF NOT EXISTS card_color_sku (
     }
   }
 
+
+  fun debugDbPath(): String {
+    return PackDbSync.dbFileToUse(context).absolutePath
+  }
+
+  fun countSkuRows(card: String): Int {
+    openDbReadWrite().use { db ->
+      ensureCardColorSkuTable(db)
+      db.rawQuery(
+        "SELECT COUNT(*) FROM card_color_sku WHERE card_name=?",
+        arrayOf(card)
+      ).use { c ->
+        return if (c.moveToFirst()) c.getInt(0) else 0
+      }
+    }
+  }
+
   private fun ensureServerCardOverridesTable(db: SQLiteDatabase) {
     db.execSQL(
       """
