@@ -7,7 +7,6 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.Column
@@ -21,7 +20,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -49,18 +47,6 @@ fun MlAuthScreen(
     onClose: () -> Unit,
     onSuccess: () -> Unit
 ) {
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFFF2F2F2))
-            .verticalScroll(rememberScrollState())
-            .padding(12.dp)
-    ) {
-        Text("ML авторизация")
-        Spacer(modifier = Modifier.height(8.dp))
-
-
     val context = LocalContext.current
     val cookieManager = CookieManager.getInstance()
     val session = PrefsSessionStorage(context)
@@ -78,7 +64,7 @@ fun MlAuthScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("ML", style = MaterialTheme.typography.titleLarge)
-            Spacer(Modifier.fillMaxWidth())
+            Spacer(Modifier.weight(1f))
             IconButton(onClick = onClose) {
                 Icon(Icons.Default.Close, contentDescription = "close")
             }
@@ -640,7 +626,7 @@ fun MlAuthScreen(
         )
 
         AndroidView(
-            modifier = Modifier.fillMaxWidth().fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().weight(1f),
             factory = {
                 buildMlWebView(
                     context = context,
@@ -746,7 +732,5 @@ private fun handleSpecialUrl(
     }
 
     return !(lower.startsWith("http://") || lower.startsWith("https://"))
-
-    }
 
 }

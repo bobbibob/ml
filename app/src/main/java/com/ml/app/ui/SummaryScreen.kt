@@ -1010,16 +1010,16 @@ private fun AdminScreen(
       horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
       Button(
-        onClick = { onTabChange("users") }
-      ) { Text("Пользователи") }
+        onClick = { onTabChange("users") },
+              ) { Text("Пользователи") }
 
       Button(
-        onClick = { onTabChange("tasks") }
-      ) { Text("Задачи") }
+        onClick = { onTabChange("tasks") },
+              ) { Text("Задачи") }
 
       Button(
-        onClick = { onTabChange("history") }
-      ) { Text("История") }
+        onClick = { onTabChange("history") },
+              ) { Text("История") }
 
       Button(
         onClick = { onTabChange("push") }
@@ -1045,7 +1045,10 @@ private fun AdminScreen(
         users = users,
         onSendPush = onSendPush
       )
-      "ml" -> MlAuthScreen(onClose = {}, onSuccess = {})
+      "ml" -> MlAuthScreen(
+        onClose = onBack,
+        onSuccess = { onTabChange("users") }
+      )
       else -> AdminUsersTab(
         users = users,
         onChangeRole = onChangeRole,
