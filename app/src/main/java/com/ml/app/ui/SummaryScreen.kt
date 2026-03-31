@@ -1004,32 +1004,29 @@ private fun AdminScreen(
     verticalArrangement = Arrangement.spacedBy(12.dp)
   ) {
     Row(
-      modifier = Modifier.fillMaxWidth(),
+      modifier = Modifier
+        .fillMaxWidth()
+        .horizontalScroll(rememberScrollState()),
       horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
       Button(
-        onClick = { onTabChange("users") },
-        modifier = Modifier.weight(1f)
+        onClick = { onTabChange("users") }
       ) { Text("Пользователи") }
 
       Button(
-        onClick = { onTabChange("tasks") },
-        modifier = Modifier.weight(1f)
+        onClick = { onTabChange("tasks") }
       ) { Text("Задачи") }
 
       Button(
-        onClick = { onTabChange("history") },
-        modifier = Modifier.weight(1f)
+        onClick = { onTabChange("history") }
       ) { Text("История") }
 
       Button(
-        onClick = { onTabChange("push") },
-        modifier = Modifier.weight(1f)
+        onClick = { onTabChange("push") }
       ) { Text("Push") }
 
       Button(
-        onClick = { onTabChange("ml") },
-        modifier = Modifier.weight(1f)
+        onClick = { onTabChange("ml") }
       ) { Text("ML") }
     }
 

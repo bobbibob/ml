@@ -7,6 +7,7 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.Column
@@ -48,6 +49,18 @@ fun MlAuthScreen(
     onClose: () -> Unit,
     onSuccess: () -> Unit
 ) {
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFFF2F2F2))
+            .verticalScroll(rememberScrollState())
+            .padding(12.dp)
+    ) {
+        Text("ML авторизация")
+        Spacer(modifier = Modifier.height(8.dp))
+
+
     val context = LocalContext.current
     val cookieManager = CookieManager.getInstance()
     val session = PrefsSessionStorage(context)
@@ -733,5 +746,7 @@ private fun handleSpecialUrl(
     }
 
     return !(lower.startsWith("http://") || lower.startsWith("https://"))
+
+    }
 
 }
