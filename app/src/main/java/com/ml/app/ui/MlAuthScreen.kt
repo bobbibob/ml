@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -64,7 +65,7 @@ fun MlAuthScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("ML", style = MaterialTheme.typography.titleLarge)
-            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.fillMaxWidth())
             IconButton(onClick = onClose) {
                 Icon(Icons.Default.Close, contentDescription = "close")
             }
@@ -626,7 +627,7 @@ fun MlAuthScreen(
         )
 
         AndroidView(
-            modifier = Modifier.fillMaxWidth().weight(1f),
+            modifier = Modifier.fillMaxWidth().fillMaxWidth(),
             factory = {
                 buildMlWebView(
                     context = context,
