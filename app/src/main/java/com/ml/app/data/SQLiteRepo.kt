@@ -1795,7 +1795,6 @@ CREATE TABLE IF NOT EXISTS card_color_sku (
         val colors = mutableListOf<String>()
         val colorPrices = linkedMapOf<String, Double?>()
         val skuLinks = mutableListOf<ServerSkuLink>()
-        val skuLinks = mutableListOf<ServerSkuLink>()
 
         val colorsJson = c.getString(c.getColumnIndexOrThrow("colors_json")).orEmpty()
         if (colorsJson.isNotBlank()) {
