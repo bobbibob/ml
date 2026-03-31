@@ -254,7 +254,7 @@ onDone?.invoke()
 
 
         val seed = kotlin.runCatching { repo.getBagEditorSeed(id) }.getOrNull()
-        if (seed != null) {
+        if (seed != null && colorDrafts.isEmpty()) {
             if (name.isBlank()) name = seed.bagName
             if (hypothesis.isBlank()) hypothesis = seed.hypothesis.orEmpty()
             if (priceAll.isBlank()) priceAll = seed.price?.toString().orEmpty()
