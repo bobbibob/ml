@@ -2,6 +2,8 @@
 
 package com.ml.app.ui
 
+import com.ml.app.ui.MlAuthScreen
+
 import androidx.compose.runtime.rememberCoroutineScope
 
 import androidx.compose.material3.AlertDialog
@@ -381,6 +383,7 @@ Row(verticalAlignment = Alignment.CenterVertically) {
                   "users" -> tasksVm.loadUsers()
                   "tasks" -> tasksVm.loadAllTasks()
                   "history" -> tasksVm.loadHistory()
+                  "ml" -> Unit
                 }
               },
             users = tasksVm.state.users,
@@ -1023,6 +1026,11 @@ private fun AdminScreen(
         onClick = { onTabChange("push") },
         modifier = Modifier.weight(1f)
       ) { Text("Push") }
+
+      Button(
+        onClick = { onTabChange("ml") },
+        modifier = Modifier.weight(1f)
+      ) { Text("ML") }
     }
 
     error?.takeIf { it.isNotBlank() }?.let {
@@ -1040,6 +1048,7 @@ private fun AdminScreen(
         users = users,
         onSendPush = onSendPush
       )
+      "ml" -> MlAuthScreen()
       else -> AdminUsersTab(
         users = users,
         onChangeRole = onChangeRole,
