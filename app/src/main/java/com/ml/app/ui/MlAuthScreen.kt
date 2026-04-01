@@ -75,69 +75,13 @@ fun MlAuthScreen(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+                .height(220.dp)
+                .verticalScroll(rememberScrollState())
         ) {
+        
             Button(
                 onClick = {
-val url = currentUrl
-                    val cookiesRaw = cookieManager.getCookie(url).orEmpty()
-                    val cookies = cookiesRaw.split(";").mapNotNull { part ->
-                        val pieces = part.trim().split("=", limit = 2)
-                        if (pieces.size != 2) return@mapNotNull null
-
-                        JSONObject().apply {
-                            put("name", pieces[0])
-                            put("value", pieces[1])
-                            put("domain", ".mercadolivre.com.br")
-                            put("path", "/")
-                        }
-                    }
-
-                    if (cookies.isEmpty()) {
-                        statusText = "Cookies ещё не появились. Сначала войдите в аккаунт."
-                        return@Button
-                    }
-
-                    Thread {
-                        try {
-                            val body = JSONObject().apply {
-                                put("source", "mercadolivre")
-                                put("session_payload", JSONObject().apply {
-                                    put("cookies", JSONArray(cookies))
-                                    put("saved_at", System.currentTimeMillis())
-                                    put("source", "android_admin_webview")
-                                })
-                            }
-
-                            val request = Request.Builder()
-                                .url(BuildConfig.TASKS_API_BASE_URL + "internal/integrations/ml/save-session")
-                                .addHeader("Authorization", "Bearer $token")
-                                .post(
-                                    body.toString().toRequestBody("application/json".toMediaType())
-                                )
-                                .build()
-
-                            OkHttpClient().newCall(request).execute().use { resp ->
-                                if (resp.isSuccessful) {
-                                    statusText = "Сессия сохранена."
-                                    onSuccess()
-                                } else {
-                                    statusText = "Ошибка сохранения сессии: ${resp.code}"
-                                }
-                            }
-                        } catch (_: Throwable) {
-                        }
-                    }.start()
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Сессия")
-            }
-
-            Button(
-                onClick = {
-val url = currentUrl
+                    val url = currentUrl
                     val cookiesRaw = cookieManager.getCookie(url).orEmpty()
                     val cookies = cookiesRaw.split(";").mapNotNull { part ->
                         val pieces = part.trim().split("=", limit = 2)
@@ -194,27 +138,45 @@ val url = currentUrl
             Button(
                 onClick = {
                     val webView = webViewRef ?: return@Button
-                    statusText = "Читаем network cache..."
+                    statusText = "Снимаем DOM..."
 
                     val js = """
                         (function() {
-                          const items = Array.isArray(window.__mlCapturedResponses)
-                            ? window.__mlCapturedResponses
-                            : [];
+                          function txt(el) {
+                            return ((el && (el.innerText || el.textContent)) || "").trim();
+                          }
+
+                          function sample(list) {
+                            return list
+                              .map(x => txt(x))
+                              .filter(Boolean)
+                              .slice(0, 10);
+                          }
+
+                          const trNodes = Array.from(document.querySelectorAll("tr"));
+                          const rowNodes = Array.from(document.querySelectorAll("[role='row']"));
+                          const articleNodes = Array.from(document.querySelectorAll("article"));
+                          const liNodes = Array.from(document.querySelectorAll("li"));
+                          const cardNodes = Array.from(document.querySelectorAll(".andes-card"));
 
                           return JSON.stringify({
                             url: location.href,
-                            count: items.length,
-                            items: items.slice(-8).map(function(x) {
-                              const text = String(x.text || "");
-                              const skuMatch = text.match(/"sku"\s*:\s*"([^"]+)"/i);
-                              return {
-                                url: x.url || "",
-                                hasSku: /"sku"\s*:/i.test(text),
-                                skuSample: skuMatch ? skuMatch[1] : "",
-                                preview: text.slice(0, 1200)
-                              };
-                            })
+                            title: document.title,
+                            counts: {
+                              tr: trNodes.length,
+                              row: rowNodes.length,
+                              article: articleNodes.length,
+                              li: liNodes.length,
+                              andesCard: cardNodes.length
+                            },
+                            samples: {
+                              tr: sample(trNodes),
+                              row: sample(rowNodes),
+                              article: sample(articleNodes),
+                              li: sample(liNodes),
+                              andesCard: sample(cardNodes)
+                            },
+                            bodyPreview: txt(document.body).slice(0, 4000)
                           });
                         })();
                     """.trimIndent()
@@ -229,14 +191,14 @@ val url = currentUrl
                             }
 
                             val json = JSONObject(cleaned)
-                            statusText = json.toString(2).take(7000)
+                            statusText = json.toString(2).take(6000)
                         } catch (t: Throwable) {
-                            statusText = "NET debug error: ${t.message}"
+                            statusText = "DOM debug error: ${t.message}"
                         }
                     }
                 }
             ) {
-                Text("NET")
+                Text("DOM")
             }
 
             Button(
@@ -610,7 +572,7 @@ val url = currentUrl
                                 }
 
                                 val upsertReq = Request.Builder()
-                                    .url(BuildConfig.TASKS_API_BASE_URL + "internal/integrations/ml/upsert-orders")
+                                    .url(BuildConfig.TASKS_API_BASE_URL + "internal/orders/upsert-bulk")
                                     .addHeader("Authorization", "Bearer $token")
                                     .post(upsertBody.toString().toRequestBody("application/json".toMediaType()))
                                     .build()
@@ -655,11 +617,12 @@ val url = currentUrl
                             }
                         }.start()
                     }
-                },
-                modifier = Modifier.fillMaxWidth()
+                }
             ) {
                 Text("Синхро")
             }
+        }
+
         }
 
         Text(
@@ -740,77 +703,6 @@ private fun buildMlWebView(
                         onStatusChanged("Вход выполнен или cookies доступны. Нажмите «Сохранить сессию».")
                     }
                 }
-
-                view?.evaluateJavascript(
-                    """
-                    (function() {
-                      if (window.__mlHookInstalled) return "already";
-                      window.__mlHookInstalled = true;
-                      window.__mlCapturedResponses = window.__mlCapturedResponses || [];
-
-                      function pushCapture(url, text) {
-                        try {
-                          var body = String(text || "");
-                          if (!body) return;
-                          if (
-                            body.indexOf('"sku"') >= 0 ||
-                            body.indexOf('"products"') >= 0 ||
-                            body.indexOf('seller_central') >= 0 ||
-                            body.indexOf('sumka') >= 0 ||
-                            body.indexOf('SKU:') >= 0
-                          ) {
-                            window.__mlCapturedResponses.push({
-                              url: String(url || ""),
-                              text: body.slice(0, 200000)
-                            });
-                            if (window.__mlCapturedResponses.length > 20) {
-                              window.__mlCapturedResponses = window.__mlCapturedResponses.slice(-20);
-                            }
-                          }
-                        } catch (e) {}
-                      }
-
-                      if (window.fetch && !window.__mlFetchWrapped) {
-                        const oldFetch = window.fetch;
-                        window.fetch = function() {
-                          return oldFetch.apply(this, arguments).then(function(resp) {
-                            try {
-                              var clone = resp.clone();
-                              clone.text().then(function(text) {
-                                pushCapture(resp.url || "", text);
-                              }).catch(function(){});
-                            } catch (e) {}
-                            return resp;
-                          });
-                        };
-                        window.__mlFetchWrapped = true;
-                      }
-
-                      if (window.XMLHttpRequest && !window.__mlXhrWrapped) {
-                        const open = XMLHttpRequest.prototype.open;
-                        const send = XMLHttpRequest.prototype.send;
-
-                        XMLHttpRequest.prototype.open = function(method, url) {
-                          this.__mlUrl = url;
-                          return open.apply(this, arguments);
-                        };
-
-                        XMLHttpRequest.prototype.send = function() {
-                          this.addEventListener('load', function() {
-                            try {
-                              pushCapture(this.responseURL || this.__mlUrl || "", this.responseText || "");
-                            } catch (e) {}
-                          });
-                          return send.apply(this, arguments);
-                        };
-                        window.__mlXhrWrapped = true;
-                      }
-
-                      return "ok";
-                    })();
-                    """.trimIndent(),
-                    null
-                )
             }
         }
 
