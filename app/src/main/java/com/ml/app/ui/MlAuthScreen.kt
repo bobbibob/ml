@@ -83,6 +83,7 @@ fun MlAuthScreen(
         ) {
         
             Button(
+                modifier = Modifier.fillMaxWidth(),
                 onClick = {
                     val url = currentUrl
                     val cookiesRaw = cookieManager.getCookie(url).orEmpty()
@@ -358,6 +359,7 @@ fun MlAuthScreen(
             }
 
             Button(
+                modifier = Modifier.fillMaxWidth(),
                 onClick = {
                     val webView = webViewRef ?: return@Button
                     statusText = "Читаем заказы со страницы..."
@@ -632,15 +634,16 @@ fun MlAuthScreen(
             text = statusText,
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier
+                .fillMaxWidth()
                 .zIndex(2f)
-                .padding(horizontal = 12.dp, vertical = 4.dp)
+                .padding(horizontal = 12.dp, vertical = 8.dp)
         )
 
         AndroidView(
             modifier = Modifier
                 .zIndex(0f)
                 .fillMaxWidth()
-                .padding(top = 232.dp)
+                .padding(top = 320.dp)
                 .height(620.dp),
             factory = {
                 buildMlWebView(
