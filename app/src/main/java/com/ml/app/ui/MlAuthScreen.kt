@@ -61,11 +61,13 @@ fun MlAuthScreen(
 
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("ML", style = MaterialTheme.typography.titleLarge)
-            Spacer(Modifier.weight(1f))
             IconButton(onClick = onClose) {
                 Icon(Icons.Default.Close, contentDescription = "close")
             }
@@ -612,7 +614,9 @@ fun MlAuthScreen(
         )
 
         AndroidView(
-            modifier = Modifier.fillMaxWidth().weight(1f),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(620.dp),
             factory = {
                 buildMlWebView(
                     context = context,
