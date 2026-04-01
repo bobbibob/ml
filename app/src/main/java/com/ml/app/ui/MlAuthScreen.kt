@@ -103,13 +103,19 @@ fun MlAuthScreen(
 
                     Thread {
                         try {
+                            val cookiesJson = JSONArray(cookies).toString()
+                            val csrfToken = cookies.firstOrNull {
+                                kotlin.runCatching {
+                                    it.getString("name") == "_csrf"
+                                }.getOrDefault(false)
+                            }?.let {
+                                kotlin.runCatching { it.getString("value") }.getOrNull()
+                            }
+
                             val body = JSONObject().apply {
-                                put("source", "mercadolivre")
-                                put("session_payload", JSONObject().apply {
-                                    put("cookies", JSONArray(cookies))
-                                    put("saved_at", System.currentTimeMillis())
-                                    put("source", "android_admin_webview")
-                                })
+                                put("cookies_json", cookiesJson)
+                                put("user_agent", webViewRef?.settings?.userAgentString ?: "")
+                                put("csrf_token", csrfToken)
                             }
 
                             val request = Request.Builder()
@@ -122,7 +128,10 @@ fun MlAuthScreen(
 
                             OkHttpClient().newCall(request).execute().use { resp ->
                                 if (resp.isSuccessful) {
+                                    statusText = "Сессия сохранена."
                                     onSuccess()
+                                } else {
+                                    statusText = "Ошибка сохранения сессии: ${resp.code}"
                                 }
                             }
                         } catch (_: Throwable) {
@@ -540,17 +549,21 @@ fun MlAuthScreen(
                                     JSONObject(resp.body?.string().orEmpty())
                                 }
 
-                                val minAllowed = syncStateJson.optString("min_allowed_datetime").ifBlank { "2025-08-30T00:00:00" }
-                                val lastSynced = syncStateJson.optString("last_synced_order_datetime").ifBlank { null }
+                                val syncObj = syncStateJson.optJSONObject("sync")
+                                val latestOrderObj = syncStateJson.optJSONObject("latest_order")
+                                val lastSynced =
+                                    syncObj?.optString("last_order_time")?.ifBlank { null }
+                                        ?: latestOrderObj?.optString("order_time")?.ifBlank { null }
 
                                 val filteredOrders = JSONArray()
                                 for (i in 0 until orders.length()) {
                                     val obj = orders.optJSONObject(i) ?: continue
-                                    val sort = obj.optString("order_datetime_sort").ifBlank { null }
+                                    val sort = obj.optString("order_datetime_sort").ifBlank {
+                                        obj.optString("order_time").ifBlank { null }
+                                    }
 
                                     val allowed = when {
                                         sort == null -> true
-                                        sort < minAllowed -> false
                                         lastSynced != null && sort <= lastSynced -> false
                                         else -> true
                                     }
@@ -565,12 +578,85 @@ fun MlAuthScreen(
                                     return@Thread
                                 }
 
+                                val backendOrders = JSONArray()
+                                for (i in 0 until filteredOrders.length()) {
+                                    val obj = filteredOrders.optJSONObject(i) ?: continue
+
+                                    val orderId =
+                                        obj.optString("order_id").ifBlank {
+                                            obj.optString("external_id").ifBlank {
+                                                obj.optString("id").ifBlank {
+                                                    obj.optString("sale_id")
+                                                }
+                                            }
+                                        }.trim()
+
+                                    val orderTime =
+                                        obj.optString("order_time").ifBlank {
+                                            obj.optString("order_datetime_sort").ifBlank {
+                                                obj.optString("date_created").ifBlank {
+                                                    obj.optString("created_at")
+                                                }
+                                            }
+                                        }.trim()
+
+                                    if (orderId.isBlank() || orderTime.isBlank()) continue
+
+                                    val priceValue =
+                                        when {
+                                            obj.has("price") && !obj.isNull("price") -> obj.optDouble("price")
+                                            obj.has("unit_price") && !obj.isNull("unit_price") -> obj.optDouble("unit_price")
+                                            else -> Double.NaN
+                                        }
+
+                                    val quantityValue =
+                                        when {
+                                            obj.has("quantity") && !obj.isNull("quantity") -> obj.optInt("quantity")
+                                            else -> 1
+                                        }
+
+                                    backendOrders.put(
+                                        JSONObject().apply {
+                                            put("order_id", orderId)
+                                            put("order_time", orderTime)
+                                            put(
+                                                "sku",
+                                                obj.optString("sku").ifBlank {
+                                                    obj.optString("seller_sku").ifBlank {
+                                                        obj.optString("article")
+                                                    }
+                                                }
+                                            )
+                                            put(
+                                                "title",
+                                                obj.optString("title").ifBlank {
+                                                    obj.optString("product_title")
+                                                }
+                                            )
+                                            put("quantity", quantityValue)
+                                            if (!priceValue.isNaN()) put("price", priceValue) else put("price", JSONObject.NULL)
+                                            put(
+                                                "status",
+                                                obj.optString("status").ifBlank {
+                                                    obj.optString("shipping_status")
+                                                }
+                                            )
+                                            put("raw_json", obj)
+                                        }
+                                    )
+                                }
+
+                                if (backendOrders.length() == 0) {
+                                    statusText = "После нормализации не осталось валидных заказов."
+                                    return@Thread
+                                }
+
                                 val upsertBody = JSONObject().apply {
-                                    put("orders", filteredOrders)
+                                    put("orders", backendOrders)
                                 }
 
                                 val upsertReq = Request.Builder()
-                                    .url(BuildConfig.TASKS_API_BASE_URL + "internal/orders/upsert-bulk")
+                                    .url(BuildConfig.TASKS_API_BASE_URL + "internal/integrations/ml/upsert-orders")
                                     .addHeader("Authorization", "Bearer $token")
                                     .post(upsertBody.toString().toRequestBody("application/json".toMediaType()))
                                     .build()
@@ -582,34 +668,7 @@ fun MlAuthScreen(
                                     }
                                 }
 
-                                val summaryReq = Request.Builder()
-                                    .url(BuildConfig.TASKS_API_BASE_URL + "internal/ml/generate-orders-summary")
-                                    .addHeader("Authorization", "Bearer $token")
-                                    .post("{}".toRequestBody("application/json".toMediaType()))
-                                    .build()
-
-                                client.newCall(summaryReq).execute().use { resp ->
-                                    if (!resp.isSuccessful) {
-                                        statusText = "Заказы отправлены, но summary не создан: ${resp.code}"
-                                        return@Thread
-                                    }
-                                }
-
-                                val authStateBody = JSONObject().apply {
-                                    put("source", "mercadolivre")
-                                    put("auth_state", "active")
-                                    put("last_error", JSONObject.NULL)
-                                }
-
-                                val authStateReq = Request.Builder()
-                                    .url(BuildConfig.TASKS_API_BASE_URL + "internal/integrations/set-auth-state")
-                                    .addHeader("Authorization", "Bearer $token")
-                                    .post(authStateBody.toString().toRequestBody("application/json".toMediaType()))
-                                    .build()
-
-                                client.newCall(authStateReq).execute().use { }
-
-                                statusText = "Синхронизация ML завершена: ${filteredOrders.length()} новых заказов."
+                                statusText = "Синхронизация ML завершена: ${backendOrders.length()} новых заказов."
                             } catch (t: Throwable) {
                                 statusText = "Ошибка синхронизации: ${t.message}"
                             }
