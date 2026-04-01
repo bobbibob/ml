@@ -1014,23 +1014,23 @@ private fun AdminScreen(
         Button(
           onClick = { onTabChange("users") },
           modifier = Modifier.weight(1f)
-        ) { Text("Пользователи") }
+        ) { Text("Польз.") }
 
         Button(
           onClick = { onTabChange("tasks") },
           modifier = Modifier.weight(1f)
         ) { Text("Задачи") }
-
-        Button(
-          onClick = { onTabChange("history") },
-          modifier = Modifier.weight(1f)
-        ) { Text("История") }
       }
 
       Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
       ) {
+        Button(
+          onClick = { onTabChange("history") },
+          modifier = Modifier.weight(1f)
+        ) { Text("История") }
+
         Button(
           onClick = { onTabChange("push") },
           modifier = Modifier.weight(1f)
@@ -1040,8 +1040,6 @@ private fun AdminScreen(
           onClick = { onTabChange("ml") },
           modifier = Modifier.weight(1f)
         ) { Text("ML") }
-
-        Spacer(modifier = Modifier.weight(1f))
       }
     }
 

@@ -19,7 +19,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -73,15 +76,26 @@ fun MlAuthScreen(
                 Icon(Icons.Default.Close, contentDescription = "close")
             }
         }
-        Column(
+        Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(220.dp)
-                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 12.dp),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors()
         ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
         
-            Button(
-                onClick = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = {
                     val url = currentUrl
                     val cookiesRaw = cookieManager.getCookie(url).orEmpty()
                     val cookies = cookiesRaw.split(";").mapNotNull { part ->
@@ -138,12 +152,14 @@ fun MlAuthScreen(
                         }
                     }.start()
                 }
-            ) {
-                Text("Сессия")
-            }
+                    ,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Сессия")
+                }
 
-            Button(
-                onClick = {
+                Button(
+                    onClick = {
                     val webView = webViewRef ?: return@Button
                     statusText = "Снимаем DOM..."
 
@@ -204,19 +220,28 @@ fun MlAuthScreen(
                         }
                     }
                 }
-            ) {
-                Text("DOM")
+                    ,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("DOM")
+                }
             }
 
-            Button(
-                onClick = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = {
                     val webView = webViewRef ?: return@Button
                     statusText = "Открываем страницу остатков..."
                     webView.loadUrl(ML_STOCK_URL)
                 }
-            ) {
-                Text("Склад")
-            }
+                    ,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Склад")
+                }
 
             Button(
                 onClick = {
@@ -675,17 +700,21 @@ fun MlAuthScreen(
                         }.start()
                     }
                 }
-            ) {
-                Text("Синхро")
+                    ,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Синхро")
+                }
             }
         }
 
+            }
         }
 
         Text(
             text = statusText,
             style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
         )
 
         AndroidView(
