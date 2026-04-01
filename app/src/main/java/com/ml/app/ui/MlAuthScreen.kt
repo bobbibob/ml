@@ -31,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.zIndex
 import com.ml.app.BuildConfig
 import com.ml.app.data.session.PrefsSessionStorage
 import okhttp3.MediaType.Companion.toMediaType
@@ -63,6 +64,7 @@ fun MlAuthScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .zIndex(2f)
                 .padding(horizontal = 12.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
@@ -75,6 +77,7 @@ fun MlAuthScreen(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .zIndex(2f)
                 .height(220.dp)
                 .verticalScroll(rememberScrollState())
         ) {
@@ -628,11 +631,14 @@ fun MlAuthScreen(
         Text(
             text = statusText,
             style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+            modifier = Modifier
+                .zIndex(2f)
+                .padding(horizontal = 12.dp, vertical = 4.dp)
         )
 
         AndroidView(
             modifier = Modifier
+                .zIndex(0f)
                 .fillMaxWidth()
                 .height(620.dp),
             factory = {
