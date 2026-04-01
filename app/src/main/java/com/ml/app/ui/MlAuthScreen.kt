@@ -640,6 +640,7 @@ fun MlAuthScreen(
             modifier = Modifier
                 .zIndex(0f)
                 .fillMaxWidth()
+                .padding(top = 232.dp)
                 .height(620.dp),
             factory = {
                 buildMlWebView(
