@@ -104,6 +104,8 @@ fun MlAuthScreen(
                         return@Button
                     }
 
+                    statusText = "Сохраняем сессию..."
+
                     Thread {
                         try {
                             val cookiesJson = JSONArray(cookies).toString()
@@ -130,14 +132,15 @@ fun MlAuthScreen(
                                 .build()
 
                             OkHttpClient().newCall(request).execute().use { resp ->
+                                val respText = resp.body?.string().orEmpty()
                                 if (resp.isSuccessful) {
                                     statusText = "Сессия сохранена."
-                                    onSuccess()
                                 } else {
-                                    statusText = "Ошибка сохранения сессии: ${resp.code}"
+                                    statusText = "Ошибка сохранения сессии: ${resp.code} ${respText.take(300)}"
                                 }
                             }
-                        } catch (_: Throwable) {
+                        } catch (t: Throwable) {
+                            statusText = "Ошибка сохранения сессии: ${t.message}"
                         }
                     }.start()
                 }
