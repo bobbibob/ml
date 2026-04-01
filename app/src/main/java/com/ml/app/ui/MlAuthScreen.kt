@@ -75,13 +75,69 @@ fun MlAuthScreen(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(220.dp)
-                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-        
             Button(
                 onClick = {
-                    val url = currentUrl
+val url = currentUrl
+                    val cookiesRaw = cookieManager.getCookie(url).orEmpty()
+                    val cookies = cookiesRaw.split(";").mapNotNull { part ->
+                        val pieces = part.trim().split("=", limit = 2)
+                        if (pieces.size != 2) return@mapNotNull null
+
+                        JSONObject().apply {
+                            put("name", pieces[0])
+                            put("value", pieces[1])
+                            put("domain", ".mercadolivre.com.br")
+                            put("path", "/")
+                        }
+                    }
+
+                    if (cookies.isEmpty()) {
+                        statusText = "Cookies ещё не появились. Сначала войдите в аккаунт."
+                        return@Button
+                    }
+
+                    Thread {
+                        try {
+                            val body = JSONObject().apply {
+                                put("source", "mercadolivre")
+                                put("session_payload", JSONObject().apply {
+                                    put("cookies", JSONArray(cookies))
+                                    put("saved_at", System.currentTimeMillis())
+                                    put("source", "android_admin_webview")
+                                })
+                            }
+
+                            val request = Request.Builder()
+                                .url(BuildConfig.TASKS_API_BASE_URL + "internal/integrations/ml/save-session")
+                                .addHeader("Authorization", "Bearer $token")
+                                .post(
+                                    body.toString().toRequestBody("application/json".toMediaType())
+                                )
+                                .build()
+
+                            OkHttpClient().newCall(request).execute().use { resp ->
+                                if (resp.isSuccessful) {
+                                    statusText = "Сессия сохранена."
+                                    onSuccess()
+                                } else {
+                                    statusText = "Ошибка сохранения сессии: ${resp.code}"
+                                }
+                            }
+                        } catch (_: Throwable) {
+                        }
+                    }.start()
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Сессия")
+            }
+
+            Button(
+                onClick = {
+val url = currentUrl
                     val cookiesRaw = cookieManager.getCookie(url).orEmpty()
                     val cookies = cookiesRaw.split(";").mapNotNull { part ->
                         val pieces = part.trim().split("=", limit = 2)
@@ -554,7 +610,7 @@ fun MlAuthScreen(
                                 }
 
                                 val upsertReq = Request.Builder()
-                                    .url(BuildConfig.TASKS_API_BASE_URL + "internal/orders/upsert-bulk")
+                                    .url(BuildConfig.TASKS_API_BASE_URL + "internal/integrations/ml/upsert-orders")
                                     .addHeader("Authorization", "Bearer $token")
                                     .post(upsertBody.toString().toRequestBody("application/json".toMediaType()))
                                     .build()
@@ -599,12 +655,11 @@ fun MlAuthScreen(
                             }
                         }.start()
                     }
-                }
+                },
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Text("Синхро")
             }
-        }
-
         }
 
         Text(
