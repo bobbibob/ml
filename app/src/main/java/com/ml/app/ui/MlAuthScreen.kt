@@ -572,7 +572,7 @@ fun MlAuthScreen(
                                 }
 
                                 val upsertReq = Request.Builder()
-                                    .url(BuildConfig.TASKS_API_BASE_URL + "internal/orders/upsert-bulk")
+                                    .url(BuildConfig.TASKS_API_BASE_URL + "internal/integrations/ml/upsert-orders")
                                     .addHeader("Authorization", "Bearer $token")
                                     .post(upsertBody.toString().toRequestBody("application/json".toMediaType()))
                                     .build()
