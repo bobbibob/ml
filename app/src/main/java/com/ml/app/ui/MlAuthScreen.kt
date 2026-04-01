@@ -136,45 +136,27 @@ fun MlAuthScreen(
             Button(
                 onClick = {
                     val webView = webViewRef ?: return@Button
-                    statusText = "Снимаем DOM..."
+                    statusText = "Читаем network cache..."
 
                     val js = """
                         (function() {
-                          function txt(el) {
-                            return ((el && (el.innerText || el.textContent)) || "").trim();
-                          }
-
-                          function sample(list) {
-                            return list
-                              .map(x => txt(x))
-                              .filter(Boolean)
-                              .slice(0, 10);
-                          }
-
-                          const trNodes = Array.from(document.querySelectorAll("tr"));
-                          const rowNodes = Array.from(document.querySelectorAll("[role='row']"));
-                          const articleNodes = Array.from(document.querySelectorAll("article"));
-                          const liNodes = Array.from(document.querySelectorAll("li"));
-                          const cardNodes = Array.from(document.querySelectorAll(".andes-card"));
+                          const items = Array.isArray(window.__mlCapturedResponses)
+                            ? window.__mlCapturedResponses
+                            : [];
 
                           return JSON.stringify({
                             url: location.href,
-                            title: document.title,
-                            counts: {
-                              tr: trNodes.length,
-                              row: rowNodes.length,
-                              article: articleNodes.length,
-                              li: liNodes.length,
-                              andesCard: cardNodes.length
-                            },
-                            samples: {
-                              tr: sample(trNodes),
-                              row: sample(rowNodes),
-                              article: sample(articleNodes),
-                              li: sample(liNodes),
-                              andesCard: sample(cardNodes)
-                            },
-                            bodyPreview: txt(document.body).slice(0, 4000)
+                            count: items.length,
+                            items: items.slice(-8).map(function(x) {
+                              const text = String(x.text || "");
+                              const skuMatch = text.match(/"sku"\s*:\s*"([^"]+)"/i);
+                              return {
+                                url: x.url || "",
+                                hasSku: /"sku"\s*:/i.test(text),
+                                skuSample: skuMatch ? skuMatch[1] : "",
+                                preview: text.slice(0, 1200)
+                              };
+                            })
                           });
                         })();
                     """.trimIndent()
@@ -189,14 +171,14 @@ fun MlAuthScreen(
                             }
 
                             val json = JSONObject(cleaned)
-                            statusText = json.toString(2).take(6000)
+                            statusText = json.toString(2).take(7000)
                         } catch (t: Throwable) {
-                            statusText = "DOM debug error: ${t.message}"
+                            statusText = "NET debug error: ${t.message}"
                         }
                     }
                 }
             ) {
-                Text("DOM")
+                Text("NET")
             }
 
             Button(
@@ -699,6 +681,77 @@ private fun buildMlWebView(
                         onStatusChanged("Вход выполнен или cookies доступны. Нажмите «Сохранить сессию».")
                     }
                 }
+
+                view?.evaluateJavascript(
+                    """
+                    (function() {
+                      if (window.__mlHookInstalled) return "already";
+                      window.__mlHookInstalled = true;
+                      window.__mlCapturedResponses = window.__mlCapturedResponses || [];
+
+                      function pushCapture(url, text) {
+                        try {
+                          var body = String(text || "");
+                          if (!body) return;
+                          if (
+                            body.indexOf('"sku"') >= 0 ||
+                            body.indexOf('"products"') >= 0 ||
+                            body.indexOf('seller_central') >= 0 ||
+                            body.indexOf('sumka') >= 0 ||
+                            body.indexOf('SKU:') >= 0
+                          ) {
+                            window.__mlCapturedResponses.push({
+                              url: String(url || ""),
+                              text: body.slice(0, 200000)
+                            });
+                            if (window.__mlCapturedResponses.length > 20) {
+                              window.__mlCapturedResponses = window.__mlCapturedResponses.slice(-20);
+                            }
+                          }
+                        } catch (e) {}
+                      }
+
+                      if (window.fetch && !window.__mlFetchWrapped) {
+                        const oldFetch = window.fetch;
+                        window.fetch = function() {
+                          return oldFetch.apply(this, arguments).then(function(resp) {
+                            try {
+                              var clone = resp.clone();
+                              clone.text().then(function(text) {
+                                pushCapture(resp.url || "", text);
+                              }).catch(function(){});
+                            } catch (e) {}
+                            return resp;
+                          });
+                        };
+                        window.__mlFetchWrapped = true;
+                      }
+
+                      if (window.XMLHttpRequest && !window.__mlXhrWrapped) {
+                        const open = XMLHttpRequest.prototype.open;
+                        const send = XMLHttpRequest.prototype.send;
+
+                        XMLHttpRequest.prototype.open = function(method, url) {
+                          this.__mlUrl = url;
+                          return open.apply(this, arguments);
+                        };
+
+                        XMLHttpRequest.prototype.send = function() {
+                          this.addEventListener('load', function() {
+                            try {
+                              pushCapture(this.responseURL || this.__mlUrl || "", this.responseText || "");
+                            } catch (e) {}
+                          });
+                          return send.apply(this, arguments);
+                        };
+                        window.__mlXhrWrapped = true;
+                      }
+
+                      return "ok";
+                    })();
+                    """.trimIndent(),
+                    null
+                )
             }
         }
 
