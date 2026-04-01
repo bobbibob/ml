@@ -106,13 +106,19 @@ fun MlAuthScreen(
 
                     Thread {
                         try {
+                            val cookiesJson = JSONArray(cookies).toString()
+                            val csrfToken = cookies.firstOrNull {
+                                kotlin.runCatching {
+                                    it.getString("name") == "_csrf"
+                                }.getOrDefault(false)
+                            }?.let {
+                                kotlin.runCatching { it.getString("value") }.getOrNull()
+                            }
+
                             val body = JSONObject().apply {
-                                put("source", "mercadolivre")
-                                put("session_payload", JSONObject().apply {
-                                    put("cookies", JSONArray(cookies))
-                                    put("saved_at", System.currentTimeMillis())
-                                    put("source", "android_admin_webview")
-                                })
+                                put("cookies_json", cookiesJson)
+                                put("user_agent", webViewRef?.settings?.userAgentString ?: "")
+                                put("csrf_token", csrfToken)
                             }
 
                             val request = Request.Builder()
