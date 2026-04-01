@@ -89,14 +89,76 @@ fun MlAuthScreen(
                     .padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-        
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Button(
-                    onClick = {
-                    val url = currentUrl
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = {
+val url = currentUrl
+                    val cookiesRaw = cookieManager.getCookie(url).orEmpty()
+                    val cookies = cookiesRaw.split(";").mapNotNull { part ->
+                        val pieces = part.trim().split("=", limit = 2)
+                        if (pieces.size != 2) return@mapNotNull null
+
+                        JSONObject().apply {
+                            put("name", pieces[0])
+                            put("value", pieces[1])
+                            put("domain", ".mercadolivre.com.br")
+                            put("path", "/")
+                        }
+                    }
+
+                    if (cookies.isEmpty()) {
+                        statusText = "Cookies ещё не появились. Сначала войдите в аккаунт."
+                        return@Button
+                    }
+
+                    Thread {
+                        try {
+                            val cookiesJson = JSONArray(cookies).toString()
+                            val csrfToken = cookies.firstOrNull {
+                                kotlin.runCatching {
+                                    it.getString("name") == "_csrf"
+                                }.getOrDefault(false)
+                            }?.let {
+                                kotlin.runCatching { it.getString("value") }.getOrNull()
+                            }
+
+                            val body = JSONObject().apply {
+                                put("cookies_json", cookiesJson)
+                                put("user_agent", webViewRef?.settings?.userAgentString ?: "")
+                                put("csrf_token", csrfToken)
+                            }
+
+                            val request = Request.Builder()
+                                .url(BuildConfig.TASKS_API_BASE_URL + "internal/integrations/ml/save-session")
+                                .addHeader("Authorization", "Bearer $token")
+                                .post(
+                                    body.toString().toRequestBody("application/json".toMediaType())
+                                )
+                                .build()
+
+                            OkHttpClient().newCall(request).execute().use { resp ->
+                                if (resp.isSuccessful) {
+                                    statusText = "Сессия сохранена."
+                                    onSuccess()
+                                } else {
+                                    statusText = "Ошибка сохранения сессии: ${resp.code}"
+                                }
+                            }
+                        } catch (_: Throwable) {
+                        }
+                    }.start()
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Сессия")
+                    }
+
+                    Button(
+                        onClick = {
+val url = currentUrl
                     val cookiesRaw = cookieManager.getCookie(url).orEmpty()
                     val cookies = cookiesRaw.split(";").mapNotNull { part ->
                         val pieces = part.trim().split("=", limit = 2)
@@ -699,15 +761,12 @@ fun MlAuthScreen(
                             }
                         }.start()
                     }
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Синхро")
+                    }
                 }
-                    ,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Синхро")
-                }
-            }
-        }
-
             }
         }
 
