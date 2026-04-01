@@ -1003,30 +1003,48 @@ private fun AdminScreen(
       .padding(12.dp),
     verticalArrangement = Arrangement.spacedBy(12.dp)
   ) {
-    Row(
+    Column(
       modifier = Modifier.fillMaxWidth(),
-      horizontalArrangement = Arrangement.spacedBy(8.dp)
+      verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-      Button(
-        onClick = { onTabChange("users") },
-              ) { Text("Пользователи") }
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+      ) {
+        Button(
+          onClick = { onTabChange("users") },
+          modifier = Modifier.weight(1f)
+        ) { Text("Пользователи") }
 
-      Button(
-        onClick = { onTabChange("tasks") },
-              ) { Text("Задачи") }
+        Button(
+          onClick = { onTabChange("tasks") },
+          modifier = Modifier.weight(1f)
+        ) { Text("Задачи") }
 
-      Button(
-        onClick = { onTabChange("history") },
-              ) { Text("История") }
+        Button(
+          onClick = { onTabChange("history") },
+          modifier = Modifier.weight(1f)
+        ) { Text("История") }
+      }
 
-      Button(
-        onClick = { onTabChange("push") }
-      ) { Text("Push") }
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+      ) {
+        Button(
+          onClick = { onTabChange("push") },
+          modifier = Modifier.weight(1f)
+        ) { Text("Push") }
 
-      Button(
-        onClick = { onTabChange("ml") }
-      ) { Text("ML") }
+        Button(
+          onClick = { onTabChange("ml") },
+          modifier = Modifier.weight(1f)
+        ) { Text("ML") }
+
+        Spacer(modifier = Modifier.weight(1f))
+      }
     }
+
 
     error?.takeIf { it.isNotBlank() }?.let {
       val waiting = it.contains("Загрузка в ожидании данных", ignoreCase = true)
@@ -1043,10 +1061,16 @@ private fun AdminScreen(
         users = users,
         onSendPush = onSendPush
       )
-      "ml" -> MlAuthScreen(
-        onClose = onBack,
-        onSuccess = { onTabChange("users") }
-      )
+      "ml" -> Box(
+        modifier = Modifier
+          .fillMaxWidth()
+          .height(640.dp)
+      ) {
+        MlAuthScreen(
+          onClose = onBack,
+          onSuccess = { onTabChange("users") }
+        )
+      }
       else -> AdminUsersTab(
         users = users,
         onChangeRole = onChangeRole,
