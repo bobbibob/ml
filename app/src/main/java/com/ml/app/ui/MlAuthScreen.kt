@@ -106,7 +106,7 @@ fun MlAuthScreen(
 
                     statusText = "Сохраняем сессию..."
 
-                    val userAgent = userAgent
+                    val userAgent: String = webViewRef?.settings?.userAgentString?.toString() ?: ""
 
                     Thread {
                         try {
@@ -121,7 +121,7 @@ fun MlAuthScreen(
 
                             val body = JSONObject().apply {
                                 put("cookies_json", cookiesJson)
-                                put("user_agent", userAgent)
+                                put("user_agent", userAgent as Any)
                                 put("csrf_token", csrfToken)
                             }
 
