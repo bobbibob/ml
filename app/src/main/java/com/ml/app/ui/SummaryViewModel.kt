@@ -448,7 +448,7 @@ fun refreshTimeline() {
           rows = rowsWithResolvedStock,
           cardTypes = types,
           loading = false,
-          status = "OK"
+          status = "DETAILS date=$date rows=${rows.size} resolvedRows=${rowsWithResolvedStock.size}"
         )
       } catch (t: Throwable) {
         _state.value = _state.value.copy(
