@@ -797,6 +797,19 @@ try {
 if (path === "/run_reminder_scheduler" && request.method === "POST") {
           const user = await getCurrentUser(request, env)
           if (!user) return json({ ok: false, error: "unauthorized" }, 401)
+
+      if (path === "/internal/integrations/ml/save-session" && request.method === "POST") {
+        try {
+          const body = await request.json()
+
+          console.log("ML SESSION SAVE", body)
+
+          return json({ ok: true })
+        } catch (e) {
+          return json({ ok: false, error: String(e) })
+        }
+      }
+
           if (user.role !== "admin") return json({ ok: false, error: "forbidden" }, 403)
 
           await runReminderScheduler(env, ctx)
