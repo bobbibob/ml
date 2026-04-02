@@ -819,6 +819,18 @@ try {
         }
       }
 
+      if (path === "/internal/integrations/set-auth-state" && request.method === "POST") {
+        try {
+          const body = await request.json()
+
+          console.log("ML AUTH STATE", body)
+
+          return json({ ok: true })
+        } catch (e) {
+          return json({ ok: false, error: String(e) })
+        }
+      }
+
 if (path === "/run_reminder_scheduler" && request.method === "POST") {
           const user = await getCurrentUser(request, env)
           if (!user) return json({ ok: false, error: "unauthorized" }, 401)
