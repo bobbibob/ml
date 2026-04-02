@@ -798,6 +798,19 @@ try {
         try {
           const body = await request.json()
 
+      if (path === "/internal/integrations/ml/upsert-orders" && request.method === "POST") {
+        try {
+          const body = await request.json()
+
+          console.log("ML ORDERS UPSERT", body)
+
+          return json({ ok: true, received: Array.isArray(body) ? body.length : 0 })
+        } catch (e) {
+          return json({ ok: false, error: String(e) })
+        }
+      }
+
+
           console.log("ML SESSION SAVE", body)
 
           return json({ ok: true })
