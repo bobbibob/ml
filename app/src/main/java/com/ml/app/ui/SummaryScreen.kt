@@ -753,7 +753,13 @@ private fun DetailsList(
       modifier = Modifier.fillMaxSize().padding(16.dp),
       contentAlignment = Alignment.Center
     ) {
-      Text("Нет данных по этой дате", color = Color.Gray)
+      Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text("Нет данных по этой дате", color = Color.Gray)
+        if (status.isNotBlank()) {
+          Spacer(Modifier.height(12.dp))
+          Text(status, color = Color.Gray)
+        }
+      }
     }
     return
   }
