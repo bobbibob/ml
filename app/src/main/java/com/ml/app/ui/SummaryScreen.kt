@@ -933,6 +933,14 @@ private fun DetailsList(
               color = Color.Gray
             )
 
+            Spacer(Modifier.height(8.dp))
+            Text("Итого Ads", fontWeight = FontWeight.SemiBold, color = TextBlack)
+            Spacer(Modifier.height(4.dp))
+            Text(
+              "Расход ${fmtMoney(r.totalAds.spend)} • показы ${r.totalAds.impressions} • клики ${r.totalAds.clicks} • CTR ${fmtPct(r.totalAds.ctr)} • CPC ${fmtMoney(r.totalAds.cpc)}",
+              color = Color.Gray
+            )
+
           }
         }
       }
