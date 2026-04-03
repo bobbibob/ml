@@ -154,6 +154,7 @@ class SQLiteRepo(private val context: Context) {
                  SUM(COALESCE(s.ig_clicks,0)) AS ig_clicks
           FROM svodka s
                     WHERE s.date=? AND s.bag_id IS NOT NULL AND s.bag_id != ''
+            ${totalColorWhere()}
             
           GROUP BY s.bag_id
           ORDER BY orders DESC
