@@ -718,9 +718,21 @@ class SQLiteRepo(private val context: Context) {
     openDbReadWrite().use { db ->
       db.execSQL(
         """
-        CREATE TABLE IF NOT EXISTS bag_stock_override(
+        CREATE TABLE IF NOT EXISTS bag_stock_override (
+    effective_date TEXT NOT NULL,
+    bag_id TEXT NOT NULL,
+    color TEXT NOT NULL,
+    stock REAL NOT NULL,
+    PRIMARY KEY(effective_date, bag_id, color)
+);
 
 CREATE TABLE IF NOT EXISTS card_color_sku (
+    card_name TEXT NOT NULL,
+    color TEXT NOT NULL,
+    sku TEXT NOT NULL,
+    article_id TEXT NOT NULL,
+    PRIMARY KEY(card_name, color)
+);
   card_name TEXT NOT NULL,
   color TEXT NOT NULL,
   sku TEXT NOT NULL,
@@ -761,9 +773,21 @@ CREATE TABLE IF NOT EXISTS card_color_sku (
     openDbReadWrite().use { db ->
       db.execSQL(
         """
-        CREATE TABLE IF NOT EXISTS bag_stock_override(
+        CREATE TABLE IF NOT EXISTS bag_stock_override (
+    effective_date TEXT NOT NULL,
+    bag_id TEXT NOT NULL,
+    color TEXT NOT NULL,
+    stock REAL NOT NULL,
+    PRIMARY KEY(effective_date, bag_id, color)
+);
 
 CREATE TABLE IF NOT EXISTS card_color_sku (
+    card_name TEXT NOT NULL,
+    color TEXT NOT NULL,
+    sku TEXT NOT NULL,
+    article_id TEXT NOT NULL,
+    PRIMARY KEY(card_name, color)
+);
   card_name TEXT NOT NULL,
   color TEXT NOT NULL,
   sku TEXT NOT NULL,
@@ -827,9 +851,21 @@ CREATE TABLE IF NOT EXISTS card_color_sku (
       db.execSQL("CREATE INDEX IF NOT EXISTS idx_svodka_date_bag_color ON svodka(date, bag_id, color)")
       db.execSQL(
         """
-        CREATE TABLE IF NOT EXISTS bag_stock_override(
+        CREATE TABLE IF NOT EXISTS bag_stock_override (
+    effective_date TEXT NOT NULL,
+    bag_id TEXT NOT NULL,
+    color TEXT NOT NULL,
+    stock REAL NOT NULL,
+    PRIMARY KEY(effective_date, bag_id, color)
+);
 
 CREATE TABLE IF NOT EXISTS card_color_sku (
+    card_name TEXT NOT NULL,
+    color TEXT NOT NULL,
+    sku TEXT NOT NULL,
+    article_id TEXT NOT NULL,
+    PRIMARY KEY(card_name, color)
+);
   card_name TEXT NOT NULL,
   color TEXT NOT NULL,
   sku TEXT NOT NULL,
