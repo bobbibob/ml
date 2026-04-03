@@ -387,23 +387,11 @@ fun AddDailySummaryScreen(
                                     igEnabled = igEnabled[bag.bagId] == true,
                                     igSpend = igSpend[bag.bagId]?.trim()?.replace(',', '.')?.toDoubleOrNull(),
                                     igImpressions = igImpressions[bag.bagId]?.trim()?.toLongOrNull(),
-                                    igClicks = igClicks[bag.bagId]?.trim()?.toLongOrNull(),
-                                )?.toDoubleOrNull(),
-                                    rkImpressions = rkImpressions[bag.bagId]?.trim()?.toLongOrNull(),
-                                    rkClicks = rkClicks[bag.bagId]?.trim()?.toLongOrNull(),
-                                    rkStake = rkStake[bag.bagId]?.trim()?.replace(',', '.')?.toDoubleOrNull(),
-                                    igEnabled = igEnabled[bag.bagId] == true,
-                                    igSpend = igSpend[bag.bagId]?.trim()?.replace(',', '.')?.toDoubleOrNull(),
-                                    igImpressions = igImpressions[bag.bagId]?.trim()?.toLongOrNull(),
-                                    igClicks = igClicks[bag.bagId]?.trim()?.toLongOrNull(),
+                                    igClicks = igClicks[bag.bagId]?.trim()?.toLongOrNull()
                                 )
                             }
 
-                            try {
-                                val summaryDate = selectedDate.toString()
-                                val isNewDay = repo.loadForDate(summaryDate).isEmpty()
-
-                                repo.saveDailySummary(summaryDate, bags)
+                            repo.saveDailySummary(summaryDate, bags)
                                                                 saveError = null
                                 onBack()
 
