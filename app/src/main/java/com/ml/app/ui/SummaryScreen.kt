@@ -462,7 +462,9 @@ Row(verticalAlignment = Alignment.CenterVertically) {
             is ScreenMode.Details -> DetailsList(
               rows = state.rows,
               cardTypes = state.cardTypes,
-              status = state.status
+              status = state.status,
+              timeline = state.timeline,
+              selectedDate = state.selectedDate.toString()
             )
 
             is ScreenMode.ArticleEditor -> AddEditArticleScreen(
@@ -746,8 +748,60 @@ private fun TimelineList(
 private fun DetailsList(
   rows: List<BagDayRow>,
   cardTypes: Map<String, CardType>,
-  status: String
+  status: String,
+  timeline: List<DaySummary>,
+  selectedDate: String
 ) {
+  val fallbackDay = timeline.firstOrNull { it.date == selectedDate }
+
+  if (rows.isEmpty() && fallbackDay != null && fallbackDay.byBags.isNotEmpty()) {
+    LazyColumn(
+      modifier = Modifier.fillMaxSize(),
+      contentPadding = PaddingValues(12.dp),
+      verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+      items(fallbackDay.byBags) { bag ->
+        Card(
+          colors = CardDefaults.cardColors(containerColor = SoftGray),
+          modifier = Modifier.fillMaxWidth()
+        ) {
+          Column(Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+              BagThumb(bag.imagePath)
+              Spacer(Modifier.width(12.dp))
+              Text(
+                text = bag.bagName,
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = TextBlack,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+              )
+            }
+
+            Spacer(Modifier.height(10.dp))
+
+            Row(Modifier.fillMaxWidth()) {
+              Text("Заказы: ${bag.orders}", modifier = Modifier.weight(1f), color = TextBlack)
+              Text("Расход: ${fmtMoney(bag.spend)}", color = TextBlack)
+            }
+
+            Spacer(Modifier.height(6.dp))
+
+            Row(Modifier.fillMaxWidth()) {
+              Text(
+                "Цена: ${bag.price?.let { fmtMoney(it) } ?: "—"}",
+                modifier = Modifier.weight(1f),
+                color = TextBlack
+              )
+              Text("Себест.: ${fmtMoney(bag.cogs)}", color = TextBlack)
+            }
+          }
+        }
+      }
+    }
+    return
+  }
+
   if (rows.isEmpty()) {
     Box(
       modifier = Modifier.fillMaxSize().padding(16.dp),
