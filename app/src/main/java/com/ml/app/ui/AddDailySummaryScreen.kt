@@ -399,28 +399,10 @@ fun AddDailySummaryScreen(
                                 saveError = null
                                 onBack()
 
-                                CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
-                                    val session = PrefsSessionStorage(ctx)
-                                    val api = ApiModule.createApi(
-                                        baseUrl = "https://ml-tasks-api.bboobb666.workers.dev/",
-                                        sessionStorage = session
-                                    )
-                                    val syncRepo = DailySummarySyncRepository(api, ctx)
-
-                                    kotlin.runCatching {
-                                        withTimeout(15000) {
-                                            syncRepo.upsertDailySummary(summaryDate, bags)
-                                        }
-                                    }
-
-                                    if (isNewDay) {
-                                        kotlin.runCatching {
-                                            withTimeout(10000) {
-                                                api.notifyNewSummary(mapOf("date" to summaryDate))
-                                            }
-                                        }
-                                    }
-                                }
+                                // TEMP: remote sync disabled to verify local ad metrics persistence
+                                // CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                                //     ...
+                                // }
                             } catch (t: Throwable) {
                                 saveError = t.message ?: t.toString()
                             }
