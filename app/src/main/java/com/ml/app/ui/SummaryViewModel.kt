@@ -440,14 +440,45 @@ fun refreshTimeline() {
             )
         }
 
-        val ids = rowsWithResolvedStock.map { it.bagId }.distinct()
+        val finalRows = if (rowsWithResolvedStock.isNotEmpty()) {
+          rowsWithResolvedStock
+        } else {
+          val fallbackDay = kotlin.runCatching {
+            repo.loadTimeline(limitDays = 180).firstOrNull { it.date == date }
+          }.getOrNull()
+
+          fallbackDay?.byBags?.map { bag ->
+            val fallbackStocks = resolved[bag.bagId]
+              ?.map { com.ml.app.domain.ColorValue(it.color, it.stock) }
+              ?: emptyList()
+
+            com.ml.app.domain.BagDayRow(
+              bagId = bag.bagId,
+              bagName = bag.bagName,
+              price = bag.price,
+              hypothesis = null,
+              imagePath = bag.imagePath,
+              totalOrders = bag.orders.toDouble(),
+              totalSpend = bag.spend,
+              cpo = if (bag.orders > 0) bag.spend / bag.orders.toDouble() else 0.0,
+              cogs = bag.cogs,
+              ordersByColors = emptyList(),
+              stockByColors = fallbackStocks,
+              rk = com.ml.app.domain.AdsMetrics(),
+              ig = com.ml.app.domain.AdsMetrics(),
+              totalAds = com.ml.app.domain.AdsMetrics()
+            )
+          } ?: emptyList()
+        }
+
+        val ids = finalRows.map { it.bagId }.distinct()
         val types = typeStore.getTypes(ids)
 
         _state.value = _state.value.copy(
-          rows = rowsWithResolvedStock,
+          rows = finalRows,
           cardTypes = types,
           loading = false,
-          status = "DETAILS date=$date rows=${rows.size} resolvedRows=${rowsWithResolvedStock.size} timeline=${kotlin.runCatching { repo.loadTimeline(limitDays = 5).size }.getOrDefault(-1)}"
+          status = "DETAILS date=$date rows=${rows.size} resolvedRows=${rowsWithResolvedStock.size} finalRows=${finalRows.size}"
         )
       } catch (t: Throwable) {
         _state.value = _state.value.copy(
