@@ -54,6 +54,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -655,6 +656,18 @@ onDone?.invoke()
 
                 val allSuffixOptions = (1..colorDrafts.size.coerceAtLeast(1)).map { it.toString() }
 
+                        if (!canEditColorSku) {
+
+                            Text(
+
+                                text = "Сначала заполни базовый артикул, потом можно выбирать номера цветов.",
+
+                                color = Color.Gray
+
+                            )
+
+                        }
+
                 colorDrafts.forEachIndexed { index, item ->
                     var expanded by remember(item.color) { mutableStateOf(false) }
 
@@ -682,6 +695,7 @@ onDone?.invoke()
                             onExpandedChange = { expanded = !expanded }
                         ) {
                             OutlinedTextField(
+                                enabled = canEditColorSku,
                                 value = item.skuText,
                                 onValueChange = {},
                                 readOnly = true,
@@ -690,6 +704,7 @@ onDone?.invoke()
                                     Row {
                                         if (item.skuText.isNotBlank()) {
                                             IconButton(
+enabled = canEditColorSku,
                                                 onClick = {
                                                     colorDrafts[index] = item.copy(skuText = "")
                                                 }
@@ -778,6 +793,7 @@ onDone?.invoke()
                             )
 
                             val articleBaseClean = articleBase.trim()
+    val canEditColorSku = articleBaseClean.isNotBlank()
                             colorDrafts.forEach {
                                 val suffix = it.skuText.trim()
                                 if (articleBaseClean.isNotBlank() && suffix.isNotBlank()) {
