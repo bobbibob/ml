@@ -187,12 +187,34 @@ class SQLiteRepo(private val context: Context) {
           val cogs = c.getDouble(iCogs)
 
           val rkSpend = c.getDouble(iRkSpend)
-          val rkImpr = c.getLong(iRkImpr)
-          val rkClicks = c.getLong(iRkClicks)
+          var rkImpr = c.getLong(iRkImpr)
+          var rkClicks = c.getLong(iRkClicks)
 
           val igSpend = c.getDouble(iIgSpend)
-          val igImpr = c.getLong(iIgImpr)
-          val igClicks = c.getLong(iIgClicks)
+          var igImpr = c.getLong(iIgImpr)
+          var igClicks = c.getLong(iIgClicks)
+
+          if (rkImpr == 0L && rkClicks == 0L && igImpr == 0L && igClicks == 0L) {
+            db.rawQuery(
+              """
+                SELECT
+                  MAX(COALESCE(rk_impressions, 0)) AS rk_impressions_fallback,
+                  MAX(COALESCE(rk_clicks, 0)) AS rk_clicks_fallback,
+                  MAX(COALESCE(ig_impressions, 0)) AS ig_impressions_fallback,
+                  MAX(COALESCE(ig_clicks, 0)) AS ig_clicks_fallback
+                FROM svodka
+                WHERE date=? AND bag_id=?
+              """.trimIndent(),
+              arrayOf(date, bagId)
+            ).use { ads ->
+              if (ads.moveToFirst()) {
+                rkImpr = ads.getLong(ads.getColumnIndexOrThrow("rk_impressions_fallback"))
+                rkClicks = ads.getLong(ads.getColumnIndexOrThrow("rk_clicks_fallback"))
+                igImpr = ads.getLong(ads.getColumnIndexOrThrow("ig_impressions_fallback"))
+                igClicks = ads.getLong(ads.getColumnIndexOrThrow("ig_clicks_fallback"))
+              }
+            }
+          }
 
           val rkCtr = if (rkImpr > 0) rkClicks.toDouble() / rkImpr.toDouble() else 0.0
           val rkCpc = if (rkClicks > 0) rkSpend / rkClicks.toDouble() else 0.0
