@@ -376,10 +376,19 @@ fun AddDailySummaryScreen(
                                 com.ml.app.data.SQLiteRepo.DailySummaryBagSave(
                                     bagId = bag.bagId,
                                     ordersByColor = bag.colors.map { color ->
-                                        color to (orders["${bag.bagId}::$color"] ?: 0)
+                                        val key = "${bag.bagId}::$color"
+                                        color to (orders[key] ?: 0)
                                     },
                                     rkEnabled = rkEnabled[bag.bagId] == true,
-                                    rkSpend = rkSpend[bag.bagId]?.trim()?.replace(",", ".")?.toDoubleOrNull(),", ".")?.toDoubleOrNull(),
+                                    rkSpend = rkSpend[bag.bagId]?.trim()?.replace(',', '.')?.toDoubleOrNull(),
+                                    rkImpressions = rkImpressions[bag.bagId]?.trim()?.toLongOrNull(),
+                                    rkClicks = rkClicks[bag.bagId]?.trim()?.toLongOrNull(),
+                                    rkStake = rkStake[bag.bagId]?.trim()?.replace(',', '.')?.toDoubleOrNull(),
+                                    igEnabled = igEnabled[bag.bagId] == true,
+                                    igSpend = igSpend[bag.bagId]?.trim()?.replace(',', '.')?.toDoubleOrNull(),
+                                    igImpressions = igImpressions[bag.bagId]?.trim()?.toLongOrNull(),
+                                    igClicks = igClicks[bag.bagId]?.trim()?.toLongOrNull()
+                                )?.toDoubleOrNull(),
                                     rkImpressions = rkImpressions[bag.bagId]?.trim()?.toLongOrNull(),
                                     rkClicks = rkClicks[bag.bagId]?.trim()?.toLongOrNull(),
                                     rkStake = rkStake[bag.bagId]?.trim()?.replace(",", ".")?.toDoubleOrNull(),", ".")?.toDoubleOrNull(),
