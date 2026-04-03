@@ -447,7 +447,7 @@ fun refreshTimeline() {
           rows = rowsWithResolvedStock,
           cardTypes = types,
           loading = false,
-          status = "DETAILS date=$date rows=${rows.size} resolvedRows=${rowsWithResolvedStock.size}"
+          status = "DETAILS date=$date rows=${rows.size} resolvedRows=${rowsWithResolvedStock.size} timeline=${kotlin.runCatching { repo.loadTimeline(limitDays = 5).size }.getOrDefault(-1)}"
         )
       } catch (t: Throwable) {
         _state.value = _state.value.copy(
