@@ -480,8 +480,7 @@ fun refreshTimeline() {
           rows = finalRows,
           cardTypes = types,
           loading = false,
-          status = "DETAILS date=$date rows=${rows.size} resolvedRows=${rowsWithResolvedStock.size}
-$dbg"
+          status = "DETAILS date=$date rows=${rows.size} resolvedRows=${rowsWithResolvedStock.size}\n$dbg"
         )
       } catch (t: Throwable) {
         _state.value = _state.value.copy(
