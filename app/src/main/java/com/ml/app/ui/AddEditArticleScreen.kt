@@ -58,6 +58,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.ml.app.data.PackUploadManager
@@ -656,7 +657,7 @@ onDone?.invoke()
 
                 val allSuffixOptions = (1..colorDrafts.size.coerceAtLeast(1)).map { it.toString() }
 
-                        if (!canEditColorSku) {
+                        if (articleBase.trim().isBlank()) {
 
                             Text(
 
@@ -695,7 +696,7 @@ onDone?.invoke()
                             onExpandedChange = { expanded = !expanded }
                         ) {
                             OutlinedTextField(
-                                enabled = canEditColorSku,
+                                enabled = articleBase.trim().isNotBlank(),
                                 value = item.skuText,
                                 onValueChange = {},
                                 readOnly = true,
@@ -704,7 +705,7 @@ onDone?.invoke()
                                     Row {
                                         if (item.skuText.isNotBlank()) {
                                             IconButton(
-enabled = canEditColorSku,
+enabled = articleBase.trim().isNotBlank(),
                                                 onClick = {
                                                     colorDrafts[index] = item.copy(skuText = "")
                                                 }
@@ -793,7 +794,6 @@ enabled = canEditColorSku,
                             )
 
                             val articleBaseClean = articleBase.trim()
-    val canEditColorSku = articleBaseClean.isNotBlank()
                             colorDrafts.forEach {
                                 val suffix = it.skuText.trim()
                                 if (articleBaseClean.isNotBlank() && suffix.isNotBlank()) {
