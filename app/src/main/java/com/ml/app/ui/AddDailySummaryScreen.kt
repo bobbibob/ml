@@ -372,27 +372,31 @@ fun AddDailySummaryScreen(
                 Button(
                     onClick = {
                         scope.launch {
-                            val bags = items.map { bag ->
-                                com.ml.app.data.SQLiteRepo.DailySummaryBagSave(
-                                    bagId = bag.bagId,
-                                    ordersByColor = bag.colors.map { color ->
-                                        val key = "${bag.bagId}::$color"
-                                        color to (orders[key] ?: 0)
-                                    },
-                                    rkEnabled = rkEnabled[bag.bagId] == true,
-                                    rkSpend = rkSpend[bag.bagId]?.trim()?.replace(',', '.')?.toDoubleOrNull(),
-                                    rkImpressions = rkImpressions[bag.bagId]?.trim()?.toLongOrNull(),
-                                    rkClicks = rkClicks[bag.bagId]?.trim()?.toLongOrNull(),
-                                    rkStake = rkStake[bag.bagId]?.trim()?.replace(',', '.')?.toDoubleOrNull(),
-                                    igEnabled = igEnabled[bag.bagId] == true,
-                                    igSpend = igSpend[bag.bagId]?.trim()?.replace(',', '.')?.toDoubleOrNull(),
-                                    igImpressions = igImpressions[bag.bagId]?.trim()?.toLongOrNull(),
-                                    igClicks = igClicks[bag.bagId]?.trim()?.toLongOrNull()
-                                )
-                            }
+                            try {
+                                val summaryDate = selectedDate.toString()
+                                val isNewDay = summaryDate == java.time.LocalDate.now().minusDays(1).toString()
 
-                            repo.saveDailySummary(summaryDate, bags)
-                                                                saveError = null
+                                val bags = items.map { bag ->
+                                    com.ml.app.data.SQLiteRepo.DailySummaryBagSave(
+                                        bagId = bag.bagId,
+                                        ordersByColor = bag.colors.map { color ->
+                                            val key = "${bag.bagId}::$color"
+                                            color to (orders[key] ?: 0)
+                                        },
+                                        rkEnabled = rkEnabled[bag.bagId] == true,
+                                        rkSpend = rkSpend[bag.bagId]?.trim()?.replace(',', '.')?.toDoubleOrNull(),
+                                        rkImpressions = rkImpressions[bag.bagId]?.trim()?.toLongOrNull(),
+                                        rkClicks = rkClicks[bag.bagId]?.trim()?.toLongOrNull(),
+                                        rkStake = rkStake[bag.bagId]?.trim()?.replace(',', '.')?.toDoubleOrNull(),
+                                        igEnabled = igEnabled[bag.bagId] == true,
+                                        igSpend = igSpend[bag.bagId]?.trim()?.replace(',', '.')?.toDoubleOrNull(),
+                                        igImpressions = igImpressions[bag.bagId]?.trim()?.toLongOrNull(),
+                                        igClicks = igClicks[bag.bagId]?.trim()?.toLongOrNull()
+                                    )
+                                }
+
+                                repo.saveDailySummary(summaryDate, bags)
+                                saveError = null
                                 onBack()
 
                                 CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
@@ -418,6 +422,9 @@ fun AddDailySummaryScreen(
                                     }
                                 }
                             } catch (t: Throwable) {
+                                saveError = t.message ?: t.toString()
+                            }
+                        }
                                 saveError = t.message ?: t.toString()
                             }
                         }
