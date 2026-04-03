@@ -425,15 +425,9 @@ fun AddDailySummaryScreen(
                                 saveError = t.message ?: t.toString()
                             }
                         }
-                                saveError = t.message ?: t.toString()
-                            }
-                        }
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text("Сохранить сводку")
                 }
-            }
-        }
-    }
 }
