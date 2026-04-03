@@ -693,7 +693,9 @@ onDone?.invoke()
 
                         ExposedDropdownMenuBox(
                             expanded = expanded,
-                            if (articleBase.trim().isNotBlank()) { onExpandedChange = { expanded = !expanded } }
+                            onExpandedChange = {
+                                expanded = if (articleBase.trim().isNotBlank()) !expanded else false
+                            }
                         ) {
                             OutlinedTextField(
                                 enabled = articleBase.trim().isNotBlank(),
