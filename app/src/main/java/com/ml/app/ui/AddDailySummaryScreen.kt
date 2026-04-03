@@ -379,14 +379,14 @@ fun AddDailySummaryScreen(
                                         color to (orders["${bag.bagId}::$color"] ?: 0)
                                     },
                                     rkEnabled = rkEnabled[bag.bagId] == true,
-                                    rkSpend = rkSpend[bag.bagId]?.replace(",", ".")?.toDoubleOrNull(),
-                                    rkImpressions = rkImpressions[bag.bagId]?.toLongOrNull(),
-                                    rkClicks = rkClicks[bag.bagId]?.toLongOrNull(),
-                                    rkStake = rkStake[bag.bagId]?.replace(",", ".")?.toDoubleOrNull(),
+                                    rkSpend = rkSpend[bag.bagId]?.trim()?.replace(",", ".")?.toDoubleOrNull(),", ".")?.toDoubleOrNull(),
+                                    rkImpressions = rkImpressions[bag.bagId]?.trim()?.toLongOrNull(),
+                                    rkClicks = rkClicks[bag.bagId]?.trim()?.toLongOrNull(),
+                                    rkStake = rkStake[bag.bagId]?.trim()?.replace(",", ".")?.toDoubleOrNull(),", ".")?.toDoubleOrNull(),
                                     igEnabled = igEnabled[bag.bagId] == true,
-                                    igSpend = igSpend[bag.bagId]?.replace(",", ".")?.toDoubleOrNull(),
-                                    igImpressions = igImpressions[bag.bagId]?.toLongOrNull(),
-                                    igClicks = igClicks[bag.bagId]?.toLongOrNull()
+                                    igSpend = igSpend[bag.bagId]?.trim()?.replace(",", ".")?.toDoubleOrNull(),", ".")?.toDoubleOrNull(),
+                                    igImpressions = igImpressions[bag.bagId]?.trim()?.toLongOrNull(),
+                                    igClicks = igClicks[bag.bagId]?.trim()?.toLongOrNull()
                                 )
                             }
 
