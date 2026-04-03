@@ -236,6 +236,33 @@ class SQLiteRepo(private val context: Context) {
     }
   }
 
+
+  suspend fun debugSummaryDate(date: String): String = withContext(Dispatchers.IO) {
+    openDbReadOnly().use { db ->
+      val allRows = db.rawQuery(
+        "SELECT COUNT(*) FROM svodka WHERE date=?",
+        arrayOf(date)
+      ).use { c -> if (c.moveToFirst()) c.getInt(0) else -1 }
+
+      val totalRows = db.rawQuery(
+        "SELECT COUNT(*) FROM svodka WHERE date=? AND color IN ('__TOTAL__','TOTAL')",
+        arrayOf(date)
+      ).use { c -> if (c.moveToFirst()) c.getInt(0) else -1 }
+
+      val colorRows = db.rawQuery(
+        "SELECT COUNT(*) FROM svodka WHERE date=? AND color IS NOT NULL AND color != '' AND color NOT IN ('__TOTAL__','TOTAL')",
+        arrayOf(date)
+      ).use { c -> if (c.moveToFirst()) c.getInt(0) else -1 }
+
+      val bagRows = db.rawQuery(
+        "SELECT COUNT(DISTINCT bag_id) FROM svodka WHERE date=? AND bag_id IS NOT NULL AND bag_id != ''",
+        arrayOf(date)
+      ).use { c -> if (c.moveToFirst()) c.getInt(0) else -1 }
+
+      "DBG date=$date all=$allRows total=$totalRows colors=$colorRows bags=$bagRows"
+    }
+  }
+
     fun queryBagNamesById(db: SQLiteDatabase): Map<String, String> {
       val out = HashMap<String, String>()
       try {

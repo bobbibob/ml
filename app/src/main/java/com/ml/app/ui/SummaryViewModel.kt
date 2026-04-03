@@ -425,6 +425,8 @@ fun refreshTimeline() {
         
         val date = _state.value.selectedDate.toString()
         kotlin.runCatching { syncSelectedDateFromServer() }
+        val dbg = kotlin.runCatching { repo.debugSummaryDate(date) }
+          .getOrElse { "DBG error: ${it.message}" }
         val rows = repo.loadForDate(date)
 
         val resolved = repo.getResolvedStocksForDate(date)
@@ -478,7 +480,8 @@ fun refreshTimeline() {
           rows = finalRows,
           cardTypes = types,
           loading = false,
-          status = "DETAILS date=$date rows=${rows.size} resolvedRows=${rowsWithResolvedStock.size} finalRows=${finalRows.size}"
+          status = "DETAILS date=$date rows=${rows.size} resolvedRows=${rowsWithResolvedStock.size}
+$dbg"
         )
       } catch (t: Throwable) {
         _state.value = _state.value.copy(

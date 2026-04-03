@@ -461,7 +461,8 @@ Row(verticalAlignment = Alignment.CenterVertically) {
 
             is ScreenMode.Details -> DetailsList(
               rows = state.rows,
-              cardTypes = state.cardTypes
+              cardTypes = state.cardTypes,
+              status = state.status
             )
 
             is ScreenMode.ArticleEditor -> AddEditArticleScreen(
@@ -744,7 +745,8 @@ private fun TimelineList(
 @Composable
 private fun DetailsList(
   rows: List<BagDayRow>,
-  cardTypes: Map<String, CardType>
+  cardTypes: Map<String, CardType>,
+  status: String
 ) {
   if (rows.isEmpty()) {
     Box(
