@@ -424,7 +424,6 @@ fun refreshTimeline() {
 
         
         val date = _state.value.selectedDate.toString()
-        kotlin.runCatching { syncSelectedDateFromServer() }
         val dbg = kotlin.runCatching { repo.debugSummaryDate(date) }
           .getOrElse { "DBG error: ${it.message}" }
         val rows = repo.loadForDate(date)
