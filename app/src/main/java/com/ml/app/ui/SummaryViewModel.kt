@@ -389,8 +389,7 @@ fun refreshTimeline() {
         )
         pullRecentDailySummaries()
         if (_state.value.mode is ScreenMode.Details) {
-          kotlin.runCatching { syncSelectedDateFromServer() }
-        }
+          }
 
         val syncStatus = _state.value.status
         refreshTimeline()
@@ -543,8 +542,12 @@ fun refreshTimeline() {
     when (val res = syncRepo.getDailySummaryByDate(date)) {
       is com.ml.app.core.result.AppResult.Success -> {
         _state.value = _state.value.copy(status = "SYNC fetched entries=${res.data.size} date=$date")
-        repo.applyRemoteDailySummary(date, res.data)
-        _state.value = _state.value.copy(status = "SYNC applied entries=${res.data.size} date=$date")
+        if (res.data.isNotEmpty()) {
+          repo.applyRemoteDailySummary(date, res.data)
+          _state.value = _state.value.copy(status = "SYNC applied entries=${res.data.size} date=$date")
+        } else {
+          _state.value = _state.value.copy(status = "SYNC empty date=$date, keeping local data")
+        }
       }
       is com.ml.app.core.result.AppResult.Error -> {
         _state.value = _state.value.copy(status = "SYNC error: ${res.message}")
