@@ -430,4 +430,7 @@ fun AddDailySummaryScreen(
                 ) {
                     Text("Сохранить сводку")
                 }
+            }
+        }
+    }
 }
