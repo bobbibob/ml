@@ -116,6 +116,13 @@ fun SummaryScreen(vm: SummaryViewModel = viewModel()) {
   }
 
 
+  LaunchedEffect(state.mode, state.selectedDate) {
+    if (state.mode is ScreenMode.Details) {
+      vm.refreshDetails()
+    }
+  }
+
+
   pendingDeleteDate?.let { dateToDelete ->
     AlertDialog(
       onDismissRequest = { pendingDeleteDate = null },
@@ -739,6 +746,16 @@ private fun DetailsList(
   rows: List<BagDayRow>,
   cardTypes: Map<String, CardType>
 ) {
+  if (rows.isEmpty()) {
+    Box(
+      modifier = Modifier.fillMaxSize().padding(16.dp),
+      contentAlignment = Alignment.Center
+    ) {
+      Text("Нет данных по этой дате", color = Color.Gray)
+    }
+    return
+  }
+
   LazyColumn(
     modifier = Modifier.fillMaxSize(),
     contentPadding = PaddingValues(12.dp),
