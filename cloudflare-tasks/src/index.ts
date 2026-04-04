@@ -1047,7 +1047,7 @@ try {
             const title = String(row?.title || raw?.title || "").trim()
             let card = mlPickCardByArticle(article, cards)
             if (!card) {
-              card = mlPickCardByTitle(title, cards)
+              card = mlPickCardByArticle(title, cards)
             }
 
             if (!card?.bag_id) {
