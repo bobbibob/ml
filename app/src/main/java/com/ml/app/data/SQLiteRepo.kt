@@ -134,6 +134,13 @@ class SQLiteRepo(private val context: Context) {
       val images = queryImagesByBagId(db)
         val bagNames = queryBagNamesById(db)
       val out = ArrayList<BagDayRow>()
+      val resolvedStocksByBag = getResolvedStocksForDate(date)
+        .groupBy { it.bagId }
+        .mapValues { (_, rows) ->
+          rows
+            .sortedBy { it.color.lowercase() }
+            .map { ColorValue(it.color, it.stock) }
+        }
 
       db.rawQuery(
         """
@@ -249,7 +256,7 @@ class SQLiteRepo(private val context: Context) {
               cpo = cpo,
               cogs = cogs,
               ordersByColors = queryOrdersByColors(db, date, bagId),
-              stockByColors = queryStockByColors(db, date, bagId),
+              stockByColors = resolvedStocksByBag[bagId].orEmpty(),
               rk = rk,
               ig = ig,
               totalAds = totalAds
