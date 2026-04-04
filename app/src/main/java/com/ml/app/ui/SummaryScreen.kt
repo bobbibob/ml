@@ -768,7 +768,6 @@ private fun DetailsList(
   ) {
 
     items(rows) { r ->
-  }
       val price = r.price ?: 0.0
       val net = ProfitCalc.netProfit(
         orders = r.totalOrders,
@@ -1343,6 +1342,8 @@ private fun AdminTasksTab(
   }
 }
 
+    }
+  }
 @Composable
 private fun AdminHistoryTab(
   history: List<com.ml.app.data.remote.dto.HistoryItemDto>
