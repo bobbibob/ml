@@ -887,7 +887,7 @@ function mlPickCardByArticle(article: unknown, cards: Array<any>) {
     ]
 
     for (const v of articleFields) {
-      if (mlNorm(v) === a) return card
+      if (mlNorm(v).includes(a) || a.includes(mlNorm(v))) return card
     }
   }
 
