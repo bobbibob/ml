@@ -878,16 +878,33 @@ function mlPickCardByArticle(article: unknown, cards: Array<any>) {
   if (!a) return null
 
   for (const card of cards) {
-    const articleFields = [
+    const directFields = [
       card?.article,
       card?.article_no,
       card?.vendor_code,
       card?.sku,
       card?.sku_code,
+      card?.bag_id,
+      card?.name,
     ]
 
-    for (const v of articleFields) {
+    for (const v of directFields) {
       if (mlNorm(v) === a) return card
+    }
+
+    const skuLinks = mlJsonObject(card?.sku_links_json)
+    if (Array.isArray(skuLinks)) {
+      for (const row of skuLinks) {
+        const articleId = mlNorm(row?.article_id)
+        if (articleId === a) return card
+
+        const skuValue = mlNorm(row?.sku)
+        if (skuValue === a) return card
+
+        const m = String(row?.sku || "").trim().match(/^(.*?)[\/-](\d{1,3})$/)
+        const skuBase = m ? mlNorm(m[1]) : ""
+        if (skuBase && skuBase === a) return card
+      }
     }
   }
 
