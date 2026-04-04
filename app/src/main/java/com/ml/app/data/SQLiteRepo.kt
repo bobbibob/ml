@@ -285,7 +285,43 @@ class SQLiteRepo(private val context: Context) {
         arrayOf(date)
       ).use { c -> if (c.moveToFirst()) c.getInt(0) else -1 }
 
-      "DBG date=$date all=$allRows total=$totalRows colors=$colorRows bags=$bagRows"
+      val sample = StringBuilder()
+      db.rawQuery(
+        """
+        SELECT
+          bag_id,
+          color,
+          source,
+          COALESCE(orders,0),
+          COALESCE(rk_spend,0),
+          COALESCE(rk_impressions,0),
+          COALESCE(rk_clicks,0),
+          COALESCE(ig_spend,0),
+          COALESCE(ig_impressions,0),
+          COALESCE(ig_clicks,0)
+        FROM svodka
+        WHERE date=? AND bag_id IS NOT NULL AND bag_id != ''
+        ORDER BY bag_id, color
+        LIMIT 20
+        """.trimIndent(),
+        arrayOf(date)
+      ).use { c ->
+        while (c.moveToNext()) {
+          sample.append("\n")
+          sample.append(c.getString(0)).append(" | ")
+          sample.append(c.getString(1)).append(" | src=")
+          sample.append(c.getString(2)).append(" | ord=")
+          sample.append(c.getDouble(3)).append(" | rk=")
+          sample.append(c.getDouble(4)).append("/")
+          sample.append(c.getLong(5)).append("/")
+          sample.append(c.getLong(6)).append(" | ig=")
+          sample.append(c.getDouble(7)).append("/")
+          sample.append(c.getLong(8)).append("/")
+          sample.append(c.getLong(9))
+        }
+      }
+
+      "DBG date=$date all=$allRows total=$totalRows colors=$colorRows bags=$bagRows$sample"
     }
   }
 
