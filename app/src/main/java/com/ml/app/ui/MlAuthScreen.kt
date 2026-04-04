@@ -603,6 +603,7 @@ fun MlAuthScreen(
                                     }
                                 }
 
+                                statusText = "orders отправлены, начинаем summary..."
                                 val summaryReq = Request.Builder()
                                     .url(BuildConfig.TASKS_API_BASE_URL + "internal/ml/generate-orders-summary")
                                     .addHeader("Authorization", "Bearer $token")
@@ -617,6 +618,7 @@ fun MlAuthScreen(
                                         statusText = "Заказы отправлены, но summary не создан: ${resp.code} ${bodyText.take(500)}"
                                         return@Thread
                                     }
+                                    statusText = "summary raw: ${bodyText.take(300)}"
                                 }
 
                                 val authStateBody = JSONObject().apply {
