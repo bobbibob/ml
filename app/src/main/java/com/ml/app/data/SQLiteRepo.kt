@@ -194,25 +194,28 @@ class SQLiteRepo(private val context: Context) {
           var igImpr = c.getLong(iIgImpr)
           var igClicks = c.getLong(iIgClicks)
 
-          if (rkImpr == 0L && rkClicks == 0L && igImpr == 0L && igClicks == 0L) {
-            db.rawQuery(
-              """
-                SELECT
-                  MAX(COALESCE(rk_impressions, 0)) AS rk_impressions_fallback,
-                  MAX(COALESCE(rk_clicks, 0)) AS rk_clicks_fallback,
-                  MAX(COALESCE(ig_impressions, 0)) AS ig_impressions_fallback,
-                  MAX(COALESCE(ig_clicks, 0)) AS ig_clicks_fallback
-                FROM svodka
-                WHERE date=? AND bag_id=?
-              """.trimIndent(),
-              arrayOf(date, bagId)
-            ).use { ads ->
-              if (ads.moveToFirst()) {
-                rkImpr = ads.getLong(ads.getColumnIndexOrThrow("rk_impressions_fallback"))
-                rkClicks = ads.getLong(ads.getColumnIndexOrThrow("rk_clicks_fallback"))
-                igImpr = ads.getLong(ads.getColumnIndexOrThrow("ig_impressions_fallback"))
-                igClicks = ads.getLong(ads.getColumnIndexOrThrow("ig_clicks_fallback"))
-              }
+          db.rawQuery(
+            """
+              SELECT
+                SUM(COALESCE(rk_impressions, 0)) AS rk_impressions_sum,
+                SUM(COALESCE(rk_clicks, 0)) AS rk_clicks_sum,
+                SUM(COALESCE(ig_impressions, 0)) AS ig_impressions_sum,
+                SUM(COALESCE(ig_clicks, 0)) AS ig_clicks_sum
+              FROM svodka
+              WHERE date=? AND bag_id=?
+            """.trimIndent(),
+            arrayOf(date, bagId)
+          ).use { ads ->
+            if (ads.moveToFirst()) {
+              val rkImprSum = ads.getLong(ads.getColumnIndexOrThrow("rk_impressions_sum"))
+              val rkClicksSum = ads.getLong(ads.getColumnIndexOrThrow("rk_clicks_sum"))
+              val igImprSum = ads.getLong(ads.getColumnIndexOrThrow("ig_impressions_sum"))
+              val igClicksSum = ads.getLong(ads.getColumnIndexOrThrow("ig_clicks_sum"))
+
+              if (rkImprSum > 0L) rkImpr = rkImprSum
+              if (rkClicksSum > 0L) rkClicks = rkClicksSum
+              if (igImprSum > 0L) igImpr = igImprSum
+              if (igClicksSum > 0L) igClicks = igClicksSum
             }
           }
 
