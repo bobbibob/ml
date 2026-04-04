@@ -232,21 +232,6 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
                 kotlin.runCatching { Unit }
                 _state.value = _state.value.copy(status = "Открываем локальную базу…")
                 refreshTimeline()
-
-                viewModelScope.launch(Dispatchers.IO) {
-                    kotlin.runCatching {
-                        kotlinx.coroutines.withTimeout(3000) {
-                            val remote = r2.headPack()
-                            val saved = prefsPack.getString("pack_etag", null)
-
-                            if (saved == null || saved != remote.etag) {
-                                downloadAndInstallPack("Updating pack…")
-                                prefsPack.edit().putString("pack_etag", remote.etag).apply()
-                            }
-                        }
-                    }
-                }
-
                 return@launch
             }
 
