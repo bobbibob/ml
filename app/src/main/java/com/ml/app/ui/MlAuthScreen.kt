@@ -606,8 +606,6 @@ fun MlAuthScreen(
                                     debugItems.append("\n")
                                 }
 
-                                statusText = "PARSE ONLY count=${orders.length()}\n" + debugItems.toString()
-                                return@Thread
 
                                 val client = OkHttpClient()
 
