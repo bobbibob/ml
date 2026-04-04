@@ -278,7 +278,7 @@ fun refreshTimeline() {
         _state.value = _state.value.copy(
           timeline = t,
           cardTypes = types,
-          selectedDate = latestDate,
+          selectedDate = _state.value.selectedDate,
           loading = false,
           hasPack = true,
           status = "SUMMARY days=${t.size}; before=[$debugBefore]; after=[$debugAfter]"
