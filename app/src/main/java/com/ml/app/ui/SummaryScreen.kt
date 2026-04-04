@@ -1334,8 +1334,6 @@ private fun AdminTasksTab(
   }
 }
 
-    }
-  }
 @Composable
 private fun AdminHistoryTab(
   history: List<com.ml.app.data.remote.dto.HistoryItemDto>
