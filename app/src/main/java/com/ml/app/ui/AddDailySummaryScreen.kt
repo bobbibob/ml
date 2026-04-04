@@ -83,22 +83,56 @@ fun AddDailySummaryScreen(
     suspend fun loadForDate() {
         val metaByBag = repo.listSummaryBagColorMeta().associateBy { it.bagId }
         val resolvedByBag = repo.getResolvedStocksForDate(selectedDate.toString())
-            .filter { it.stock > 0.0 }
             .groupBy { it.bagId }
+
+        val draft = repo.loadDailySummaryDraft(selectedDate.toString())
+
+        val bagIdsFromDraftOrders = draft.orders.keys.mapNotNull { key ->
+            key.substringBefore("::", "")
+                .takeIf { it.isNotBlank() }
+        }
+
+        val bagIdsFromDraftFlags = buildList {
+            addAll(draft.rkEnabled.filterValues { it }.keys)
+            addAll(draft.igEnabled.filterValues { it }.keys)
+            addAll(draft.rkSpend.filterValues { it.isNotBlank() }.keys)
+            addAll(draft.rkImpressions.filterValues { it.isNotBlank() }.keys)
+            addAll(draft.rkClicks.filterValues { it.isNotBlank() }.keys)
+            addAll(draft.rkStake.filterValues { it.isNotBlank() }.keys)
+            addAll(draft.igSpend.filterValues { it.isNotBlank() }.keys)
+            addAll(draft.igImpressions.filterValues { it.isNotBlank() }.keys)
+            addAll(draft.igClicks.filterValues { it.isNotBlank() }.keys)
+        }
+
+        val allBagIds = (resolvedByBag.keys + bagIdsFromDraftOrders + bagIdsFromDraftFlags)
+            .distinct()
+            .sorted()
 
         items.clear()
         items.addAll(
-            resolvedByBag.mapNotNull { (bagId, rows) ->
+            allBagIds.mapNotNull { bagId ->
                 val meta = metaByBag[bagId] ?: return@mapNotNull null
+                val resolvedColors = resolvedByBag[bagId]
+                    .orEmpty()
+                    .filter { it.stock > 0.0 }
+                    .map { it.color }
+
+                val draftColors = draft.orders.keys.mapNotNull { key ->
+                    val parts = key.split("::", limit = 2)
+                    if (parts.size == 2 && parts[0] == bagId) parts[1] else null
+                }
+
+                val colors = (resolvedColors + draftColors)
+                    .map { it.trim() }
+                    .filter { it.isNotBlank() }
+                    .distinct()
+                    .sortedBy { it.lowercase() }
+
                 DailySummaryBagUi(
                     bagId = meta.bagId,
                     bagName = meta.bagName,
                     photoPath = meta.photoPath,
-                    colors = rows
-                        .filter { it.stock > 0.0 }
-                        .map { it.color }
-                        .distinct()
-                        .sortedBy { c -> c.lowercase() }
+                    colors = colors
                 )
             }.sortedBy { it.bagName.lowercase() }
         )
@@ -130,8 +164,6 @@ fun AddDailySummaryScreen(
             igImpressions[bag.bagId] = ""
             igClicks[bag.bagId] = ""
         }
-
-        val draft = repo.loadDailySummaryDraft(selectedDate.toString())
 
         for ((k, v) in draft.orders) orders[k] = v
         for ((k, v) in draft.rkEnabled) rkEnabled[k] = v
