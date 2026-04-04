@@ -818,7 +818,24 @@ private fun DetailsList(
           Spacer(Modifier.height(6.dp))
           Row(Modifier.fillMaxWidth()) {
             Text("Цена за заказ: ${fmtMoney(r.cpo)}", modifier = Modifier.weight(1f), color = TextBlack)
-            Text("CTR: ${fmtPct(r.totalAds.ctr)} • CPC: ${fmtMoney(r.totalAds.cpc)}", color = TextBlack)
+            Text(
+  "CTR: ${
+    fmtPct(
+      if ((r.totalAds.impressions ?: 0L) > 0L) r.totalAds.ctr
+      else if (r.rk.impressions > 0L) r.rk.ctr
+      else if (r.ig.impressions > 0L) r.ig.ctr
+      else 0.0
+    )
+  } • CPC: ${
+    fmtMoney(
+      if ((r.totalAds.clicks ?: 0L) > 0L) r.totalAds.cpc
+      else if (r.rk.clicks > 0L) r.rk.cpc
+      else if (r.ig.clicks > 0L) r.ig.cpc
+      else 0.0
+    )
+  }",
+  color = TextBlack
+)
 
           }
 
