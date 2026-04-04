@@ -478,42 +478,24 @@ fun MlAuthScreen(
                           function skuFrom(raw, parts) {
                             const joined = [raw].concat(parts || []).join("\n");
 
-                            const patterns = [
-                              /sku\s*:?\s*([A-Z0-9._\/-]+)/i,
-                              /seller\s*sku\s*:?\s*([A-Z0-9._\/-]+)/i,
-                              /c[oó]d(?:igo)?\s*:?\s*([A-Z0-9._\/-]+)/i,
-                              /art(?:igo|icle)?\s*:?\s*([A-Z0-9._\/-]+(?:\s*[-\/]\s*\d+)?)/i
-                            ];
+                            const m =
+                              joined.match(/\bSKU\s*:\s*([A-Z0-9._\/-]+)\b/i) ||
+                              joined.match(/\bSeller\s*SKU\s*:\s*([A-Z0-9._\/-]+)\b/i);
 
-                            for (const re of patterns) {
-                              const m = joined.match(re);
-                              if (m && m[1]) return norm(m[1]).replace(/\s+/g, "");
-                            }
-
-                            for (const line of (parts || [])) {
-                              const t = norm(line);
-                              if (/^[A-Z0-9]{2,}[._\/-][A-Z0-9._\/-]+$/i.test(t)) return t.replace(/\s+/g, "");
-                              if (/^[A-Z0-9]{3,}-\d{1,3}$/i.test(t)) return t.replace(/\s+/g, "");
-                            }
-
-                            return null;
+                            if (!m || !m[1]) return null;
+                            return norm(m[1]).replace(/\s+/g, "");
                           }
 
                           function articleColorFromSku(sku) {
                             const s = norm(sku || "").replace(/\s+/g, "");
                             if (!s) return { article: null, color_no: null };
 
-                            const m =
-                              s.match(/^(.+?)[\/-](\d{1,3})$/) ||
-                              s.match(/^([A-Z0-9._]+?)(\d{1,3})$/i);
-
-                            if (!m) {
-                              return { article: s, color_no: null };
-                            }
+                            const m = s.match(/^(.+?)[\/-](\d{1,3})$/i);
+                            if (!m) return { article: null, color_no: null };
 
                             return {
-                              article: m[1] ? String(m[1]).trim() : s,
-                              color_no: m[2] ? String(m[2]).trim() : null
+                              article: String(m[1]).trim(),
+                              color_no: String(m[2]).trim()
                             };
                           }
 
@@ -537,13 +519,17 @@ fun MlAuthScreen(
 
                             const parts = raw.split("\n").map(x => norm(x)).filter(Boolean);
                             const dt = dateTimeFrom(raw);
+                            const sku = skuFrom(raw, parts);
+                            const skuParts = articleColorFromSku(sku);
+
+                            if (!sku || !skuParts.article || !skuParts.color_no) continue;
 
                             orders.push({
                               external_order_id: externalId,
-                              sku: skuFrom(raw, parts),
-                              article: articleColorFromSku(skuFrom(raw, parts)).article,
-                              color_no: articleColorFromSku(skuFrom(raw, parts)).color_no,
-                              title: titleFrom(parts),
+                              sku: sku,
+                              article: skuParts.article,
+                              color_no: skuParts.color_no,
+                              title: null,
                               buyer_name: buyerFrom(parts),
                               status: statusFrom(raw),
                               substatus: null,
@@ -552,7 +538,7 @@ fun MlAuthScreen(
                               date_text: dt.date_text,
                               time_text: dt.time_text,
                               order_datetime_sort: dt.order_datetime_sort,
-                              color: colorFrom(raw),
+                              color: skuParts.color_no,
                               photo_url: firstImg(card),
                               raw_text: norm(raw).slice(0, 4000)
                             });
@@ -591,8 +577,12 @@ fun MlAuthScreen(
                                         " sku=" + first.optString("sku") +
                                         " article=" + first.optString("article") +
                                         " color_no=" + first.optString("color_no")
-                                    } else ""
-                                } else ""
+                                    } else {
+                                        ""
+                                    }
+                                } else {
+                                    ""
+                                }
 
                                 if (orders.length() == 0) {
                                     statusText = "Заказы не найдены. url=${pageUrl.take(120)} title=${pageTitle.take(80)} count=$parserCount"
