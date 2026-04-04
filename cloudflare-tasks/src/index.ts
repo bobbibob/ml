@@ -1,3 +1,5 @@
+import { ensureMlTables, saveSharedMlSession, getMlSyncState, upsertMlOrders, markMlSyncAttemptError } from "./ml_shared"
+
 export interface Env {
   DB: D1Database
   FIREBASE_PROJECT_ID: string
@@ -794,40 +796,116 @@ export default {
 await ensureDailySummaryTable(env)
     await ensureReminderColumns(env)
 try {
+      await ensureMlTables(env)
+
       if (path === "/internal/integrations/ml/save-session" && request.method === "POST") {
         try {
-          const body = await request.json()
+          const user = await getCurrentUser(request, env)
+          if (!user) return json({ ok: false, error: "unauthorized" }, 401)
 
-      if (path === "/internal/integrations/ml/upsert-orders" && request.method === "POST") {
-        try {
-          const body = await request.json()
+          const body = await request.json<any>()
+          const cookiesJson = String(body?.cookies_json ?? "").trim()
+          const userAgent = body?.user_agent ? String(body.user_agent) : null
+          const csrfToken = body?.csrf_token ? String(body.csrf_token) : null
 
-          console.log("ML ORDERS UPSERT", body)
+          if (!cookiesJson) {
+            return json({ ok: false, error: "cookies_json_required" }, 400)
+          }
 
-          return json({ ok: true, received: Array.isArray(body) ? body.length : 0 })
+          const result = await saveSharedMlSession(env, {
+            cookiesJson,
+            userAgent,
+            csrfToken,
+            updatedByUserId: user.user_id,
+          })
+
+          return json(result)
         } catch (e) {
-          return json({ ok: false, error: String(e) })
+          return json({ ok: false, error: String(e) }, 500)
         }
       }
 
+      if (path === "/internal/integrations/ml/sync-state" && request.method === "GET") {
+        try {
+          const user = await getCurrentUser(request, env)
+          if (!user) return json({ ok: false, error: "unauthorized" }, 401)
 
-          console.log("ML SESSION SAVE", body)
+          const state = await getMlSyncState(env)
+          const lastSynced =
+            state?.sync?.last_order_time ||
+            state?.latest_order?.order_time ||
+            null
 
-          return json({ ok: true })
+          return json({
+            ok: true,
+            min_allowed_datetime: "2025-08-30T00:00:00",
+            last_synced_order_datetime: lastSynced,
+            state,
+          })
         } catch (e) {
-          return json({ ok: false, error: String(e) })
+          return json({ ok: false, error: String(e) }, 500)
+        }
+      }
+
+      if (path === "/internal/integrations/ml/upsert-orders" && request.method === "POST") {
+        try {
+          const user = await getCurrentUser(request, env)
+          if (!user) return json({ ok: false, error: "unauthorized" }, 401)
+
+          const body = await request.json<any>()
+          const input = Array.isArray(body?.orders) ? body.orders : []
+
+          const mapped = input.map((o: any) => ({
+            order_id: String(o?.external_order_id ?? "").trim(),
+            order_time: String(o?.order_datetime_sort ?? "").trim(),
+            sku: o?.color ? String(o.color) : null,
+            title: o?.title ? String(o.title) : null,
+            quantity: 1,
+            price: typeof o?.amount === "number" ? o.amount : (
+              o?.amount != null && String(o.amount).trim() !== "" ? Number(o.amount) : null
+            ),
+            status: o?.status ? String(o.status) : null,
+            raw_json: o,
+          }))
+
+          const result = await upsertMlOrders(env, mapped)
+
+          return json({
+            ok: true,
+            received: input.length,
+            inserted: result.inserted,
+            newest_order_time: result.newest_order_time,
+            updated_at: result.updated_at,
+          })
+        } catch (e) {
+          await markMlSyncAttemptError(env, String(e))
+          return json({ ok: false, error: String(e) }, 500)
+        }
+      }
+
+      if (path === "/internal/ml/generate-orders-summary" && request.method === "POST") {
+        try {
+          const user = await getCurrentUser(request, env)
+          if (!user) return json({ ok: false, error: "unauthorized" }, 401)
+
+          return json({ ok: true, generated: false, reason: "stub" })
+        } catch (e) {
+          return json({ ok: false, error: String(e) }, 500)
         }
       }
 
       if (path === "/internal/integrations/set-auth-state" && request.method === "POST") {
         try {
+          const user = await getCurrentUser(request, env)
+          if (!user) return json({ ok: false, error: "unauthorized" }, 401)
+
           const body = await request.json()
 
           console.log("ML AUTH STATE", body)
 
           return json({ ok: true })
         } catch (e) {
-          return json({ ok: false, error: String(e) })
+          return json({ ok: false, error: String(e) }, 500)
         }
       }
 
