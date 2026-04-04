@@ -759,14 +759,16 @@ private fun DetailsList(
           Spacer(Modifier.height(12.dp))
           Text(status, color = Color.Gray)
         }
+      }
+    }
     return
+  }
 
   LazyColumn(
     modifier = Modifier.fillMaxSize(),
     contentPadding = PaddingValues(12.dp),
     verticalArrangement = Arrangement.spacedBy(12.dp)
   ) {
-
     items(rows) { r ->
       val price = r.price ?: 0.0
       val net = ProfitCalc.netProfit(
@@ -777,7 +779,26 @@ private fun DetailsList(
         deliveryFee = null
       )
 
-      Card(colors = CardDefaults.cardColors(containerColor = SoftGray), modifier = Modifier.fillMaxWidth()) {
+      val effectiveTotalAds =
+        if (r.totalAds.impressions > 0L || r.totalAds.clicks > 0L) {
+          r.totalAds
+        } else {
+          val impressions = r.rk.impressions + r.ig.impressions
+          val clicks = r.rk.clicks + r.ig.clicks
+          val spend = r.rk.spend + r.ig.spend
+          com.ml.app.domain.AdsMetrics(
+            spend = spend,
+            impressions = impressions,
+            clicks = clicks,
+            ctr = if (impressions > 0L) clicks.toDouble() / impressions.toDouble() else 0.0,
+            cpc = if (clicks > 0L) spend / clicks.toDouble() else 0.0
+          )
+        }
+
+      Card(
+        colors = CardDefaults.cardColors(containerColor = SoftGray),
+        modifier = Modifier.fillMaxWidth()
+      ) {
         Column(Modifier.padding(14.dp)) {
 
           Row(verticalAlignment = Alignment.CenterVertically) {
@@ -790,13 +811,6 @@ private fun DetailsList(
               maxLines = 2,
               overflow = TextOverflow.Ellipsis
             )
-
-          }
-
-          Spacer(Modifier.height(10.dp))
-
-          Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-
           }
 
           Spacer(Modifier.height(10.dp))
@@ -804,37 +818,20 @@ private fun DetailsList(
           Row(Modifier.fillMaxWidth()) {
             Text("Заказы: ${fmtInt(r.totalOrders)}", modifier = Modifier.weight(1f), color = TextBlack)
             Text("Расход: ${fmtMoney(r.totalSpend)}", color = TextBlack)
-
           }
+
           Spacer(Modifier.height(6.dp))
+
           Row(Modifier.fillMaxWidth()) {
             Text("Цена за заказ: ${fmtMoney(r.cpo)}", modifier = Modifier.weight(1f), color = TextBlack)
-            Text(
-  "CTR: ${
-    fmtPct(
-      if ((r.totalAds.impressions ?: 0L) > 0L) r.totalAds.ctr
-      else if (r.rk.impressions > 0L) r.rk.ctr
-      else if (r.ig.impressions > 0L) r.ig.ctr
-      else 0.0
-    )
-  } • CPC: ${
-    fmtMoney(
-      if ((r.totalAds.clicks ?: 0L) > 0L) r.totalAds.cpc
-      else if (r.rk.clicks > 0L) r.rk.cpc
-      else if (r.ig.clicks > 0L) r.ig.cpc
-      else 0.0
-    )
-  }",
-  color = TextBlack
-)
-
+            Text("CTR: ${fmtPct(effectiveTotalAds.ctr)} • CPC: ${fmtMoney(effectiveTotalAds.cpc)}", color = TextBlack)
           }
 
           Spacer(Modifier.height(6.dp))
+
           Row(Modifier.fillMaxWidth()) {
             Text("Себест.: ${fmtMoney(r.cogs)}", modifier = Modifier.weight(1f), color = TextBlack)
             Text("Чистая прибыль: ${fmtMoney(net)}", color = TextBlack, fontWeight = FontWeight.SemiBold)
-
           }
 
           if (!r.hypothesis.isNullOrBlank() || r.price != null) {
@@ -845,7 +842,6 @@ private fun DetailsList(
               maxLines = 2,
               overflow = TextOverflow.Ellipsis
             )
-
           }
 
           Spacer(Modifier.height(10.dp))
@@ -859,7 +855,6 @@ private fun DetailsList(
                 Text(fmtInt(cv.value), color = TextBlack, fontWeight = FontWeight.SemiBold)
               }
             }
-
           }
 
           if (r.stockByColors.isNotEmpty()) {
@@ -872,7 +867,6 @@ private fun DetailsList(
                 Text(fmtInt(cv.value), color = TextBlack, fontWeight = FontWeight.SemiBold)
               }
             }
-
           }
 
           Spacer(Modifier.height(10.dp))
@@ -882,32 +876,30 @@ private fun DetailsList(
 
           if (rkEmpty) {
             Text("Нет РК", color = Color.Gray)
-
           } else {
             Text(
               "РК: расход ${fmtMoney(r.rk.spend)} • показы ${r.rk.impressions} • клики ${r.rk.clicks} • CTR ${fmtPct(r.rk.ctr)} • CPC ${fmtMoney(r.rk.cpc)}",
               color = Color.Gray
             )
-
           }
 
           if (igEmpty) {
             Text("Нет Instagram", color = Color.Gray)
-
           } else {
             Text(
               "Instagram: расход ${fmtMoney(r.ig.spend)} • показы ${r.ig.impressions} • клики ${r.ig.clicks} • CTR ${fmtPct(r.ig.ctr)} • CPC ${fmtMoney(r.ig.cpc)}",
               color = Color.Gray
             )
+          }
 
+          if (!rkEmpty || !igEmpty) {
             Spacer(Modifier.height(8.dp))
             Text("Итого Ads", fontWeight = FontWeight.SemiBold, color = TextBlack)
             Spacer(Modifier.height(4.dp))
             Text(
-              "Расход ${fmtMoney(r.totalAds.spend)} • показы ${r.totalAds.impressions} • клики ${r.totalAds.clicks} • CTR ${fmtPct(r.totalAds.ctr)} • CPC ${fmtMoney(r.totalAds.cpc)}",
+              "Расход ${fmtMoney(effectiveTotalAds.spend)} • показы ${effectiveTotalAds.impressions} • клики ${effectiveTotalAds.clicks} • CTR ${fmtPct(effectiveTotalAds.ctr)} • CPC ${fmtMoney(effectiveTotalAds.cpc)}",
               color = Color.Gray
             )
-
           }
         }
       }
