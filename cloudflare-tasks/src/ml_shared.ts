@@ -6,46 +6,7 @@ export function nowIso(): string {
   return new Date().toISOString()
 }
 
-export async function ensureMlTables(env: EnvLike) {
-  await env.DB.exec(`
-    CREATE TABLE IF NOT EXISTS ml_shared_session (
-      id TEXT PRIMARY KEY,
-      cookies_json TEXT NOT NULL,
-      user_agent TEXT,
-      csrf_token TEXT,
-      updated_by_user_id TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      is_active INTEGER NOT NULL DEFAULT 1,
-      last_check_at TEXT,
-      last_error TEXT
-    );
 
-    CREATE TABLE IF NOT EXISTS ml_sync_state (
-      key TEXT PRIMARY KEY,
-      last_success_sync_at TEXT,
-      last_attempt_sync_at TEXT,
-      last_order_time TEXT,
-      last_error TEXT,
-      updated_at TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS ml_orders (
-      order_id TEXT PRIMARY KEY,
-      order_time TEXT NOT NULL,
-      sku TEXT,
-      title TEXT,
-      quantity INTEGER,
-      price REAL,
-      status TEXT,
-      raw_json TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_ml_orders_order_time
-      ON ml_orders(order_time DESC);
-  `)
-}
 
 
 export async function saveSharedMlSession(
@@ -58,10 +19,7 @@ export async function saveSharedMlSession(
   }
 ) {
   const now = nowIso()
-
-  await ensureMlTables(env)
-
-  await env.DB.prepare(`
+await env.DB.prepare(`
     INSERT INTO ml_shared_session(
       id, cookies_json, user_agent, csrf_token,
       updated_by_user_id, updated_at, is_active, last_error
@@ -93,9 +51,7 @@ export async function saveSharedMlSession(
 }
 
 export async function getMlSyncState(env: EnvLike) {
-  await ensureMlTables(env)
-
-  const sessionRow = await env.DB.prepare(`
+const sessionRow = await env.DB.prepare(`
     SELECT id, updated_by_user_id, updated_at, is_active, last_check_at, last_error
     FROM ml_shared_session
     WHERE id='shared'
@@ -162,9 +118,7 @@ export async function upsertMlOrders(
     raw_json?: unknown
   }>
 ) {
-  await ensureMlTables(env)
-
-  const now = nowIso()
+const now = nowIso()
   let inserted = 0
   let newestOrderTime: string | null = null
 
@@ -232,8 +186,7 @@ export async function upsertMlOrders(
 }
 
 export async function markMlSyncAttemptError(env: EnvLike, errorText: string) {
-  await ensureMlTables(env)
-  const now = nowIso()
+const now = nowIso()
 
   await env.DB.prepare(`
     INSERT INTO ml_sync_state(
