@@ -759,17 +759,13 @@ private fun DetailsList(
           Spacer(Modifier.height(12.dp))
           Text(status, color = Color.Gray)
         }
-      }
-    }
     return
-  }
 
   LazyColumn(
     modifier = Modifier.fillMaxSize(),
     contentPadding = PaddingValues(12.dp),
     verticalArrangement = Arrangement.spacedBy(12.dp)
   ) {
-    }
 
     items(rows) { r ->
       val price = r.price ?: 0.0
