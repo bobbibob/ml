@@ -391,28 +391,28 @@ fun AddDailySummaryScreen(
                                         igEnabled = igEnabled[bag.bagId] == true,
                                         igSpend = igSpend[bag.bagId]?.trim()?.replace(',', '.')?.toDoubleOrNull(),
                                         igImpressions = igImpressions[bag.bagId]?.trim()?.toLongOrNull(),
-                                        igClicks = igClicks[bag.bagId]?.trim()?.toLongOrNull()
-                                    )
+                                repo.saveDailySummary(summaryDate, bags)
+
+                                val session = PrefsSessionStorage(ctx)
+                                val api = ApiModule.createApi(
+                                    baseUrl = "https://ml-tasks-api.bboobb666.workers.dev/",
+                                    sessionStorage = session
+                                )
+                                val syncRepo = DailySummarySyncRepository(api, ctx)
+
+                                kotlin.runCatching {
+                                    withTimeout(15000) {
+                                        syncRepo.upsertDailySummary(summaryDate, bags)
+                                    }
                                 }
 
-                                repo.saveDailySummary(summaryDate, bags)
+                                if (isNewDay) {
+                                    kotlin.runCatching {
+                                        withTimeout(10000) {
+                                            api.notifyNewSummary(mapOf("date" to summaryDate))
+                                        }
+                                    }
+                                }
+
                                 saveError = null
                                 onBack()
-
-                                // TEMP: remote sync disabled to verify local ad metrics persistence
-                                // CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
-                                //     ...
-                                // }
-                            } catch (t: Throwable) {
-                                saveError = t.message ?: t.toString()
-                            }
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Сохранить сводку")
-                }
-            }
-        }
-    }
-}
