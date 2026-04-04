@@ -551,11 +551,12 @@ fun MlAuthScreen(
                                     .build()
 
                                 val syncStateJson = client.newCall(syncStateReq).execute().use { resp ->
+                                    val bodyText = resp.body?.string().orEmpty()
                                     if (!resp.isSuccessful) {
-                                        statusText = "Ошибка sync-state: ${resp.code}"
+                                        statusText = "Ошибка sync-state: ${resp.code} ${bodyText.take(500)}"
                                         return@Thread
                                     }
-                                    JSONObject(resp.body?.string().orEmpty())
+                                    JSONObject(bodyText)
                                 }
 
                                 val minAllowed = syncStateJson.optString("min_allowed_datetime").ifBlank { "2025-08-30T00:00:00" }
@@ -594,8 +595,9 @@ fun MlAuthScreen(
                                     .build()
 
                                 client.newCall(upsertReq).execute().use { resp ->
+                                    val bodyText = resp.body?.string().orEmpty()
                                     if (!resp.isSuccessful) {
-                                        statusText = "Ошибка отправки заказов: ${resp.code}"
+                                        statusText = "Ошибка отправки заказов: ${resp.code} ${bodyText.take(500)}"
                                         return@Thread
                                     }
                                 }
@@ -607,8 +609,9 @@ fun MlAuthScreen(
                                     .build()
 
                                 client.newCall(summaryReq).execute().use { resp ->
+                                    val bodyText = resp.body?.string().orEmpty()
                                     if (!resp.isSuccessful) {
-                                        statusText = "Заказы отправлены, но summary не создан: ${resp.code}"
+                                        statusText = "Заказы отправлены, но summary не создан: ${resp.code} ${bodyText.take(500)}"
                                         return@Thread
                                     }
                                 }
