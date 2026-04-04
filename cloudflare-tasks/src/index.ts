@@ -873,29 +873,25 @@ function mlJsonObject(raw: unknown): any | null {
   }
 }
 
-function mlPickCardByTitle(title: unknown, cards: Array<any>) {
-  const t = mlNorm(title)
-  if (!t) return null
-
-  let best: any = null
-  let bestScore = -1
+function mlPickCardByArticle(article: unknown, cards: Array<any>) {
+  const a = mlNorm(article)
+  if (!a) return null
 
   for (const card of cards) {
-    const name = mlNorm(card?.name)
-    if (!name) continue
+    const articleFields = [
+      card?.article,
+      card?.article_no,
+      card?.vendor_code,
+      card?.sku,
+      card?.sku_code,
+    ]
 
-    let score = -1
-    if (t === name) score = 10000 + name.length
-    else if (t.includes(name)) score = 5000 + name.length
-    else if (name.includes(t)) score = 1000 + t.length
-
-    if (score > bestScore) {
-      best = card
-      bestScore = score
+    for (const v of articleFields) {
+      if (mlNorm(v) === a) return card
     }
   }
 
-  return best
+  return null
 }
 
 function mlPickColor(rawColor: unknown, card: any): string | null {
@@ -988,7 +984,7 @@ try {
           const mapped = input.map((o: any) => ({
             order_id: String(o?.external_order_id ?? "").trim(),
             order_time: String(o?.order_datetime_sort ?? "").trim(),
-            sku: o?.color ? String(o.color) : null,
+            sku: o?.sku ? String(o.sku) : (o?.article ? String(o.article) : null),
             title: o?.title ? String(o.title) : null,
             quantity: 1,
             price: typeof o?.amount === "number" ? o.amount : (
@@ -1034,7 +1030,7 @@ try {
           const orderItems = ordersRows.results || []
 
           const cardRows = await env.DB.prepare(`
-            SELECT bag_id, name, price, cogs, delivery_fee, colors_json
+            SELECT *
             FROM card_overrides
             ORDER BY updated_at DESC
           `).all<any>()
@@ -1045,20 +1041,28 @@ try {
 
           for (const row of orderItems) {
             const raw = mlJsonObject(row?.raw_json)
+            const article =
+              String(raw?.article || "").trim() ||
+              String(row?.sku || "").trim()
             const title = String(row?.title || raw?.title || "").trim()
-            const card = mlPickCardByTitle(title, cards)
+            let card = mlPickCardByArticle(article, cards)
+            if (!card) {
+              card = mlPickCardByTitle(title, cards)
+            }
 
             if (!card?.bag_id) {
               unmatched.push({
                 order_id: row?.order_id || null,
                 reason: "bag_not_matched",
+                article: article || null,
                 title,
               })
               continue
             }
 
+            const rawColorNo = String(raw?.color_no || "").trim()
             const rawColor =
-              String(row?.sku || "").trim() ||
+              rawColorNo ||
               String(raw?.color || "").trim()
 
             const color = mlPickColor(rawColor, card)
