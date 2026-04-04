@@ -391,6 +391,10 @@ fun AddDailySummaryScreen(
                                         igEnabled = igEnabled[bag.bagId] == true,
                                         igSpend = igSpend[bag.bagId]?.trim()?.replace(',', '.')?.toDoubleOrNull(),
                                         igImpressions = igImpressions[bag.bagId]?.trim()?.toLongOrNull(),
+                                        igClicks = igClicks[bag.bagId]?.trim()?.toLongOrNull()
+                                    )
+                                }
+
                                 repo.saveDailySummary(summaryDate, bags)
 
                                 val session = PrefsSessionStorage(ctx)
@@ -416,3 +420,12 @@ fun AddDailySummaryScreen(
 
                                 saveError = null
                                 onBack()
+                            } catch (t: Throwable) {
+                                saveError = t.message ?: t.toString()
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Сохранить сводку")
+                }
