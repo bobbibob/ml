@@ -469,50 +469,8 @@ fun refreshTimeline() {
   private suspend fun pullRecentDailySummaries() {
     _state.value = _state.value.copy(status = "RECENT disabled")
     return
-
-    val session = PrefsSessionStorage(ctx)
-    if (session.getToken().isNullOrBlank()) {
-      _state.value = _state.value.copy(status = "RECENT no session token")
-      return
-    }
-
-    val api = ApiModule.createApi(
-      baseUrl = "https://ml-tasks-api.bboobb666.workers.dev/",
-      sessionStorage = session
-    )
-    val syncRepo = DailySummarySyncRepository(api, ctx)
-
-    _state.value = _state.value.copy(status = "RECENT request list")
-
-    when (val recent = syncRepo.getRecentSummaryDates(30)) {
-      is com.ml.app.core.result.AppResult.Success -> {
-        _state.value = _state.value.copy(
-          status = "RECENT dates=${recent.data.joinToString(limit = 5)}"
-        )
-        for (date in recent.data) {
-          when (val byDate = syncRepo.getDailySummaryByDate(date)) {
-            is com.ml.app.core.result.AppResult.Success -> {
-              repo.applyRemoteDailySummary(date, byDate.data)
-              _state.value = _state.value.copy(
-                status = "RECENT applied date=$date entries=${byDate.data.size}"
-              )
-            }
-            is com.ml.app.core.result.AppResult.Error -> {
-              _state.value = _state.value.copy(
-                status = "RECENT byDate error $date: ${byDate.message}"
-              )
-              return
-            }
-          }
-        }
-      }
-      is com.ml.app.core.result.AppResult.Error -> {
-        _state.value = _state.value.copy(
-          status = "RECENT list error: ${recent.message}"
-        )
-      }
-    }
   }
+
 
   private suspend fun syncSelectedDateFromServer() {
     val session = PrefsSessionStorage(ctx)
