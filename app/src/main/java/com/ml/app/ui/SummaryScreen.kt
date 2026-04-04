@@ -768,6 +768,7 @@ private fun DetailsList(
   ) {
 
     items(rows) { r ->
+  }
       val price = r.price ?: 0.0
       val net = ProfitCalc.netProfit(
         orders = r.totalOrders,
