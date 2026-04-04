@@ -771,7 +771,6 @@ private fun DetailsList(
   ) {
     item {
       Text(
-        text = "DEBUG: " + status,
         color = Color.Red
       )
     }
