@@ -1,4 +1,4 @@
-import { ensureMlTables, saveSharedMlSession, getMlSyncState, upsertMlOrders, markMlSyncAttemptError } from "./ml_shared"
+import { saveSharedMlSession, getMlSyncState, upsertMlOrders, markMlSyncAttemptError } from "./ml_shared"
 
 export interface Env {
   DB: D1Database
@@ -783,6 +783,48 @@ async function sendPushToToken(
   }
 }
 
+
+async function ensureMlTablesInline(env: any) {
+  await env.DB.exec(`
+    CREATE TABLE IF NOT EXISTS ml_shared_session (
+      id TEXT PRIMARY KEY,
+      cookies_json TEXT NOT NULL,
+      user_agent TEXT,
+      csrf_token TEXT,
+      updated_by_user_id TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      last_check_at TEXT,
+      last_error TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS ml_sync_state (
+      key TEXT PRIMARY KEY,
+      last_success_sync_at TEXT,
+      last_attempt_sync_at TEXT,
+      last_order_time TEXT,
+      last_error TEXT,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS ml_orders (
+      order_id TEXT PRIMARY KEY,
+      order_time TEXT NOT NULL,
+      sku TEXT,
+      title TEXT,
+      quantity INTEGER,
+      price REAL,
+      status TEXT,
+      raw_json TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_ml_orders_order_time
+      ON ml_orders(order_time DESC);
+  `)
+}
+
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     if (request.method === "OPTIONS") return json({ ok: true, fcm_debug: debugText })
@@ -798,7 +840,7 @@ await ensureDailySummaryTable(env)
 try {
       if (path === "/internal/integrations/ml/save-session" && request.method === "POST") {
         try {
-          await ensureMlTables(env)
+          await ensureMlTablesInline(env)
           const user = await getCurrentUser(request, env)
           if (!user) return json({ ok: false, error: "unauthorized" }, 401)
 
@@ -826,7 +868,7 @@ try {
 
       if (path === "/internal/integrations/ml/sync-state" && request.method === "GET") {
         try {
-          await ensureMlTables(env)
+          await ensureMlTablesInline(env)
           const user = await getCurrentUser(request, env)
           if (!user) return json({ ok: false, error: "unauthorized" }, 401)
 
@@ -849,7 +891,7 @@ try {
 
       if (path === "/internal/integrations/ml/upsert-orders" && request.method === "POST") {
         try {
-          await ensureMlTables(env)
+          await ensureMlTablesInline(env)
           const user = await getCurrentUser(request, env)
           if (!user) return json({ ok: false, error: "unauthorized" }, 401)
 
@@ -886,7 +928,7 @@ try {
 
       if (path === "/internal/ml/generate-orders-summary" && request.method === "POST") {
         try {
-          await ensureMlTables(env)
+          await ensureMlTablesInline(env)
           const user = await getCurrentUser(request, env)
           if (!user) return json({ ok: false, error: "unauthorized" }, 401)
 
@@ -898,7 +940,7 @@ try {
 
       if (path === "/internal/integrations/set-auth-state" && request.method === "POST") {
         try {
-          await ensureMlTables(env)
+          await ensureMlTablesInline(env)
           const user = await getCurrentUser(request, env)
           if (!user) return json({ ok: false, error: "unauthorized" }, 401)
 
