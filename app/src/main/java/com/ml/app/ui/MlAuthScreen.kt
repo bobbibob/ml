@@ -575,24 +575,15 @@ fun MlAuthScreen(
                                 val filteredOrders = JSONArray()
                                 for (i in 0 until orders.length()) {
                                     val obj = orders.optJSONObject(i) ?: continue
-                                    val sort = obj.optString("order_datetime_sort").ifBlank { null }
-
-                                    val allowed = when {
-                                        sort == null -> true
-                                        sort < minAllowed -> false
-                                        lastSynced != null && sort <= lastSynced -> false
-                                        else -> true
-                                    }
-
-                                    if (allowed) {
-                                        filteredOrders.put(obj)
-                                    }
+                                    filteredOrders.put(obj)
                                 }
 
                                 if (filteredOrders.length() == 0) {
-                                    statusText = "Новых заказов после фильтра нет."
+                                    statusText = "Новых заказов нет. orders=${orders.length()} minAllowed=$minAllowed lastSynced=${lastSynced ?: "null"}"
                                     return@Thread
                                 }
+
+                                statusText = "Отправляем ${filteredOrders.length()} заказов. minAllowed=$minAllowed lastSynced=${lastSynced ?: "null"}"
 
                                 val upsertBody = JSONObject().apply {
                                     put("orders", filteredOrders)
