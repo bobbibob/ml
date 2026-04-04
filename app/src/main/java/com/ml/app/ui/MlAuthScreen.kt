@@ -475,6 +475,48 @@ fun MlAuthScreen(
                             return img.getAttribute("src") || img.getAttribute("data-src") || null;
                           }
 
+                          function skuFrom(raw, parts) {
+                            const joined = [raw].concat(parts || []).join("\n");
+
+                            const patterns = [
+                              /sku\s*:?\s*([A-Z0-9._\/-]+)/i,
+                              /seller\s*sku\s*:?\s*([A-Z0-9._\/-]+)/i,
+                              /c[oó]d(?:igo)?\s*:?\s*([A-Z0-9._\/-]+)/i,
+                              /art(?:igo|icle)?\s*:?\s*([A-Z0-9._\/-]+(?:\s*[-\/]\s*\d+)?)/i
+                            ];
+
+                            for (const re of patterns) {
+                              const m = joined.match(re);
+                              if (m && m[1]) return norm(m[1]).replace(/\s+/g, "");
+                            }
+
+                            for (const line of (parts || [])) {
+                              const t = norm(line);
+                              if (/^[A-Z0-9]{2,}[._\/-][A-Z0-9._\/-]+$/i.test(t)) return t.replace(/\s+/g, "");
+                              if (/^[A-Z0-9]{3,}-\d{1,3}$/i.test(t)) return t.replace(/\s+/g, "");
+                            }
+
+                            return null;
+                          }
+
+                          function articleColorFromSku(sku) {
+                            const s = norm(sku || "").replace(/\s+/g, "");
+                            if (!s) return { article: null, color_no: null };
+
+                            const m =
+                              s.match(/^(.+?)[\/-](\d{1,3})$/) ||
+                              s.match(/^([A-Z0-9._]+?)(\d{1,3})$/i);
+
+                            if (!m) {
+                              return { article: s, color_no: null };
+                            }
+
+                            return {
+                              article: m[1] ? String(m[1]).trim() : s,
+                              color_no: m[2] ? String(m[2]).trim() : null
+                            };
+                          }
+
                           const cards = Array.from(document.querySelectorAll(".andes-card, li"));
                           const seen = new Set();
                           const orders = [];
@@ -498,6 +540,9 @@ fun MlAuthScreen(
 
                             orders.push({
                               external_order_id: externalId,
+                              sku: skuFrom(raw, parts),
+                              article: articleColorFromSku(skuFrom(raw, parts)).article,
+                              color_no: articleColorFromSku(skuFrom(raw, parts)).color_no,
                               title: titleFrom(parts),
                               buyer_name: buyerFrom(parts),
                               status: statusFrom(raw),
@@ -540,10 +585,14 @@ fun MlAuthScreen(
                                 val pageTitle = json.optString("title")
                                 val parserCount = json.optInt("count", orders.length())
                                 val sampleOrder = if (orders.length() > 0) {
-                                    orders.optJSONObject(0)?.toString()?.take(500)
-                                } else {
-                                    ""
-                                }
+                                    val first = orders.optJSONObject(0)
+                                    if (first != null) {
+                                        "id=" + first.optString("external_order_id") +
+                                        " sku=" + first.optString("sku") +
+                                        " article=" + first.optString("article") +
+                                        " color_no=" + first.optString("color_no")
+                                    } else ""
+                                } else ""
 
                                 if (orders.length() == 0) {
                                     statusText = "Заказы не найдены. url=${pageUrl.take(120)} title=${pageTitle.take(80)} count=$parserCount"
