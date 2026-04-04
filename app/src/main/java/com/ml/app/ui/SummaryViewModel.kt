@@ -372,7 +372,7 @@ fun refreshTimeline() {
           loading = true,
           status = "Syncing summaries…"
         )
-        pullRecentDailySummaries()
+        syncSelectedDateFromServer()
         if (_state.value.mode is ScreenMode.Details) {
           }
 
