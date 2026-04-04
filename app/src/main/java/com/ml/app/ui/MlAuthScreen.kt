@@ -589,7 +589,25 @@ fun MlAuthScreen(
                                     return@Thread
                                 }
 
-                                statusText = "Найдено заказов: ${orders.length()} url=${pageUrl.take(80)} sample=${sampleOrder.orEmpty().take(180)}"
+                                val debugItems = StringBuilder()
+                                val limit = minOf(15, orders.length())
+                                for (i in 0 until limit) {
+                                    val o = orders.optJSONObject(i) ?: continue
+                                    debugItems.append("#")
+                                    debugItems.append(i + 1)
+                                    debugItems.append(" id=")
+                                    debugItems.append(o.optString("external_order_id"))
+                                    debugItems.append(" sku=")
+                                    debugItems.append(o.optString("sku"))
+                                    debugItems.append(" article=")
+                                    debugItems.append(o.optString("article"))
+                                    debugItems.append(" color_no=")
+                                    debugItems.append(o.optString("color_no"))
+                                    debugItems.append("\n")
+                                }
+
+                                statusText = "PARSE ONLY count=${orders.length()}\n" + debugItems.toString()
+                                return@Thread
 
                                 val client = OkHttpClient()
 
