@@ -1041,9 +1041,10 @@ try {
 
           for (const row of orderItems) {
             const raw = mlJsonObject(row?.raw_json)
-            const article =
-              String(raw?.article || "").trim() ||
-              String(row?.sku || "").trim()
+            const sku = String(row?.sku || "").trim()
+            const parts = sku.split(/[-/]/)
+            const article = parts[0] || ""
+            const colorNo = parts.length > 1 ? parts[1] : ""
             const title = String(row?.title || raw?.title || "").trim()
             let card = mlPickCardByArticle(article, cards)
             if (!card) {
@@ -1060,7 +1061,7 @@ try {
               continue
             }
 
-            const rawColorNo = String(raw?.color_no || "").trim()
+            const rawColorNo = colorNo
             const rawColor =
               rawColorNo ||
               String(raw?.color || "").trim()
