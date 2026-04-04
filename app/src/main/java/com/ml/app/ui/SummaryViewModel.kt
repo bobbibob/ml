@@ -467,6 +467,9 @@ fun refreshTimeline() {
   }
 
   private suspend fun pullRecentDailySummaries() {
+    _state.value = _state.value.copy(status = "RECENT disabled")
+    return
+
     val session = PrefsSessionStorage(ctx)
     if (session.getToken().isNullOrBlank()) {
       _state.value = _state.value.copy(status = "RECENT no session token")
