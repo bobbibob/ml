@@ -796,10 +796,9 @@ export default {
 await ensureDailySummaryTable(env)
     await ensureReminderColumns(env)
 try {
-      await ensureMlTables(env)
-
       if (path === "/internal/integrations/ml/save-session" && request.method === "POST") {
         try {
+          await ensureMlTables(env)
           const user = await getCurrentUser(request, env)
           if (!user) return json({ ok: false, error: "unauthorized" }, 401)
 
@@ -827,6 +826,7 @@ try {
 
       if (path === "/internal/integrations/ml/sync-state" && request.method === "GET") {
         try {
+          await ensureMlTables(env)
           const user = await getCurrentUser(request, env)
           if (!user) return json({ ok: false, error: "unauthorized" }, 401)
 
@@ -849,6 +849,7 @@ try {
 
       if (path === "/internal/integrations/ml/upsert-orders" && request.method === "POST") {
         try {
+          await ensureMlTables(env)
           const user = await getCurrentUser(request, env)
           if (!user) return json({ ok: false, error: "unauthorized" }, 401)
 
@@ -885,6 +886,7 @@ try {
 
       if (path === "/internal/ml/generate-orders-summary" && request.method === "POST") {
         try {
+          await ensureMlTables(env)
           const user = await getCurrentUser(request, env)
           if (!user) return json({ ok: false, error: "unauthorized" }, 401)
 
@@ -896,6 +898,7 @@ try {
 
       if (path === "/internal/integrations/set-auth-state" && request.method === "POST") {
         try {
+          await ensureMlTables(env)
           const user = await getCurrentUser(request, env)
           if (!user) return json({ ok: false, error: "unauthorized" }, 401)
 
