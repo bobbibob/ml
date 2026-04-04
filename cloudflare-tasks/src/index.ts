@@ -831,6 +831,87 @@ async function ensureMlTablesInline(env: any) {
 }
 
 
+
+function mlNorm(value: unknown): string {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+function mlTodaySaoPaulo(): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date())
+
+  const year = parts.find(p => p.type === "year")?.value || "0000"
+  const month = parts.find(p => p.type === "month")?.value || "00"
+  const day = parts.find(p => p.type === "day")?.value || "00"
+  return `${year}-${month}-${day}`
+}
+
+function mlJsonArray(raw: unknown): string[] {
+  try {
+    const arr = JSON.parse(String(raw || "[]"))
+    if (!Array.isArray(arr)) return []
+    return arr.map(x => String(x || "").trim()).filter(Boolean)
+  } catch {
+    return []
+  }
+}
+
+function mlJsonObject(raw: unknown): any | null {
+  try {
+    return JSON.parse(String(raw || "{}"))
+  } catch {
+    return null
+  }
+}
+
+function mlPickCardByTitle(title: unknown, cards: Array<any>) {
+  const t = mlNorm(title)
+  if (!t) return null
+
+  let best: any = null
+  let bestScore = -1
+
+  for (const card of cards) {
+    const name = mlNorm(card?.name)
+    if (!name) continue
+
+    let score = -1
+    if (t === name) score = 10000 + name.length
+    else if (t.includes(name)) score = 5000 + name.length
+    else if (name.includes(t)) score = 1000 + t.length
+
+    if (score > bestScore) {
+      best = card
+      bestScore = score
+    }
+  }
+
+  return best
+}
+
+function mlPickColor(rawColor: unknown, card: any): string | null {
+  const original = String(rawColor || "").trim()
+  if (!original) return null
+
+  const want = mlNorm(original)
+  const colors = mlJsonArray(card?.colors_json)
+
+  for (const c of colors) {
+    if (mlNorm(c) == want) return c
+  }
+
+  return original
+}
+
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     if (request.method === "OPTIONS") return json({ ok: true, fcm_debug: debugText })
@@ -935,10 +1016,161 @@ try {
       if (path === "/internal/ml/generate-orders-summary" && request.method === "POST") {
         try {
           await ensureMlTablesInline(env)
+          await ensureDailySummaryTable(env)
+          await ensureCardOverridesTable(env)
+
           const user = await getCurrentUser(request, env)
           if (!user) return json({ ok: false, error: "unauthorized" }, 401)
 
-          return json({ ok: true, generated: false, reason: "stub" })
+          const today = mlTodaySaoPaulo()
+
+          const ordersRows = await env.DB.prepare(`
+            SELECT order_id, order_time, sku, title, quantity, price, status, raw_json, created_at, updated_at
+            FROM ml_orders
+            WHERE substr(order_time, 1, 10) = ?
+            ORDER BY order_time ASC, updated_at ASC
+          `).bind(today).all<any>()
+
+          const orderItems = ordersRows.results || []
+
+          const cardRows = await env.DB.prepare(`
+            SELECT bag_id, name, price, cogs, delivery_fee, colors_json
+            FROM card_overrides
+            ORDER BY updated_at DESC
+          `).all<any>()
+
+          const cards = cardRows.results || []
+          const grouped = new Map<string, any>()
+          const unmatched: any[] = []
+
+          for (const row of orderItems) {
+            const raw = mlJsonObject(row?.raw_json)
+            const title = String(row?.title || raw?.title || "").trim()
+            const card = mlPickCardByTitle(title, cards)
+
+            if (!card?.bag_id) {
+              unmatched.push({
+                order_id: row?.order_id || null,
+                reason: "bag_not_matched",
+                title,
+              })
+              continue
+            }
+
+            const rawColor =
+              String(row?.sku || "").trim() ||
+              String(raw?.color || "").trim()
+
+            const color = mlPickColor(rawColor, card)
+
+            if (!color) {
+              unmatched.push({
+                order_id: row?.order_id || null,
+                reason: "color_not_matched",
+                title,
+                raw_color: rawColor || null,
+                bag_id: card.bag_id,
+              })
+              continue
+            }
+
+            const key = `${card.bag_id}|||${color}`
+            const existing = grouped.get(key)
+
+            if (existing) {
+              existing.orders += 1
+            } else {
+              grouped.set(key, {
+                bag_id: String(card.bag_id),
+                color: String(color),
+                orders: 1,
+                price: card?.price ?? null,
+                cogs: card?.cogs ?? null,
+                delivery_fee: card?.delivery_fee ?? null,
+              })
+            }
+          }
+
+          const entries = Array.from(grouped.values())
+          const now = nowIso()
+
+          for (const entry of entries) {
+            const existing = await env.DB.prepare(`
+              SELECT
+                entry_id,
+                created_by_user_id,
+                rk_enabled, rk_spend, rk_impressions, rk_clicks, rk_stake,
+                ig_enabled, ig_spend, ig_impressions, ig_clicks,
+                price, cogs, delivery_fee, hypothesis
+              FROM daily_summary_entries
+              WHERE summary_date = ? AND bag_id = ? AND color = ?
+              LIMIT 1
+            `).bind(today, entry.bag_id, entry.color).first<any>()
+
+            const entryId = existing?.entry_id || randomId("dse")
+            const createdBy = existing?.created_by_user_id || user.user_id
+
+            await env.DB.prepare(`
+              INSERT INTO daily_summary_entries (
+                entry_id, summary_date, bag_id, color, orders,
+                rk_enabled, rk_spend, rk_impressions, rk_clicks, rk_stake,
+                ig_enabled, ig_spend, ig_impressions, ig_clicks,
+                price, cogs, delivery_fee, hypothesis,
+                created_by_user_id, updated_by_user_id, created_at, updated_at, deleted_at
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+              ON CONFLICT(summary_date, bag_id, color) DO UPDATE SET
+                orders=excluded.orders,
+                rk_enabled=excluded.rk_enabled,
+                rk_spend=excluded.rk_spend,
+                rk_impressions=excluded.rk_impressions,
+                rk_clicks=excluded.rk_clicks,
+                rk_stake=excluded.rk_stake,
+                ig_enabled=excluded.ig_enabled,
+                ig_spend=excluded.ig_spend,
+                ig_impressions=excluded.ig_impressions,
+                ig_clicks=excluded.ig_clicks,
+                price=excluded.price,
+                cogs=excluded.cogs,
+                delivery_fee=excluded.delivery_fee,
+                hypothesis=excluded.hypothesis,
+                updated_by_user_id=excluded.updated_by_user_id,
+                updated_at=excluded.updated_at,
+                deleted_at=NULL
+            `).bind(
+              entryId,
+              today,
+              entry.bag_id,
+              entry.color,
+              Number(entry.orders || 0),
+              Number(existing?.rk_enabled || 0),
+              existing?.rk_spend ?? null,
+              existing?.rk_impressions ?? null,
+              existing?.rk_clicks ?? null,
+              existing?.rk_stake ?? null,
+              Number(existing?.ig_enabled || 0),
+              existing?.ig_spend ?? null,
+              existing?.ig_impressions ?? null,
+              existing?.ig_clicks ?? null,
+              existing?.price ?? entry.price ?? null,
+              existing?.cogs ?? entry.cogs ?? null,
+              existing?.delivery_fee ?? entry.delivery_fee ?? null,
+              existing?.hypothesis ?? null,
+              createdBy,
+              user.user_id,
+              now,
+              now
+            ).run()
+          }
+
+          return json({
+            ok: true,
+            summary_date: today,
+            source_orders: orderItems.length,
+            generated_entries: entries.length,
+            unmatched_count: unmatched.length,
+            unmatched: unmatched.slice(0, 20),
+            entries,
+          })
         } catch (e) {
           return json({ ok: false, error: String(e) }, 500)
         }

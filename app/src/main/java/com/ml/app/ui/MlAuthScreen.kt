@@ -609,8 +609,10 @@ fun MlAuthScreen(
                                     .post("{}".toRequestBody("application/json".toMediaType()))
                                     .build()
 
+                                var summaryBodyText = ""
                                 client.newCall(summaryReq).execute().use { resp ->
                                     val bodyText = resp.body?.string().orEmpty()
+                                    summaryBodyText = bodyText
                                     if (!resp.isSuccessful) {
                                         statusText = "Заказы отправлены, но summary не создан: ${resp.code} ${bodyText.take(500)}"
                                         return@Thread
@@ -631,7 +633,7 @@ fun MlAuthScreen(
 
                                 client.newCall(authStateReq).execute().use { }
 
-                                statusText = "Синхронизация ML завершена: ${filteredOrders.length()} новых заказов."
+                                statusText = "Синхронизация ML завершена: ${filteredOrders.length()} заказов. summary=${summaryBodyText.take(700)}"
                             } catch (t: Throwable) {
                                 statusText = "Ошибка синхронизации: ${t.message}"
                             }
