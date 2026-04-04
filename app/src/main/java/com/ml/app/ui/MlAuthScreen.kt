@@ -536,11 +536,21 @@ fun MlAuthScreen(
 
                                 val json = JSONObject(cleaned)
                                 val orders = json.optJSONArray("orders") ?: JSONArray()
+                                val pageUrl = json.optString("url")
+                                val pageTitle = json.optString("title")
+                                val parserCount = json.optInt("count", orders.length())
+                                val sampleOrder = if (orders.length() > 0) {
+                                    orders.optJSONObject(0)?.toString()?.take(500)
+                                } else {
+                                    ""
+                                }
 
                                 if (orders.length() == 0) {
-                                    statusText = "Заказы не найдены. Проверь, что открыт список продаж."
+                                    statusText = "Заказы не найдены. url=${pageUrl.take(120)} title=${pageTitle.take(80)} count=$parserCount"
                                     return@Thread
                                 }
+
+                                statusText = "Найдено заказов: ${orders.length()} url=${pageUrl.take(80)} sample=${sampleOrder.orEmpty().take(180)}"
 
                                 val client = OkHttpClient()
 
