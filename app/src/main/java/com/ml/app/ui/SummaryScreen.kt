@@ -769,10 +769,6 @@ private fun DetailsList(
     contentPadding = PaddingValues(12.dp),
     verticalArrangement = Arrangement.spacedBy(12.dp)
   ) {
-    item {
-      Text(
-        color = Color.Red
-      )
     }
 
     items(rows) { r ->
