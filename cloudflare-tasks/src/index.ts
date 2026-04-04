@@ -887,7 +887,7 @@ function mlPickCardByArticle(article: unknown, cards: Array<any>) {
     ]
 
     for (const v of articleFields) {
-      if (mlNorm(v).includes(a) || a.includes(mlNorm(v))) return card
+      if (mlNorm(v) === a) return card
     }
   }
 
@@ -1042,14 +1042,11 @@ try {
           for (const row of orderItems) {
             const raw = mlJsonObject(row?.raw_json)
             const sku = String(row?.sku || "").trim()
-            const parts = sku.split(/[-/]/)
-            const article = parts[0] || ""
-            const colorNo = parts.length > 1 ? parts[1] : ""
+            const m = sku.match(/^(.*?)[\/-](\d{1,3})$/)
+            const article = m ? m[1] : sku
+            const colorNo = m ? m[2] : ""
             const title = String(row?.title || raw?.title || "").trim()
-            let card = mlPickCardByArticle(article, cards)
-            if (!card) {
-              card = mlPickCardByArticle(title, cards)
-            }
+            const card = mlPickCardByArticle(article, cards)
 
             if (!card?.bag_id) {
               unmatched.push({
