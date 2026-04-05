@@ -34,6 +34,9 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.zIndex
 import com.ml.app.BuildConfig
 import com.ml.app.data.session.PrefsSessionStorage
+import com.ml.app.core.network.ApiModule
+import com.ml.app.data.repository.DailySummarySyncRepository
+import com.ml.app.data.SQLiteRepo
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -676,6 +679,33 @@ fun MlAuthScreen(
                                     statusText = "summary raw: ${bodyText.take(300)}"
                                 }
 
+                                kotlin.runCatching {
+                                    val summaryJson = JSONObject(summaryBodyText)
+                                    val summaryDate = summaryJson.optString("summary_date").ifBlank {
+                                        java.time.LocalDate.now().toString()
+                                    }
+
+                                    val localSession = PrefsSessionStorage(context)
+                                    val api = ApiModule.createApi(
+                                        baseUrl = "https://ml-tasks-api.bboobb666.workers.dev/",
+                                        sessionStorage = localSession
+                                    )
+                                    val syncRepo = DailySummarySyncRepository(api, context)
+                                    val localRepo = SQLiteRepo(context)
+
+                                    when (val byDate = syncRepo.getDailySummaryByDate(summaryDate)) {
+                                        is com.ml.app.core.result.AppResult.Success -> {
+                                            localRepo.applyRemoteDailySummary(summaryDate, byDate.data)
+                                            statusText = "Синхронизация ML завершена: ${filteredOrders.length()} заказов. local summary applied date=$summaryDate entries=${byDate.data.size}"
+                                        }
+                                        is com.ml.app.core.result.AppResult.Error -> {
+                                            statusText = "Синхронизация ML завершена, но local summary sync error: ${byDate.message}"
+                                        }
+                                    }
+                                }.onFailure {
+                                    statusText = "Синхронизация ML завершена, но local apply error: ${it.message}"
+                                }
+
                                 val authStateBody = JSONObject().apply {
                                     put("source", "mercadolivre")
                                     put("auth_state", "active")
@@ -689,8 +719,6 @@ fun MlAuthScreen(
                                     .build()
 
                                 client.newCall(authStateReq).execute().use { }
-
-                                statusText = "Синхронизация ML завершена: ${filteredOrders.length()} заказов. summary=${summaryBodyText.take(700)}"
                             } catch (t: Throwable) {
                                 statusText = "Ошибка синхронизации: ${t.message}"
                             }
