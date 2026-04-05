@@ -141,6 +141,7 @@ fun AddEditArticleScreen(
     var priceForAllEnabled by remember { mutableStateOf(true) }
     var priceAll by remember { mutableStateOf("") }
     var articleBase by remember { mutableStateOf("") }
+    var serverDebug by remember { mutableStateOf("") }
     var cardType by remember { mutableStateOf("classic") }
     var newColor by remember { mutableStateOf("") }
 
@@ -294,6 +295,18 @@ onDone?.invoke()
         }
 
         val serverOverride = kotlin.runCatching { repo.getServerCardOverride(id) }.getOrNull()
+
+        serverDebug =
+            if (serverOverride == null) {
+                "serverOverride=null bag=" + id
+            } else {
+                val first = serverOverride.skuLinks.firstOrNull()
+                "bag=" + id +
+                    " skuLinksCount=" + serverOverride.skuLinks.size +
+                    " firstArticleId=" + (first?.articleId ?: "null") +
+                    " firstSku=" + (first?.sku ?: "null") +
+                    " colors=" + serverOverride.colors.joinToString(",")
+            }
 
         if (serverOverride != null) {
             if (!serverOverride.name.isNullOrBlank()) name = serverOverride.name
@@ -647,6 +660,14 @@ onDone?.invoke()
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
+
+                if (serverDebug.isNotBlank()) {
+                    Text(
+                        text = serverDebug.take(800),
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                }
 
                 OutlinedTextField(
                     value = articleBase,
