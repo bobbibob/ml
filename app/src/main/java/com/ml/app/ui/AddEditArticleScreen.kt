@@ -142,6 +142,7 @@ fun AddEditArticleScreen(
     var priceAll by remember { mutableStateOf("") }
     var articleBase by remember { mutableStateOf("") }
     var serverDebug by remember { mutableStateOf("") }
+    var overridesRefreshTick by remember { mutableStateOf(0) }
     var cardType by remember { mutableStateOf("classic") }
     var newColor by remember { mutableStateOf("") }
 
@@ -217,6 +218,7 @@ onDone?.invoke()
         kotlin.runCatching {
             CardOverridesSync.refresh(ctx)
         }
+        overridesRefreshTick++
     }
 
     LaunchedEffect(tab) {
@@ -236,7 +238,7 @@ onDone?.invoke()
         }
     }
 
-    LaunchedEffect(selectedBagId) {
+    LaunchedEffect(selectedBagId, overridesRefreshTick) {
         val id = selectedBagId ?: return@LaunchedEffect
         loadBagFromPicker(id)
 
