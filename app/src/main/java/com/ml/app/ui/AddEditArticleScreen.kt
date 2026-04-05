@@ -221,17 +221,8 @@ onDone?.invoke()
 
     LaunchedEffect(tab) {
         if (tab == 1) {
-            val timelinePhotoByName = repo.loadTimeline(180)
-                .flatMap { it.byBags }
-                .associate { it.bagName to it.imagePath }
-
             bagItems = repo.listBagPickerRows()
                 .distinctBy { it.bagId }
-                .map { row ->
-                    row.copy(
-                        photoPath = row.photoPath ?: timelinePhotoByName[row.bagName]
-                    )
-                }
                 .sortedBy { it.bagName.lowercase() }
         }
     }
