@@ -1941,9 +1941,13 @@ CREATE TABLE IF NOT EXISTS card_color_sku (
           updated_at
         FROM server_card_overrides
         WHERE bag_id=? OR name=?
+           OR replace(replace(lower(COALESCE(bag_id,'')), '.', ''), ' ', '') =
+              replace(replace(lower(?), '.', ''), ' ', '')
+           OR replace(replace(lower(COALESCE(name,'')), '.', ''), ' ', '') =
+              replace(replace(lower(?), '.', ''), ' ', '')
         LIMIT 1
         """.trimIndent(),
-        arrayOf(bagId, bagId)
+        arrayOf(bagId, bagId, bagId, bagId)
       ).use { c ->
         if (!c.moveToFirst()) return@withContext null
 
