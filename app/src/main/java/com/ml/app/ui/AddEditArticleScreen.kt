@@ -6,8 +6,6 @@ import java.net.URL
 import org.json.JSONArray
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
-import java.net.URL
-import java.net.HttpURLConnection
 import com.ml.app.data.session.PrefsSessionStorage
 import com.ml.app.BuildConfig
 import android.content.Context
