@@ -1938,12 +1938,13 @@ CREATE TABLE IF NOT EXISTS card_color_sku (
           photo_path,
           colors_json,
           color_prices_json,
+          sku_links_json,
           updated_at
         FROM server_card_overrides
-        WHERE bag_id=?
+        WHERE bag_id=? OR name=?
         LIMIT 1
         """.trimIndent(),
-        arrayOf(bagId)
+        arrayOf(bagId, bagId)
       ).use { c ->
         if (!c.moveToFirst()) return@withContext null
 
