@@ -628,14 +628,15 @@ class SQLiteRepo(private val context: Context) {
         """
         SELECT
           s.bag_id AS bag_id,
-          COALESCE(NULLIF(u.name,''), s.bag_id) AS bag_name,
-          u.photo_path AS photo_path
+          COALESCE(NULLIF(u.name,''), NULLIF(b.bag_name,''), s.bag_id) AS bag_name,
+          COALESCE(NULLIF(u.photo_path,''), NULLIF(b.image_path,''), NULLIF(b.photo_path,'')) AS photo_path
         FROM (
           SELECT DISTINCT bag_id
           FROM svodka
           WHERE bag_id IS NOT NULL AND bag_id != ''
         ) s
         LEFT JOIN bag_user u ON u.bag_id = s.bag_id
+        LEFT JOIN bags b ON b.bag_id = s.bag_id
         ORDER BY bag_name COLLATE NOCASE
         """.trimIndent(),
         null
