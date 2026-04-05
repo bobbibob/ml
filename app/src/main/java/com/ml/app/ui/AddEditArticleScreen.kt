@@ -240,6 +240,11 @@ onDone?.invoke()
 
     LaunchedEffect(selectedBagId, overridesRefreshTick) {
         val id = selectedBagId ?: return@LaunchedEffect
+
+        kotlin.runCatching {
+            CardOverridesSync.refresh(ctx)
+        }
+
         loadBagFromPicker(id)
 
         val row = kotlin.runCatching { repo.getBagUser(id) }.getOrNull()
