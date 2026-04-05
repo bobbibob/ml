@@ -680,26 +680,28 @@ fun MlAuthScreen(
                                 }
 
                                 kotlin.runCatching {
-                                    val summaryJson = JSONObject(summaryBodyText)
-                                    val summaryDate = summaryJson.optString("summary_date").ifBlank {
-                                        java.time.LocalDate.now().toString()
-                                    }
-
-                                    val localSession = PrefsSessionStorage(context)
-                                    val api = ApiModule.createApi(
-                                        baseUrl = "https://ml-tasks-api.bboobb666.workers.dev/",
-                                        sessionStorage = localSession
-                                    )
-                                    val syncRepo = DailySummarySyncRepository(api, context)
-                                    val localRepo = SQLiteRepo(context)
-
-                                    when (val byDate = syncRepo.getDailySummaryByDate(summaryDate)) {
-                                        is com.ml.app.core.result.AppResult.Success -> {
-                                            localRepo.applyRemoteDailySummary(summaryDate, byDate.data)
-                                            statusText = "Синхронизация ML завершена: ${filteredOrders.length()} заказов. local summary applied date=$summaryDate entries=${byDate.data.size}"
+                                    kotlinx.coroutines.runBlocking {
+                                        val summaryJson = JSONObject(summaryBodyText)
+                                        val summaryDate = summaryJson.optString("summary_date").ifBlank {
+                                            java.time.LocalDate.now().toString()
                                         }
-                                        is com.ml.app.core.result.AppResult.Error -> {
-                                            statusText = "Синхронизация ML завершена, но local summary sync error: ${byDate.message}"
+
+                                        val localSession = PrefsSessionStorage(context)
+                                        val api = ApiModule.createApi(
+                                            baseUrl = "https://ml-tasks-api.bboobb666.workers.dev/",
+                                            sessionStorage = localSession
+                                        )
+                                        val syncRepo = DailySummarySyncRepository(api, context)
+                                        val localRepo = SQLiteRepo(context)
+
+                                        when (val byDate = syncRepo.getDailySummaryByDate(summaryDate)) {
+                                            is com.ml.app.core.result.AppResult.Success -> {
+                                                localRepo.applyRemoteDailySummary(summaryDate, byDate.data)
+                                                statusText = "Синхронизация ML завершена: ${filteredOrders.length()} заказов. local summary applied date=$summaryDate entries=${byDate.data.size}"
+                                            }
+                                            is com.ml.app.core.result.AppResult.Error -> {
+                                                statusText = "Синхронизация ML завершена, но local summary sync error: ${byDate.message}"
+                                            }
                                         }
                                     }
                                 }.onFailure {
