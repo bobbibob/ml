@@ -327,10 +327,19 @@ onDone?.invoke()
                 val skuByColor = serverOverride.skuLinks.associateBy { it.color }
 
                 if (articleBase.isBlank()) {
-                    val firstSku = serverOverride.skuLinks.firstOrNull()?.sku.orEmpty()
-                    val dash = firstSku.lastIndexOf("-")
-                    if (dash > 0) {
-                        articleBase = firstSku.substring(0, dash)
+                    val firstArticleId = serverOverride.skuLinks
+                        .firstOrNull { !it.articleId.isNullOrBlank() }
+                        ?.articleId
+                        .orEmpty()
+
+                    if (firstArticleId.isNotBlank()) {
+                        articleBase = firstArticleId
+                    } else {
+                        val firstSku = serverOverride.skuLinks.firstOrNull()?.sku.orEmpty()
+                        val cut = maxOf(firstSku.lastIndexOf("-"), firstSku.lastIndexOf("/"))
+                        if (cut > 0) {
+                            articleBase = firstSku.substring(0, cut)
+                        }
                     }
                 }
 
@@ -339,9 +348,9 @@ onDone?.invoke()
                     val serverSku = skuByColor[item.color]?.sku.orEmpty()
                     if (serverSku.isBlank()) continue
 
-                    val dash = serverSku.lastIndexOf("-")
-                    if (dash > 0 && dash < serverSku.lastIndex) {
-                        val suffix = serverSku.substring(dash + 1)
+                    val cut = maxOf(serverSku.lastIndexOf("-"), serverSku.lastIndexOf("/"))
+                    if (cut > 0 && cut < serverSku.lastIndex) {
+                        val suffix = serverSku.substring(cut + 1)
                         colorDrafts[i] = item.copy(skuText = suffix)
                     }
                 }
