@@ -628,7 +628,7 @@ class SQLiteRepo(private val context: Context) {
         """
         SELECT
           s.bag_id AS bag_id,
-          COALESCE(NULLIF(u.name,''), s.bag_id) AS bag_name,
+          COALESCE(NULLIF(u.name,''), b.bag_name, s.bag_id) AS bag_name,
           u.photo_path AS photo_path
         FROM (
           SELECT DISTINCT bag_id

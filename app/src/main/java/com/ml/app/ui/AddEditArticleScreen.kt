@@ -6,6 +6,8 @@ import java.net.URL
 import org.json.JSONArray
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
+import java.net.URL
+import java.net.HttpURLConnection
 import com.ml.app.data.session.PrefsSessionStorage
 import com.ml.app.BuildConfig
 import android.content.Context
@@ -142,6 +144,7 @@ fun AddEditArticleScreen(
     var priceAll by remember { mutableStateOf("") }
     var articleBase by remember { mutableStateOf("") }
     var serverDebug by remember { mutableStateOf("") }
+    var remoteDebug by remember { mutableStateOf("") }
     var cardType by remember { mutableStateOf("classic") }
     var newColor by remember { mutableStateOf("") }
 
@@ -217,21 +220,67 @@ onDone?.invoke()
         kotlin.runCatching {
             CardOverridesSync.refresh(ctx)
         }
+
+        kotlin.runCatching {
+            val baseUrl = BuildConfig.TASKS_API_BASE_URL
+            val token = PrefsSessionStorage(ctx).getToken().orEmpty()
+            if (baseUrl.isNotBlank() && token.isNotBlank()) {
+                val conn = (URL(baseUrl + "card_overrides").openConnection() as HttpURLConnection).apply {
+                    requestMethod = "GET"
+                    connectTimeout = 15000
+                    readTimeout = 15000
+                    setRequestProperty("Accept", "application/json")
+                    setRequestProperty("Authorization", "Bearer $token")
+                }
+
+                try {
+                    val body = conn.inputStream.bufferedReader().use { it.readText() }
+                    val root = JSONObject(body)
+                    val items = root.optJSONArray("items")
+                    if (items != null) {
+                        val out = StringBuilder()
+                        var found = 0
+                        for (i in 0 until items.length()) {
+                            val o = items.optJSONObject(i) ?: continue
+                            val bagId = o.optString("bag_id").trim()
+                            val name = o.optString("name").trim()
+                            val skuLinks = o.optString("sku_links_json").trim()
+                            if (
+                                bagId.equals(selectedBagId.orEmpty(), ignoreCase = true) ||
+                                bagId.equals(name, ignoreCase = true) ||
+                                name.equals(selectedBagId.orEmpty(), ignoreCase = true)
+                            ) {
+                                found += 1
+                                out.append("REMOTE bag_id=").append(bagId)
+                                out.append(" name=").append(name)
+                                out.append(" sku_links=").append(skuLinks.take(250))
+                                out.append("\n")
+                            }
+                        }
+                        remoteDebug = if (found == 0) "REMOTE no match for selectedBagId=" + (selectedBagId ?: "null") else out.toString()
+                    }
+                } finally {
+                    conn.disconnect()
+                }
+            }
+        }.onFailure {
+            remoteDebug = "REMOTE error: " + (it.message ?: it.javaClass.simpleName)
+        }
     }
+
     LaunchedEffect(tab) {
         if (tab == 1) {
-            val timelinePhotoByName = repo.loadTimeline(180)
+            bagItems = repo.loadTimeline(180)
                 .flatMap { it.byBags }
-                .associate { it.bagName to it.imagePath }
-
-            bagItems = repo.listBagPickerRows()
                 .distinctBy { it.bagId }
-                .map { row ->
-                    row.copy(
-                        photoPath = row.photoPath ?: timelinePhotoByName[row.bagName]
+                .sortedBy { it.bagName.lowercase() }
+                .map {
+                    BagPickerRow(
+                        bagId = it.bagId,
+                        bagName = it.bagName,
+                        photoPath = it.imagePath
                     )
                 }
-                .sortedBy { it.bagName.lowercase() }
         }
     }
 
@@ -664,6 +713,13 @@ onDone?.invoke()
                 if (serverDebug.isNotBlank()) {
                     Text(
                         text = serverDebug.take(800),
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                }
+                if (remoteDebug.isNotBlank()) {
+                    Text(
+                        text = remoteDebug.take(1200),
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
