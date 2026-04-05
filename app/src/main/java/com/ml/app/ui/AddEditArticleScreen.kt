@@ -227,7 +227,7 @@ onDone?.invoke()
         }
     }
 
-    LaunchedEffect(selectedBagId) {
+    LaunchedEffect(selectedBagId) {    LaunchedEffect(selectedBagId) {
         val id = selectedBagId ?: return@LaunchedEffect
         loadBagFromPicker(id)
 
