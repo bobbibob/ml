@@ -257,20 +257,24 @@ onDone?.invoke()
             if (!row.photoPath.isNullOrBlank()) photoPath = row.photoPath
         }
 
+        val localColors = kotlin.runCatching { repo.getBagUserColors(id) }.getOrDefault(emptyList())
+
         val seed = kotlin.runCatching { repo.getBagEditorSeed(id) }.getOrNull()
         if (seed != null) {
             if (name.isBlank()) name = seed.bagName
             if (hypothesis.isBlank()) hypothesis = seed.hypothesis.orEmpty()
             if (priceAll.isBlank()) priceAll = seed.price?.toString().orEmpty()
             if (cost.isBlank()) cost = seed.cogs?.toString().orEmpty()
-
-            colorDrafts.clear()
-            colorDrafts.addAll(
-                seed.colors.distinct().map { color ->
-                    ColorDraft(color = color, priceText = "")
-                }
-            )
         }
+
+        val baseColors = if (localColors.isNotEmpty()) localColors.distinct() else seed?.colors?.distinct().orEmpty()
+
+        colorDrafts.clear()
+        colorDrafts.addAll(
+            baseColors.map { color ->
+                ColorDraft(color = color, priceText = "")
+            }
+        )
 
         val savedPrices = kotlin.runCatching { repo.getBagColorPrices(id) }.getOrDefault(emptyList())
         priceForAllEnabled = savedPrices.none { it.price != null }
