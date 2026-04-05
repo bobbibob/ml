@@ -911,15 +911,35 @@ function mlPickCardByArticle(article: unknown, cards: Array<any>) {
   return null
 }
 
-function mlPickColor(rawColor: unknown, card: any): string | null {
+function mlPickColor(article: unknown, rawColor: unknown, card: any): string | null {
   const original = String(rawColor || "").trim()
   if (!original) return null
 
   const want = mlNorm(original)
-  const colors = mlJsonArray(card?.colors_json)
+  const articleNorm = mlNorm(article)
 
+  const skuLinks = mlJsonObject(card?.sku_links_json)
+  if (Array.isArray(skuLinks)) {
+    for (const row of skuLinks) {
+      const rowArticle = mlNorm(row?.article_id)
+      const rowSku = String(row?.sku || "").trim()
+      const rowColor = String(row?.color || "").trim()
+
+      const m = rowSku.match(/^(.*?)[\/-](\d{1,3})$/)
+      const rowBase = m ? mlNorm(m[1]) : ""
+      const rowColorNo = m ? String(parseInt(m[2], 10)) : ""
+
+      if (articleNorm && (rowArticle === articleNorm || rowBase === articleNorm)) {
+        if (rowColorNo && rowColorNo === String(parseInt(original, 10))) {
+          return rowColor || original
+        }
+      }
+    }
+  }
+
+  const colors = mlJsonArray(card?.colors_json)
   for (const c of colors) {
-    if (mlNorm(c) == want) return c
+    if (mlNorm(c) === want) return c
   }
 
   return original
@@ -1080,7 +1100,7 @@ try {
               rawColorNo ||
               String(raw?.color || "").trim()
 
-            const color = mlPickColor(rawColor, card)
+            const color = mlPickColor(article, rawColor, card)
 
             if (!color) {
               unmatched.push({
