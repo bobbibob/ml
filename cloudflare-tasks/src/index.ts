@@ -916,12 +916,11 @@ function mlPickColor(article: unknown, rawColor: unknown, card: any, rawSku?: un
   const want = mlNorm(original)
   const articleNorm = mlNorm(article)
   const skuNorm = mlNorm(rawSku)
-
   const numericRaw = /^\d+$/.test(original) ? String(parseInt(original, 10)) : ""
 
   const skuLinks = mlJsonObject(card?.sku_links_json)
   if (Array.isArray(skuLinks)) {
-    // 1. Самый точный матч — по полному SKU
+    // 1. Самый точный матч: полный SKU заказа
     for (const row of skuLinks) {
       const rowSku = String(row?.sku || "").trim()
       const rowSkuNorm = mlNorm(rowSku)
@@ -931,7 +930,7 @@ function mlPickColor(article: unknown, rawColor: unknown, card: any, rawSku?: un
       }
     }
 
-    // 2. Если пришёл номер цвета — ищем его ВНУТРИ УЖЕ НАЙДЕННОЙ КАРТОЧКИ
+    // 2. Если пришёл номер цвета — ищем по suffix внутри sku_links_json
     if (numericRaw) {
       for (const row of skuLinks) {
         const rowSku = String(row?.sku || "").trim()
@@ -944,7 +943,7 @@ function mlPickColor(article: unknown, rawColor: unknown, card: any, rawSku?: un
       }
     }
 
-    // 3. По article/base + текстовому цвету
+    // 3. По article/base + текстовому названию цвета
     for (const row of skuLinks) {
       const rowArticle = mlNorm(row?.article_id)
       const rowSku = String(row?.sku || "").trim()
@@ -956,7 +955,7 @@ function mlPickColor(article: unknown, rawColor: unknown, card: any, rawSku?: un
 
       if (articleNorm && (rowArticle === articleNorm || rowBase === articleNorm)) {
         if (want && rowColorNorm === want) {
-          return rowColor || null
+          return rowColor
         }
       }
     }
@@ -968,7 +967,7 @@ function mlPickColor(article: unknown, rawColor: unknown, card: any, rawSku?: un
     if (mlNorm(c) === want) return c
   }
 
-  // 5. Если пришёл номер и не нашли маппинг — лучше вернуть null, а не номер
+  // 5. Если пришёл номер и не нашли маппинг — не возвращаем цифру как цвет
   if (numericRaw) return null
 
   return original || null
