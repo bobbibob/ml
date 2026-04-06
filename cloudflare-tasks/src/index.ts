@@ -152,7 +152,7 @@ function normalizeSkuLinks(
 
     result.push({
       color,
-      sku: `-`,
+      sku,
       article_id: articleId,
     })
   }
