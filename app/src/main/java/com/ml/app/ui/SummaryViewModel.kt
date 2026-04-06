@@ -180,7 +180,9 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     kotlin.runCatching {
-      Unit
+      PackDbSync.refreshMergedDb(ctx)
+    }.getOrElse {
+      throw IllegalStateException("refreshMergedDb failed: ${it.message}")
     }
 
     _state.value = _state.value.copy(
