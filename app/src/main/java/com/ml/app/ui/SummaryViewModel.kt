@@ -227,19 +227,9 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
     syncFcmTokenIfLoggedIn()
     viewModelScope.launch(Dispatchers.IO) {
         try {
-            val hasHealthyLocal = isLocalPackHealthy()
-            _state.value = _state.value.copy(hasPack = hasHealthyLocal)
-
-            if (hasHealthyLocal) {
-                kotlin.runCatching { Unit }
-                _state.value = _state.value.copy(status = "Открываем локальную базу…")
-                refreshTimeline()
-                return@launch
-            }
-
             clearLocalPack()
+            _state.value = _state.value.copy(hasPack = false)
 
-            clearLocalPack()
             val bundledOk = installBundledPackIfPresent()
             if (bundledOk) {
                 refreshTimeline()
