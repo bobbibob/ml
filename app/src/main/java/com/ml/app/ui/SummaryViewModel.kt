@@ -164,7 +164,7 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
 
     _state.value = _state.value.copy(
       loading = true,
-      status = "Installing bundled base…"
+      status = "Installing bundled base v6…"
     )
 
     val bytes = ctx.resources.openRawResource(resId).use { it.readBytes() }
