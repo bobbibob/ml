@@ -549,11 +549,20 @@ fun MlAuthScreen(
                             seen.add(externalId);
                           }
 
+                          const nextLink =
+                            document.querySelector('a[rel="next"]') ||
+                            document.querySelector('li.andes-pagination__button--next a') ||
+                            document.querySelector('a.andes-pagination__link[title*="Seguinte"]') ||
+                            document.querySelector('a.andes-pagination__link[aria-label*="Seguinte"]');
+
+                          const nextPageUrl = nextLink ? (nextLink.href || nextLink.getAttribute("href") || "") : "";
+
                           return JSON.stringify({
                             url: location.href,
                             title: document.title,
                             count: orders.length,
-                            orders: orders.slice(0, 100)
+                            next_page_url: nextPageUrl,
+                            orders: orders
                           });
                         })();
                     """.trimIndent()
@@ -659,32 +668,49 @@ fun MlAuthScreen(
 
                                 val filteredOrders = JSONArray()
                                 var skippedBySummaryDate = 0
+                                var skippedByTime = 0
 
                                 for (i in 0 until orders.length()) {
                                     val obj = orders.optJSONObject(i) ?: continue
-                                    val orderDate =
-                                        obj.optString("order_datetime_sort").trim().takeIf { it.length >= 10 }?.substring(0, 10)
-                                            ?: obj.optString("date_created").trim().takeIf { it.length >= 10 }?.substring(0, 10)
 
-                                    val keep =
-                                        orderDate == null ||
-                                        orderDate == todayDate ||
-                                        stopDateExclusiveToday == null ||
-                                        orderDate > stopDateExclusiveToday!!
+                                    val orderDateTime =
+                                        obj.optString("order_datetime_sort").trim().takeIf { it.isNotBlank() }
+                                            ?: obj.optString("date_created").trim().takeIf { it.isNotBlank() }
+
+                                    val orderDate =
+                                        orderDateTime?.takeIf { it.length >= 10 }?.substring(0, 10)
+
+                                    val keep = when {
+                                        orderDate == null -> true
+                                        orderDate == todayDate -> {
+                                            if (lastSynced.isNullOrBlank()) {
+                                                true
+                                            } else {
+                                                val normalizedOrder = orderDateTime ?: ""
+                                                normalizedOrder.isBlank() || normalizedOrder > lastSynced
+                                            }
+                                        }
+                                        stopDateExclusiveToday == null -> true
+                                        else -> orderDate > stopDateExclusiveToday
+                                    }
 
                                     if (keep) {
                                         filteredOrders.put(obj)
                                     } else {
-                                        skippedBySummaryDate += 1
+                                        if (orderDate == todayDate && !lastSynced.isNullOrBlank()) {
+                                            skippedByTime += 1
+                                        } else {
+                                            skippedBySummaryDate += 1
+                                        }
                                     }
                                 }
 
                                 if (filteredOrders.length() == 0) {
-                                    statusText = "Новых заказов нет. orders=${orders.length()} skipped=$skippedBySummaryDate minAllowed=$minAllowed lastSynced=${lastSynced ?: "null"} stopDate=${stopDateExclusiveToday ?: "null"}"
+                                    statusText = "Новых заказов нет. orders=${orders.length()} skippedDate=$skippedBySummaryDate skippedTime=$skippedByTime minAllowed=$minAllowed lastSynced=${lastSynced ?: "null"} stopDate=${stopDateExclusiveToday ?: "null"}"
                                     return@Thread
                                 }
 
-                                statusText = "Отправляем ${filteredOrders.length()} заказов. skipped=$skippedBySummaryDate minAllowed=$minAllowed lastSynced=${lastSynced ?: "null"} stopDate=${stopDateExclusiveToday ?: "null"}"
+                                statusText = "Отправляем ${filteredOrders.length()} заказов. skippedDate=$skippedBySummaryDate skippedTime=$skippedByTime minAllowed=$minAllowed lastSynced=${lastSynced ?: "null"} stopDate=${stopDateExclusiveToday ?: "null"}"
 
                                 val upsertBody = JSONObject().apply {
                                     put("orders", filteredOrders)
