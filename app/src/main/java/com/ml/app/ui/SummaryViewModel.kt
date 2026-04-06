@@ -196,7 +196,7 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
   }
 
 
-  private suspend fun downloadAndInstallPack(statusText: String) {
+  private suspend fun /*remote_disabled*/downloadAndInstallPack(statusText: String) {
     _state.value = _state.value.copy(loading = true, status = statusText)
 
     val packDir = PackPaths.packDir(ctx)
@@ -239,6 +239,7 @@ class SummaryViewModel(app: Application) : AndroidViewModel(app) {
 
             clearLocalPack()
 
+            clearLocalPack()
             val bundledOk = installBundledPackIfPresent()
             if (bundledOk) {
                 refreshTimeline()
