@@ -66,7 +66,7 @@ class SQLiteRepo(private val context: Context) {
                  SUM(COALESCE(s.rk_spend,0) + COALESCE(s.ig_spend,0)) AS spend,
                  MAX(s.price) AS price,
                  MAX(COALESCE(s.cogs,0)) AS cogs
-          FROM svodka s
+          FROM bag_stock_override s
                     WHERE s.date IS NOT NULL AND s.date != ''
             AND s.bag_id IS NOT NULL AND s.bag_id != ''
             ${totalColorWhere()}
@@ -957,20 +957,18 @@ CREATE TABLE IF NOT EXISTS card_color_sku (
       db.rawQuery(
         """
         SELECT s1.bag_id, s1.color, s1.stock
-        FROM svodka s1
+        FROM bag_stock_override s1
         JOIN (
-          SELECT bag_id, color, MAX(date) AS max_date
+          SELECT bag_id, color, MAX(effective_date) AS max_date
           FROM svodka
-          WHERE date <= ?
+          WHERE effective_date <= ?
             AND bag_id IS NOT NULL AND bag_id != ''
             AND color IS NOT NULL AND color != ''
-            AND color NOT IN ('__TOTAL__','TOTAL')
-            AND stock IS NOT NULL
-          GROUP BY bag_id, color
+                      GROUP BY bag_id, color
         ) x
           ON x.bag_id = s1.bag_id
          AND x.color = s1.color
-         AND x.max_date = s1.date
+         AND x.max_date = s1.effective_date
         ORDER BY s1.bag_id, s1.color
         """.trimIndent(),
         arrayOf(date)
