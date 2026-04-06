@@ -960,7 +960,7 @@ CREATE TABLE IF NOT EXISTS card_color_sku (
         FROM bag_stock_override s1
         JOIN (
           SELECT bag_id, color, MAX(effective_date) AS max_date
-          FROM svodka
+          FROM bag_stock_override
           WHERE effective_date <= ?
             AND bag_id IS NOT NULL AND bag_id != ''
             AND color IS NOT NULL AND color != ''
