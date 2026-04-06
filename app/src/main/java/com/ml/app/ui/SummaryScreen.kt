@@ -637,8 +637,13 @@ private fun TimelineList(
     verticalArrangement = Arrangement.spacedBy(12.dp)
   ) {
     items(items) { day ->
-      val daySpend = day.byBags.sumOf { it.spend }
-      val dayNet = day.byBags.sumOf { b ->
+      val visibleBags = day.byBags.filter { bag ->
+        kotlin.runCatching { bag.orders.toDouble() > 0.0 }.getOrDefault(false)
+      }
+      if (visibleBags.isEmpty()) return@items
+
+      val daySpend = visibleBags.sumOf { it.spend }
+      val dayNet = visibleBags.sumOf { b ->
         val price = b.price ?: 0.0
         ProfitCalc.netProfit(b.orders.toDouble(), price, b.spend, b.cogs, null)
       }
@@ -707,7 +712,7 @@ private fun TimelineList(
 
           Spacer(Modifier.height(10.dp))
 
-          day.byBags.take(10).forEach { b ->
+          visibleBags.take(10).forEach { b ->
             val price = b.price ?: 0.0
             val net = ProfitCalc.netProfit(b.orders.toDouble(), price, b.spend, b.cogs, null)
 
