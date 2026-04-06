@@ -913,40 +913,50 @@ function mlPickCardByArticle(article: unknown, cards: Array<any>) {
 
 function mlPickColor(article: unknown, rawColor: unknown, card: any, rawSku?: unknown): string | null {
   const original = String(rawColor || "").trim()
-  if (!original && !rawSku) return null
-
   const want = mlNorm(original)
   const articleNorm = mlNorm(article)
   const skuNorm = mlNorm(rawSku)
 
+  const numericRaw = /^\d+$/.test(original) ? String(parseInt(original, 10)) : ""
+
   const skuLinks = mlJsonObject(card?.sku_links_json)
   if (Array.isArray(skuLinks)) {
+    // 1. Самый точный матч — по полному SKU
+    for (const row of skuLinks) {
+      const rowSku = String(row?.sku || "").trim()
+      const rowSkuNorm = mlNorm(rowSku)
+      const rowColor = String(row?.color || "").trim()
+      if (skuNorm && rowSkuNorm === skuNorm && rowColor) {
+        return rowColor
+      }
+    }
+
+    // 2. Если пришёл номер цвета — ищем его ВНУТРИ УЖЕ НАЙДЕННОЙ КАРТОЧКИ
+    if (numericRaw) {
+      for (const row of skuLinks) {
+        const rowSku = String(row?.sku || "").trim()
+        const rowColor = String(row?.color || "").trim()
+        const m = rowSku.match(/^(.*?)[\/-](\d{1,3})$/)
+        const rowColorNo = m ? String(parseInt(m[2], 10)) : ""
+        if (rowColorNo && rowColorNo === numericRaw && rowColor) {
+          return rowColor
+        }
+      }
+    }
+
+    // 3. По article/base + текстовому цвету
     for (const row of skuLinks) {
       const rowArticle = mlNorm(row?.article_id)
       const rowSku = String(row?.sku || "").trim()
-      const rowSkuNorm = mlNorm(rowSku)
       const rowColor = String(row?.color || "").trim()
       const rowColorNorm = mlNorm(rowColor)
 
       const m = rowSku.match(/^(.*?)[\/-](\d{1,3})$/)
       const rowBase = m ? mlNorm(m[1]) : ""
-      const rowColorNo = m ? String(parseInt(m[2], 10)) : ""
 
-      // 1. Самый точный вариант: полный sku
-      if (skuNorm && rowSkuNorm === skuNorm) {
-        return rowColor || null
-      }
-
-      // 2. По article/base + номеру цвета
       if (articleNorm && (rowArticle === articleNorm || rowBase === articleNorm)) {
-        const numericRaw = /^\d+$/.test(original) ? String(parseInt(original, 10)) : ""
-        if (numericRaw && rowColorNo === numericRaw) {
-          return rowColor || original
-        }
-
-        // 3. По текстовому совпадению цвета
         if (want && rowColorNorm === want) {
-          return rowColor
+          return rowColor || null
         }
       }
     }
@@ -957,6 +967,9 @@ function mlPickColor(article: unknown, rawColor: unknown, card: any, rawSku?: un
   for (const c of colors) {
     if (mlNorm(c) === want) return c
   }
+
+  // 5. Если пришёл номер и не нашли маппинг — лучше вернуть null, а не номер
+  if (numericRaw) return null
 
   return original || null
 }
