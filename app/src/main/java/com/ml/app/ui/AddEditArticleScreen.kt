@@ -922,6 +922,21 @@ enabled = articleBase.trim().isNotBlank(),
                                                 }
                                             }
 
+                                            repo.upsertServerCardOverride(
+                                                bagId = id,
+                                                name = name.ifBlank { null },
+                                                hypothesis = hypothesis.ifBlank { null },
+                                                price = priceAll.replace(",", ".").toDoubleOrNull(),
+                                                cogs = cost.replace(",", ".").toDoubleOrNull(),
+                                                deliveryFee = deliveryFee.replace(",", ".").toDoubleOrNull(),
+                                                cardType = cardType,
+                                                photoPath = photoPath,
+                                                colorsJson = colorsJson.toString(),
+                                                colorPricesJson = colorPricesJson.toString(),
+                                                skuLinksJson = skuLinksJson.toString(),
+                                                updatedAt = java.time.Instant.now().toString()
+                                            )
+
                                             val payload = JSONObject().apply {
                                                 put("bag_id", id)
                                                 put("name", name.ifBlank { null })
