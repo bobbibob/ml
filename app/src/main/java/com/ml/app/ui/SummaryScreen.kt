@@ -864,7 +864,7 @@ private fun DetailsList(
 
           if (r.stockByColors.isNotEmpty()) {
             Spacer(Modifier.height(10.dp))
-            Text("Остаток по цветам", fontWeight = FontWeight.SemiBold, color = TextBlack)
+            Text("Остатки", fontWeight = FontWeight.SemiBold, color = TextBlack)
             Spacer(Modifier.height(6.dp))
             r.stockByColors.take(12).forEach { cv ->
               Row(Modifier.fillMaxWidth()) {
