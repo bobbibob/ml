@@ -680,6 +680,8 @@ fun MlAuthScreen(
                                     val orderDate =
                                         orderDateTime?.takeIf { it.length >= 10 }?.substring(0, 10)
 
+                                    val stopDate = stopDateExclusiveToday
+
                                     val keep = when {
                                         orderDate == null -> true
                                         orderDate == todayDate -> {
@@ -690,8 +692,8 @@ fun MlAuthScreen(
                                                 normalizedOrder.isBlank() || normalizedOrder > lastSynced
                                             }
                                         }
-                                        stopDateExclusiveToday == null -> true
-                                        else -> orderDate > stopDateExclusiveToday
+                                        stopDate == null -> true
+                                        else -> orderDate > stopDate
                                     }
 
                                     if (keep) {
