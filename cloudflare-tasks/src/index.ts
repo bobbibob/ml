@@ -911,38 +911,54 @@ function mlPickCardByArticle(article: unknown, cards: Array<any>) {
   return null
 }
 
-function mlPickColor(article: unknown, rawColor: unknown, card: any): string | null {
+function mlPickColor(article: unknown, rawColor: unknown, card: any, rawSku?: unknown): string | null {
   const original = String(rawColor || "").trim()
-  if (!original) return null
+  if (!original && !rawSku) return null
 
   const want = mlNorm(original)
   const articleNorm = mlNorm(article)
+  const skuNorm = mlNorm(rawSku)
 
   const skuLinks = mlJsonObject(card?.sku_links_json)
   if (Array.isArray(skuLinks)) {
     for (const row of skuLinks) {
       const rowArticle = mlNorm(row?.article_id)
       const rowSku = String(row?.sku || "").trim()
+      const rowSkuNorm = mlNorm(rowSku)
       const rowColor = String(row?.color || "").trim()
+      const rowColorNorm = mlNorm(rowColor)
 
       const m = rowSku.match(/^(.*?)[\/-](\d{1,3})$/)
       const rowBase = m ? mlNorm(m[1]) : ""
       const rowColorNo = m ? String(parseInt(m[2], 10)) : ""
 
+      // 1. Самый точный вариант: полный sku
+      if (skuNorm && rowSkuNorm === skuNorm) {
+        return rowColor || null
+      }
+
+      // 2. По article/base + номеру цвета
       if (articleNorm && (rowArticle === articleNorm || rowBase === articleNorm)) {
-        if (rowColorNo && rowColorNo === String(parseInt(original, 10))) {
+        const numericRaw = /^\d+$/.test(original) ? String(parseInt(original, 10)) : ""
+        if (numericRaw && rowColorNo === numericRaw) {
           return rowColor || original
+        }
+
+        // 3. По текстовому совпадению цвета
+        if (want && rowColorNorm === want) {
+          return rowColor
         }
       }
     }
   }
 
+  // 4. Fallback по colors_json
   const colors = mlJsonArray(card?.colors_json)
   for (const c of colors) {
     if (mlNorm(c) === want) return c
   }
 
-  return original
+  return original || null
 }
 
 export default {
@@ -1100,7 +1116,7 @@ try {
               rawColorNo ||
               String(raw?.color || "").trim()
 
-            const color = mlPickColor(article, rawColor, card)
+            const color = mlPickColor(article, rawColor, card, row?.sku ?? row?.vendor_code ?? row?.article)
 
             if (!color) {
               unmatched.push({
