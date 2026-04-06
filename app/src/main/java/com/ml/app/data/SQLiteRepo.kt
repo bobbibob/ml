@@ -954,7 +954,18 @@ CREATE TABLE IF NOT EXISTS card_color_sku (
 
       val base = LinkedHashMap<Pair<String, String>, Double>()
 
-      db.rawQuery(
+      val hasBeforeOrEqual = db.rawQuery(
+        """
+        SELECT COUNT(*)
+        FROM bag_stock_override
+        WHERE effective_date <= ?
+        """.trimIndent(),
+        arrayOf(date)
+      ).use { c ->
+        if (c.moveToFirst()) c.getInt(0) > 0 else false
+      }
+
+      val stockSql = if (hasBeforeOrEqual) {
         """
         SELECT s1.bag_id, s1.color, s1.stock
         FROM bag_stock_override s1
@@ -964,14 +975,34 @@ CREATE TABLE IF NOT EXISTS card_color_sku (
           WHERE effective_date <= ?
             AND bag_id IS NOT NULL AND bag_id != ''
             AND color IS NOT NULL AND color != ''
-                      GROUP BY bag_id, color
+          GROUP BY bag_id, color
         ) x
           ON x.bag_id = s1.bag_id
          AND x.color = s1.color
          AND x.max_date = s1.effective_date
         ORDER BY s1.bag_id, s1.color
-        """.trimIndent(),
-        arrayOf(date)
+        """.trimIndent()
+      } else {
+        """
+        SELECT s1.bag_id, s1.color, s1.stock
+        FROM bag_stock_override s1
+        JOIN (
+          SELECT bag_id, color, MAX(effective_date) AS max_date
+          FROM bag_stock_override
+          WHERE bag_id IS NOT NULL AND bag_id != ''
+            AND color IS NOT NULL AND color != ''
+          GROUP BY bag_id, color
+        ) x
+          ON x.bag_id = s1.bag_id
+         AND x.color = s1.color
+         AND x.max_date = s1.effective_date
+        ORDER BY s1.bag_id, s1.color
+        """.trimIndent()
+      }
+
+      db.rawQuery(
+        stockSql,
+        if (hasBeforeOrEqual) arrayOf(date) else emptyArray()
       ).use { c ->
         val iBag = c.getColumnIndexOrThrow("bag_id")
         val iColor = c.getColumnIndexOrThrow("color")
