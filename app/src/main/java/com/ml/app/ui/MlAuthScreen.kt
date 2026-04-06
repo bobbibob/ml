@@ -630,18 +630,61 @@ fun MlAuthScreen(
                                 val minAllowed = syncStateJson.optString("min_allowed_datetime").ifBlank { "2025-08-30T00:00:00" }
                                 val lastSynced = syncStateJson.optString("last_synced_order_datetime").ifBlank { null }
 
+                                val recentDatesReq = Request.Builder()
+                                    .url(BuildConfig.TASKS_API_BASE_URL + "daily_summary_recent_dates")
+                                    .addHeader("Authorization", "Bearer $token")
+                                    .get()
+                                    .build()
+
+                                val todayDate = java.time.LocalDate.now().toString()
+                                var stopDateExclusiveToday: String? = null
+
+                                client.newCall(recentDatesReq).execute().use { resp ->
+                                    val bodyText = resp.body?.string().orEmpty()
+                                    if (resp.isSuccessful) {
+                                        kotlin.runCatching {
+                                            val json = JSONObject(bodyText)
+                                            val items = json.optJSONArray("items") ?: JSONArray()
+                                            for (i in 0 until items.length()) {
+                                                val obj = items.optJSONObject(i) ?: continue
+                                                val d = obj.optString("summary_date").trim()
+                                                if (d.isNotBlank() && d != todayDate) {
+                                                    stopDateExclusiveToday = d
+                                                    break
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
                                 val filteredOrders = JSONArray()
+                                var skippedBySummaryDate = 0
+
                                 for (i in 0 until orders.length()) {
                                     val obj = orders.optJSONObject(i) ?: continue
-                                    filteredOrders.put(obj)
+                                    val orderDate =
+                                        obj.optString("order_datetime_sort").trim().takeIf { it.length >= 10 }?.substring(0, 10)
+                                            ?: obj.optString("date_created").trim().takeIf { it.length >= 10 }?.substring(0, 10)
+
+                                    val keep =
+                                        orderDate == null ||
+                                        orderDate == todayDate ||
+                                        stopDateExclusiveToday == null ||
+                                        orderDate > stopDateExclusiveToday!!
+
+                                    if (keep) {
+                                        filteredOrders.put(obj)
+                                    } else {
+                                        skippedBySummaryDate += 1
+                                    }
                                 }
 
                                 if (filteredOrders.length() == 0) {
-                                    statusText = "Новых заказов нет. orders=${orders.length()} minAllowed=$minAllowed lastSynced=${lastSynced ?: "null"}"
+                                    statusText = "Новых заказов нет. orders=${orders.length()} skipped=$skippedBySummaryDate minAllowed=$minAllowed lastSynced=${lastSynced ?: "null"} stopDate=${stopDateExclusiveToday ?: "null"}"
                                     return@Thread
                                 }
 
-                                statusText = "Отправляем ${filteredOrders.length()} заказов. minAllowed=$minAllowed lastSynced=${lastSynced ?: "null"}"
+                                statusText = "Отправляем ${filteredOrders.length()} заказов. skipped=$skippedBySummaryDate minAllowed=$minAllowed lastSynced=${lastSynced ?: "null"} stopDate=${stopDateExclusiveToday ?: "null"}"
 
                                 val upsertBody = JSONObject().apply {
                                     put("orders", filteredOrders)
