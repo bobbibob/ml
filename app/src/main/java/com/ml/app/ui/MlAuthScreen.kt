@@ -502,67 +502,111 @@ fun MlAuthScreen(
                             };
                           }
 
-                          const cards = Array.from(document.querySelectorAll(".andes-card, li"));
-                          const seen = new Set();
-                          const orders = [];
+                          function nextPageFromRoot(root) {
+                            const nextLink =
+                              root.querySelector('a[rel="next"]') ||
+                              root.querySelector('li.andes-pagination__button--next a') ||
+                              root.querySelector('a.andes-pagination__link[title*="Seguinte"]') ||
+                              root.querySelector('a.andes-pagination__link[aria-label*="Seguinte"]');
 
-                          for (const card of cards) {
-                            const raw = txt(card);
-                            if (!raw) continue;
-                            if (!/#\d{10,}|R\$|\d{1,2}\s+[a-zç]{3}\s+\d{1,2}:\d{2}\s*hs/i.test(raw)) continue;
-
-                            const idMatch =
-                              raw.match(/#(\d{10,})/) ||
-                              raw.match(/\b(\d{10,})\b/);
-
-                            if (!idMatch) continue;
-
-                            const externalId = idMatch[1];
-                            if (seen.has(externalId)) continue;
-
-                            const parts = raw.split("\n").map(x => norm(x)).filter(Boolean);
-                            const dt = dateTimeFrom(raw);
-                            const sku = skuFrom(raw, parts);
-                            const skuParts = articleColorFromSku(sku);
-
-                            if (!sku || !skuParts.article || !skuParts.color_no) continue;
-
-                            orders.push({
-                              external_order_id: externalId,
-                              sku: sku,
-                              article: skuParts.article,
-                              color_no: skuParts.color_no,
-                              title: null,
-                              buyer_name: buyerFrom(parts),
-                              status: statusFrom(raw),
-                              substatus: null,
-                              amount: amountFrom(raw),
-                              currency: "BRL",
-                              date_text: dt.date_text,
-                              time_text: dt.time_text,
-                              order_datetime_sort: dt.order_datetime_sort,
-                              color: skuParts.color_no,
-                              photo_url: firstImg(card),
-                              raw_text: norm(raw).slice(0, 4000)
-                            });
-
-                            seen.add(externalId);
+                            return nextLink ? (nextLink.href || nextLink.getAttribute("href") || "") : "";
                           }
 
-                          const nextLink =
-                            document.querySelector('a[rel="next"]') ||
-                            document.querySelector('li.andes-pagination__button--next a') ||
-                            document.querySelector('a.andes-pagination__link[title*="Seguinte"]') ||
-                            document.querySelector('a.andes-pagination__link[aria-label*="Seguinte"]');
+                          function collectOrdersFromRoot(root, seenIds) {
+                            const cards = Array.from(root.querySelectorAll(".andes-card, li"));
+                            const pageOrders = [];
 
-                          const nextPageUrl = nextLink ? (nextLink.href || nextLink.getAttribute("href") || "") : "";
+                            for (const card of cards) {
+                              const raw = txt(card);
+                              if (!raw) continue;
+                              if (!/#\d{10,}|R\$|\d{1,2}\s+[a-zç]{3}\s+\d{1,2}:\d{2}\s*hs/i.test(raw)) continue;
+
+                              const idMatch =
+                                raw.match(/#(\d{10,})/) ||
+                                raw.match(/\b(\d{10,})\b/);
+
+                              if (!idMatch) continue;
+
+                              const externalId = idMatch[1];
+                              if (seenIds.has(externalId)) continue;
+
+                              const parts = raw.split("\n").map(x => norm(x)).filter(Boolean);
+                              const dt = dateTimeFrom(raw);
+                              const sku = skuFrom(raw, parts);
+                              const skuParts = articleColorFromSku(sku);
+
+                              if (!sku || !skuParts.article || !skuParts.color_no) continue;
+
+                              pageOrders.push({
+                                external_order_id: externalId,
+                                sku: sku,
+                                article: skuParts.article,
+                                color_no: skuParts.color_no,
+                                title: titleFrom(parts),
+                                buyer_name: buyerFrom(parts),
+                                status: statusFrom(raw),
+                                substatus: null,
+                                amount: amountFrom(raw),
+                                currency: "BRL",
+                                date_text: dt.date_text,
+                                time_text: dt.time_text,
+                                order_datetime_sort: dt.order_datetime_sort,
+                                color: skuParts.color_no,
+                                photo_url: firstImg(card),
+                                raw_text: norm(raw).slice(0, 4000)
+                              });
+
+                              seenIds.add(externalId);
+                            }
+
+                            return pageOrders;
+                          }
+
+                          const seen = new Set();
+                          const seenPages = new Set();
+                          const allOrders = [];
+
+                          let currentRoot = document;
+                          let currentPageUrl = location.href;
+                          let lastNextPageUrl = "";
+
+                          for (let pageIndex = 0; pageIndex < 20; pageIndex++) {
+                            const pageKey = currentPageUrl || ("page_" + pageIndex);
+                            if (seenPages.has(pageKey)) break;
+                            seenPages.add(pageKey);
+
+                            const pageOrders = collectOrdersFromRoot(currentRoot, seen);
+                            for (const item of pageOrders) allOrders.push(item);
+
+                            const nextPageUrl = nextPageFromRoot(currentRoot);
+                            lastNextPageUrl = nextPageUrl || "";
+
+                            if (!nextPageUrl || seenPages.has(nextPageUrl)) break;
+
+                            let xhr = null;
+                            try {
+                              xhr = new XMLHttpRequest();
+                              xhr.open("GET", nextPageUrl, false);
+                              xhr.withCredentials = true;
+                              xhr.send();
+                            } catch (e) {
+                              break;
+                            }
+
+                            if (!xhr || xhr.status < 200 || xhr.status >= 300 || !xhr.responseText) {
+                              break;
+                            }
+
+                            currentRoot = new DOMParser().parseFromString(xhr.responseText, "text/html");
+                            currentPageUrl = nextPageUrl;
+                          }
 
                           return JSON.stringify({
                             url: location.href,
                             title: document.title,
-                            count: orders.length,
-                            next_page_url: nextPageUrl,
-                            orders: orders
+                            count: allOrders.length,
+                            next_page_url: lastNextPageUrl,
+                            orders: allOrders
                           });
                         })();
                     """.trimIndent()
