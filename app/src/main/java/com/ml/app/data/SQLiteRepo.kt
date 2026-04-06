@@ -66,8 +66,8 @@ class SQLiteRepo(private val context: Context) {
                  SUM(COALESCE(s.rk_spend,0) + COALESCE(s.ig_spend,0)) AS spend,
                  MAX(s.price) AS price,
                  MAX(COALESCE(s.cogs,0)) AS cogs
-          FROM bag_stock_override s
-                    WHERE s.date IS NOT NULL AND s.date != ''
+          FROM svodka s
+          WHERE s.date IS NOT NULL AND s.date != ''
             AND s.bag_id IS NOT NULL AND s.bag_id != ''
             ${totalColorWhere()}
           GROUP BY s.date, s.bag_id
