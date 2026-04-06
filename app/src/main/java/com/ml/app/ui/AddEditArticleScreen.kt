@@ -148,6 +148,30 @@ fun AddEditArticleScreen(
 
     val colorDrafts = remember { mutableStateListOf<ColorDraft>() }
 
+    fun resolvePackImage(path: String?): String? {
+        val raw = path?.trim().orEmpty()
+        if (raw.isBlank()) return null
+        return if (raw.startsWith("media/")) {
+            kotlin.runCatching {
+                com.ml.app.data.PackPaths.packDir(ctx).resolve(raw).absolutePath
+            }.getOrDefault(raw)
+        } else {
+            raw
+        }
+    }
+
+    fun sanitizeColors(items: List<String>): List<String> {
+        return items
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .filter { text ->
+                text.any { ch -> ch.isLetter() } &&
+                !Regex("""^\d+([.,]\d+)?$""").matches(text) &&
+                !Regex("""^\d+(\s+\d+)+$""").matches(text)
+            }
+            .distinct()
+    }
+
     fun resetForm() {
         name = ""
         hypothesis = ""
@@ -231,7 +255,7 @@ onDone?.invoke()
                 .distinctBy { it.bagId }
                 .map { row ->
                     row.copy(
-                        photoPath = row.photoPath ?: timelinePhotoByName[row.bagName]
+                        photoPath = resolvePackImage(row.photoPath) ?: timelinePhotoByName[row.bagName]
                     )
                 }
                 .sortedBy { it.bagName.lowercase() }
@@ -254,7 +278,7 @@ onDone?.invoke()
             if (row.price != null) priceAll = row.price.toString()
             if (row.cogs != null) cost = row.cogs.toString()
             if (!row.cardType.isNullOrBlank()) cardType = row.cardType
-            if (!row.photoPath.isNullOrBlank()) photoPath = row.photoPath
+            if (!row.photoPath.isNullOrBlank()) photoPath = resolvePackImage(row.photoPath)
         }
 
         val localColors = kotlin.runCatching { repo.getBagUserColors(id) }.getOrDefault(emptyList())
@@ -267,7 +291,9 @@ onDone?.invoke()
             if (cost.isBlank()) cost = seed.cogs?.toString().orEmpty()
         }
 
-        val baseColors = if (localColors.isNotEmpty()) localColors.distinct() else seed?.colors?.distinct().orEmpty()
+        val baseColors = sanitizeColors(
+            if (localColors.isNotEmpty()) localColors.distinct() else seed?.colors?.distinct().orEmpty()
+        )
 
         colorDrafts.clear()
         colorDrafts.addAll(
@@ -327,10 +353,11 @@ onDone?.invoke()
             if (serverOverride.cogs != null) cost = serverOverride.cogs.toString()
             if (serverOverride.deliveryFee != null) deliveryFee = serverOverride.deliveryFee.toString()
             if (!serverOverride.cardType.isNullOrBlank()) cardType = serverOverride.cardType
-            if (!serverOverride.photoPath.isNullOrBlank()) photoPath = serverOverride.photoPath
+            if (!serverOverride.photoPath.isNullOrBlank()) photoPath = resolvePackImage(serverOverride.photoPath)
 
-            val allColors = (serverOverride.colors + serverOverride.skuLinks.map { it.color })
-                .distinct()
+            val allColors = sanitizeColors(
+                serverOverride.colors + serverOverride.skuLinks.map { it.color }
+            )
 
             if (allColors.isNotEmpty()) {
                 val prevByColor = colorDrafts.associateBy { it.color }
