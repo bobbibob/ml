@@ -259,6 +259,17 @@ fun refreshTimeline() {
           status = "Loading summary…"
         )
 
+        val packDb = PackPaths.dbFile(ctx)
+        val mergedDb = PackDbSync.mergedDbFile(ctx)
+        val hasReadableDb =
+          (packDb.exists() && packDb.length() > 0L) ||
+          (mergedDb.exists() && mergedDb.length() > 0L)
+
+        if (!hasReadableDb) {
+          clearLocalPack()
+          installBundledPackIfPresent()
+        }
+
         val debugBefore = buildRuntimeDebugInfo()
         val t = repo.loadTimeline(limitDays = 180)
         val ids = t.flatMap { it.byBags }.map { it.bagId }.distinct()
