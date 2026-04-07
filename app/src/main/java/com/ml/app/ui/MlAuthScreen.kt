@@ -588,60 +588,157 @@ fun MlAuthScreen(
                               if (!idMatch) continue;
 
                               const externalId = idMatch[1];
-                              if (seenIds.has(externalId)) continue;
-
                               const parts = raw.split("\n").map(x => norm(x)).filter(Boolean);
                               const dt = dateTimeFrom(raw);
-                              const sku = skuFrom(raw, parts);
-                              const skuParts = articleColorFromSku(sku);
-
-                              const title = titleFrom(parts);
                               const rawNorm = norm(raw);
 
-                              let article = skuParts.article || "";
-                              let colorNo = skuParts.color_no || "";
+                              const productNodes = Array.from(card.querySelectorAll('div, li, article, section'))
+                                .filter(el => {
+                                  const t = norm(txt(el));
+                                  if (!t) return false;
+                                  if (t === rawNorm) return false;
+                                  if (t.length < 20 || t.length > 700) return false;
+                                  if (!/cor\s*:|sku\s*:|seller\s*sku|acabamentos?:|material/i.test(t)) return false;
+                                  if (/pacote de \d+ produtos/i.test(t)) return false;
+                                  return true;
+                                });
 
-                              if (!article) {
-                                const articleFromTitle =
-                                  (title ? title.match(/\b(\d{1,3}[a-zа-яё]?)[.\-\s]+/i) : null) ||
-                                  rawNorm.match(/\b(\d{1,3}[a-zа-яё]?)\b/i);
-                                if (articleFromTitle) {
-                                  article = norm(articleFromTitle[1]);
-                                }
+                              const uniqueBlocks = [];
+                              const seenBlocks = new Set();
+                              for (const node of productNodes) {
+                                const t = norm(txt(node));
+                                if (!t || seenBlocks.has(t)) continue;
+                                seenBlocks.add(t);
+                                uniqueBlocks.push({ node, text: t });
                               }
 
-                              if (!colorNo) {
-                                const colorFromSku =
-                                  (sku ? sku.match(/[\/-](\d{1,3})\b/) : null) ||
-                                  rawNorm.match(/\b(?:cor|color|цвет)\D{0,6}(\d{1,3})\b/i) ||
-                                  rawNorm.match(/\b(\d{1,3})\b/g);
-                                if (colorFromSku) {
-                                  colorNo = Array.isArray(colorFromSku) ? (colorFromSku[1] || "") : "";
+                              const blocks = uniqueBlocks.length > 0
+                                ? uniqueBlocks
+                                : [{ node: card, text: rawNorm }];
+
+                              let emitted = 0;
+
+                              for (let blockIndex = 0; blockIndex < blocks.length; blockIndex++) {
+                                const block = blocks[blockIndex];
+                                const blockRaw = block.text;
+                                const blockParts = blockRaw.split("\n").map(x => norm(x)).filter(Boolean);
+
+                                const sku =
+                                  skuFrom(blockRaw, blockParts) ||
+                                  skuFrom(raw, parts);
+
+                                const skuParts = articleColorFromSku(sku);
+                                const title =
+                                  titleFrom(blockParts) ||
+                                  titleFrom(parts);
+
+                                let article = skuParts.article || "";
+                                let colorNo = skuParts.color_no || "";
+
+                                if (!article) {
+                                  const articleFromTitle =
+                                    (title ? title.match(/\b(\d{1,3}[a-zа-яё]?)[.\-\s]+/i) : null) ||
+                                    blockRaw.match(/\b(\d{1,3}[a-zа-яё]?)\b/i) ||
+                                    rawNorm.match(/\b(\d{1,3}[a-zа-яё]?)\b/i);
+                                  if (articleFromTitle) {
+                                    article = norm(articleFromTitle[1]);
+                                  }
                                 }
+
+                                if (!colorNo) {
+                                  const colorFromSku =
+                                    (sku ? sku.match(/[\/-](\d{1,3})\b/) : null) ||
+                                    blockRaw.match(/\b(?:cor|color|цвет)\D{0,6}(\d{1,3})\b/i) ||
+                                    rawNorm.match(/\b(?:cor|color|цвет)\D{0,6}(\d{1,3})\b/i) ||
+                                    blockRaw.match(/\b(\d{1,3})\b/g);
+                                  if (colorFromSku) {
+                                    colorNo = Array.isArray(colorFromSku) ? (colorFromSku[1] || "") : "";
+                                  }
+                                }
+
+                                if (!article) continue;
+
+                                const itemExternalId = blocks.length > 1
+                                  ? externalId + "__item_" + (blockIndex + 1)
+                                  : externalId;
+
+                                if (seenIds.has(itemExternalId)) continue;
+
+                                pageOrders.push({
+                                  external_order_id: itemExternalId,
+                                  parent_order_id: externalId,
+                                  sku: sku || article,
+                                  article: article,
+                                  color_no: colorNo,
+                                  title: title,
+                                  buyer_name: buyerFrom(parts),
+                                  status: statusFrom(raw),
+                                  substatus: null,
+                                  amount: amountFrom(raw),
+                                  currency: "BRL",
+                                  date_text: dt.date_text,
+                                  time_text: dt.time_text,
+                                  order_datetime_sort: dt.order_datetime_sort,
+                                  color: colorNo,
+                                  photo_url: firstImg(block.node) || firstImg(card),
+                                  raw_text: blockRaw.slice(0, 4000)
+                                });
+
+                                seenIds.add(itemExternalId);
+                                emitted += 1;
                               }
 
-                              if (!article) continue;
+                              if (emitted == 0 && !seenIds.has(externalId)) {
+                                const sku = skuFrom(raw, parts);
+                                const skuParts = articleColorFromSku(sku);
+                                const title = titleFrom(parts);
 
-                              pageOrders.push({
-                                external_order_id: externalId,
-                                sku: sku || article,
-                                article: article,
-                                color_no: colorNo,
-                                title: title,
-                                buyer_name: buyerFrom(parts),
-                                status: statusFrom(raw),
-                                substatus: null,
-                                amount: amountFrom(raw),
-                                currency: "BRL",
-                                date_text: dt.date_text,
-                                time_text: dt.time_text,
-                                order_datetime_sort: dt.order_datetime_sort,
-                                color: colorNo,
-                                photo_url: firstImg(card),
-                                raw_text: rawNorm.slice(0, 4000)
-                              });
+                                let article = skuParts.article || "";
+                                let colorNo = skuParts.color_no || "";
 
-                              seenIds.add(externalId);
+                                if (!article) {
+                                  const articleFromTitle =
+                                    (title ? title.match(/\b(\d{1,3}[a-zа-яё]?)[.\-\s]+/i) : null) ||
+                                    rawNorm.match(/\b(\d{1,3}[a-zа-яё]?)\b/i);
+                                  if (articleFromTitle) {
+                                    article = norm(articleFromTitle[1]);
+                                  }
+                                }
+
+                                if (!colorNo) {
+                                  const colorFromSku =
+                                    (sku ? sku.match(/[\/-](\d{1,3})\b/) : null) ||
+                                    rawNorm.match(/\b(?:cor|color|цвет)\D{0,6}(\d{1,3})\b/i) ||
+                                    rawNorm.match(/\b(\d{1,3})\b/g);
+                                  if (colorFromSku) {
+                                    colorNo = Array.isArray(colorFromSku) ? (colorFromSku[1] || "") : "";
+                                  }
+                                }
+
+                                if (!article) continue;
+
+                                pageOrders.push({
+                                  external_order_id: externalId,
+                                  parent_order_id: externalId,
+                                  sku: sku || article,
+                                  article: article,
+                                  color_no: colorNo,
+                                  title: title,
+                                  buyer_name: buyerFrom(parts),
+                                  status: statusFrom(raw),
+                                  substatus: null,
+                                  amount: amountFrom(raw),
+                                  currency: "BRL",
+                                  date_text: dt.date_text,
+                                  time_text: dt.time_text,
+                                  order_datetime_sort: dt.order_datetime_sort,
+                                  color: colorNo,
+                                  photo_url: firstImg(card),
+                                  raw_text: rawNorm.slice(0, 4000)
+                                });
+
+                                seenIds.add(externalId);
+                              }
                             }
 
                             return pageOrders;
