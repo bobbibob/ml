@@ -803,6 +803,7 @@ fun MlAuthScreen(
 
                                 kotlin.runCatching {
                                     kotlinx.coroutines.runBlocking {
+                                        statusText = "SUMMARY BODY RAW: " + summaryBodyText.take(200)
                                         val summaryJson = JSONObject(summaryBodyText)
 
                                         val targetDates = mutableListOf<String>()
