@@ -592,14 +592,14 @@ fun MlAuthScreen(
                               const dt = dateTimeFrom(raw);
                               const rawNorm = norm(raw);
 
-                              const productNodes = Array.from(card.querySelectorAll('div, li, article, section'))
+                              const productNodes = Array.from(card.querySelectorAll('li, article'))
                                 .filter(el => {
                                   const t = norm(txt(el));
                                   if (!t) return false;
                                   if (t === rawNorm) return false;
-                                  if (t.length < 20 || t.length > 700) return false;
-                                  if (!/cor\s*:|sku\s*:|seller\s*sku|acabamentos?:|material/i.test(t)) return false;
+                                  if (t.length < 20 || t.length > 800) return false;
                                   if (/pacote de \d+ produtos/i.test(t)) return false;
+                                  if (!/cor\s*:|sku|seller\s*sku|material|acabamentos?:/i.test(t)) return false;
                                   return true;
                                 });
 
@@ -658,9 +658,7 @@ fun MlAuthScreen(
 
                                 if (!article) continue;
 
-                                const itemExternalId = blocks.length > 1
-                                  ? externalId + "__item_" + (blockIndex + 1)
-                                  : externalId;
+                                const itemExternalId = externalId;
 
                                 if (seenIds.has(itemExternalId)) continue;
 
