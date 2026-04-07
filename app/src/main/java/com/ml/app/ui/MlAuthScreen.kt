@@ -512,6 +512,52 @@ fun MlAuthScreen(
                             return nextLink ? (nextLink.href || nextLink.getAttribute("href") || "") : "";
                           }
 
+                          function expandPackageRows(root) {
+                            const selectors = [
+                              'button[aria-expanded="false"]',
+                              '[role="button"][aria-expanded="false"]',
+                              'button[data-testid*="expand"]',
+                              'button[data-testid*="accordion"]',
+                              '[role="button"][data-testid*="expand"]',
+                              '[role="button"][data-testid*="accordion"]',
+                              'button',
+                              '[role="button"]'
+                            ];
+
+                            const seen = new Set();
+                            let clicked = 0;
+
+                            for (const selector of selectors) {
+                              const nodes = Array.from(root.querySelectorAll(selector));
+                              for (const el of nodes) {
+                                if (!el || seen.has(el)) continue;
+                                seen.add(el);
+
+                                const raw = norm(txt(el));
+                                const aria = String(el.getAttribute("aria-label") || "").trim();
+                                const testId = String(el.getAttribute("data-testid") || "").trim();
+                                const cls = String(el.className || "").trim();
+
+                                const looksExpandable =
+                                  el.getAttribute("aria-expanded") === "false" ||
+                                  /pacote de \d+ produtos/i.test(raw) ||
+                                  /ver produtos/i.test(raw) ||
+                                  /mostrar produtos/i.test(raw) ||
+                                  /expand/i.test(raw) ||
+                                  /accordion|expand|chevron|arrow/i.test(testId + " " + cls + " " + aria);
+
+                                if (!looksExpandable) continue;
+
+                                try {
+                                  el.click();
+                                  clicked += 1;
+                                } catch (e) {}
+                              }
+                            }
+
+                            return clicked;
+                          }
+
                           function collectOrdersFromRoot(root, seenIds) {
                             const candidates = Array.from(root.querySelectorAll(
                               '[data-testid*="order"], [data-testid*="sale"], article, .andes-card, li'
@@ -601,6 +647,19 @@ fun MlAuthScreen(
                             return pageOrders;
                           }
 
+                          const expandedClicked = expandPackageRows(document);
+                          if (expandedClicked > 0) {
+                            return JSON.stringify({
+                              url: location.href,
+                              title: document.title,
+                              count: 0,
+                              next_page_url: nextPageFromRoot(document) || "",
+                              expanded_clicked: expandedClicked,
+                              needs_retry: true,
+                              orders: []
+                            });
+                          }
+
                           const seen = new Set();
                           const allOrders = collectOrdersFromRoot(document, seen);
                           const lastNextPageUrl = nextPageFromRoot(document) || "";
@@ -610,6 +669,8 @@ fun MlAuthScreen(
                             title: document.title,
                             count: allOrders.length,
                             next_page_url: lastNextPageUrl,
+                            expanded_clicked: 0,
+                            needs_retry: false,
                             orders: allOrders
                           });
                         })();
@@ -645,6 +706,8 @@ fun MlAuthScreen(
 
                                 val pageUrl = json.optString("url")
                                 val pageTitle = json.optString("title")
+                                val needsRetry = json.optBoolean("needs_retry", false)
+                                val expandedClicked = json.optInt("expanded_clicked", 0)
                                 val parserCount = json.optInt("count", safeOrders.length())
                                 val sampleOrder = if (safeOrders.length() > 0) {
                                     val first = safeOrders.optJSONObject(0)
@@ -658,6 +721,14 @@ fun MlAuthScreen(
                                     }
                                 } else {
                                     ""
+                                }
+
+                                if (needsRetry) {
+                                    statusText = "Разворачиваем комплектные заказы: $expandedClicked"
+                                    webView.postDelayed({
+                                        runParser()
+                                    }, 1800)
+                                    return@Thread
                                 }
 
                                 if (safeOrders.length() == 0) {
