@@ -663,11 +663,20 @@ fun MlAuthScreen(
 
                                 val json = JSONObject(cleaned)
                                 val orders = json.optJSONArray("orders") ?: JSONArray()
+
+                                val safeOrders = JSONArray()
+                                for (i in 0 until orders.length()) {
+                                    val item = orders.opt(i)
+                                    if (item is JSONObject) {
+                                        safeOrders.put(item)
+                                    }
+                                }
+
                                 val pageUrl = json.optString("url")
                                 val pageTitle = json.optString("title")
-                                val parserCount = json.optInt("count", orders.length())
-                                val sampleOrder = if (orders.length() > 0) {
-                                    val first = orders.optJSONObject(0)
+                                val parserCount = json.optInt("count", safeOrders.length())
+                                val sampleOrder = if (safeOrders.length() > 0) {
+                                    val first = safeOrders.optJSONObject(0)
                                     if (first != null) {
                                         "id=" + first.optString("external_order_id") +
                                         " sku=" + first.optString("sku") +
@@ -680,17 +689,17 @@ fun MlAuthScreen(
                                     ""
                                 }
 
-                                if (orders.length() == 0) {
+                                if (safeOrders.length() == 0) {
                                     statusText = "Заказы не найдены. url=${pageUrl.take(120)} title=${pageTitle.take(80)} count=$parserCount next=${json.optString("next_page_url").take(120)}"
                                     return@Thread
                                 }
 
-                                statusText = "JS parsed orders=${orders.length()} parserCount=$parserCount next=${json.optString("next_page_url").take(120)} sample=${sampleOrder.take(120)}"
+                                statusText = "JS parsed orders=${safeOrders.length()} parserCount=$parserCount next=${json.optString("next_page_url").take(120)} sample=${sampleOrder.take(120)}"
 
                                 val debugItems = StringBuilder()
-                                val limit = minOf(15, orders.length())
+                                val limit = minOf(15, safeOrders.length())
                                 for (i in 0 until limit) {
-                                    val o = orders.optJSONObject(i) ?: continue
+                                    val o = safeOrders.optJSONObject(i) ?: continue
                                     debugItems.append("#")
                                     debugItems.append(i + 1)
                                     debugItems.append(" id=")
@@ -730,17 +739,17 @@ fun MlAuthScreen(
                                 var skippedByTime = 0
 
                                 val debugIds = mutableListOf<String>()
-                                for (i in 0 until orders.length()) {
-                                    val dbg = orders.optJSONObject(i)
+                                for (i in 0 until safeOrders.length()) {
+                                    val dbg = safeOrders.optJSONObject(i)
                                     val dbgId = dbg?.optString("external_order_id").orEmpty()
                                     if (dbgId.isNotBlank()) {
                                         debugIds.add(dbgId)
                                     }
                                 }
-                                statusText = "JS parsed orders=${orders.length()} ids=${debugIds.take(10).joinToString(",")}"
+                                statusText = "JS parsed orders=${safeOrders.length()} ids=${debugIds.take(10).joinToString(",")}"
 
-                                for (i in 0 until orders.length()) {
-                                    val obj = orders.optJSONObject(i) ?: continue
+                                for (i in 0 until safeOrders.length()) {
+                                    val obj = safeOrders.optJSONObject(i) ?: continue
 
                                     val orderDateTime =
                                         obj.optString("order_datetime_sort").trim().takeIf { it.isNotBlank() }
@@ -750,7 +759,7 @@ fun MlAuthScreen(
                                 }
 
                                 if (filteredOrders.length() == 0) {
-                                    statusText = "Новых заказов нет. orders=${orders.length()} skippedDate=$skippedBySummaryDate skippedTime=$skippedByTime minAllowed=$minAllowed lastSynced=${lastSynced ?: "null"}"
+                                    statusText = "Новых заказов нет. orders=${safeOrders.length()} skippedDate=$skippedBySummaryDate skippedTime=$skippedByTime minAllowed=$minAllowed lastSynced=${lastSynced ?: "null"}"
                                     return@Thread
                                 }
 
