@@ -976,8 +976,9 @@ function mlPickColor(article: unknown, rawColor: unknown, card: any, rawSku?: un
     if (mlNorm(c) === want) return c
   }
 
-  // 5. Если пришёл номер и не нашли маппинг — не возвращаем цифру как цвет
-  if (numericRaw) return null
+  // 5. Если пришёл номер и не нашли маппинг — сохраняем номер цвета,
+  // чтобы заказ не терялся из summary
+  if (numericRaw) return numericRaw
 
   return original || null
 }
