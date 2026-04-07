@@ -759,6 +759,29 @@ fun MlAuthScreen(
                           const allOrders = collectOrdersFromRoot(document, seen);
                           const lastNextPageUrl = nextPageFromRoot(document) || "";
 
+                          const packageDebug = cards
+                            .filter(card => /pacote de \d+ produtos/i.test(norm(txt(card))))
+                            .slice(0, 5)
+                            .map(card => {
+                              const raw = norm(txt(card));
+                              const idMatch =
+                                raw.match(/#(\d{10,})/) ||
+                                raw.match(/\b(\d{10,})\b/);
+                              const externalId = idMatch ? idMatch[1] : "";
+
+                              const debugNodes = Array.from(card.querySelectorAll('li, article'))
+                                .map(el => norm(txt(el)))
+                                .filter(Boolean)
+                                .filter(t => t !== raw)
+                                .slice(0, 12);
+
+                              return {
+                                external_order_id: externalId,
+                                raw: raw.slice(0, 800),
+                                debug_nodes: debugNodes
+                              };
+                            });
+
                           return JSON.stringify({
                             url: location.href,
                             title: document.title,
@@ -766,6 +789,7 @@ fun MlAuthScreen(
                             next_page_url: lastNextPageUrl,
                             expanded_clicked: 0,
                             needs_retry: false,
+                            package_debug: packageDebug,
                             orders: allOrders
                           });
                         })();
@@ -805,6 +829,7 @@ fun MlAuthScreen(
                                 val pageTitle = json.optString("title")
                                 val needsRetry = json.optBoolean("needs_retry", false)
                                 val expandedClicked = json.optInt("expanded_clicked", 0)
+                                val packageDebug = json.optJSONArray("package_debug")
                                 val parserCount = json.optInt("count", safeOrders.length())
                                 val sampleOrder = if (safeOrders.length() > 0) {
                                     val first = safeOrders.optJSONObject(0)
@@ -986,6 +1011,16 @@ fun MlAuthScreen(
                                             runParser()
                                         }, 2200)
                                     }
+                                    return@Thread
+                                }
+
+                                if (packageDebug != null && packageDebug.length() > 0) {
+                                    val firstPkg = packageDebug.optJSONObject(0)
+                                    val pkgId = firstPkg?.optString("external_order_id").orEmpty()
+                                    val nodes = firstPkg?.optJSONArray("debug_nodes")
+                                    val firstNode = nodes?.optString(0).orEmpty()
+                                    val secondNode = nodes?.optString(1).orEmpty()
+                                    statusText = "PKG DEBUG id=$pkgId nodes=${nodes?.length() ?: 0} n1=${firstNode.take(80)} n2=${secondNode.take(80)}"
                                     return@Thread
                                 }
 
