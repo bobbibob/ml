@@ -557,7 +557,7 @@ fun MlAuthScreen(
 
                               if (!article) {
                                 const articleFromTitle =
-                                  title.match(/\b(\d{1,3}[a-zа-яё]?)[.\-\s]+/i) ||
+                                  (title ? title.match(/\b(\d{1,3}[a-zа-яё]?)[.\-\s]+/i) : null) ||
                                   rawNorm.match(/\b(\d{1,3}[a-zа-яё]?)\b/i);
                                 if (articleFromTitle) {
                                   article = norm(articleFromTitle[1]);
@@ -566,7 +566,7 @@ fun MlAuthScreen(
 
                               if (!colorNo) {
                                 const colorFromSku =
-                                  sku.match(/[\/-](\d{1,3})\b/) ||
+                                  (sku ? sku.match(/[\/-](\d{1,3})\b/) : null) ||
                                   rawNorm.match(/\b(?:cor|color|цвет)\D{0,6}(\d{1,3})\b/i) ||
                                   rawNorm.match(/\b(\d{1,3})\b/g);
                                 if (colorFromSku) {
