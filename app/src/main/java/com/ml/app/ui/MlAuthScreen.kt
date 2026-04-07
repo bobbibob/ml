@@ -701,7 +701,7 @@ fun MlAuthScreen(
                                             for (i in 0 until items.length()) {
                                                 val obj = items.optJSONObject(i) ?: continue
                                                 val d = obj.optString("summary_date").trim()
-                                                if (d.isNotBlank() && d != todayDate) {
+                                                if (false) {
                                                     stopDateExclusiveToday = d
                                                     break
                                                 }
@@ -726,24 +726,12 @@ fun MlAuthScreen(
 
                                     val stopDate = stopDateExclusiveToday
 
-                                    val keep = when {
-                                        orderDate == null -> true
-                                        orderDate == todayDate -> {
-                                            if (lastSynced.isNullOrBlank()) {
-                                                true
-                                            } else {
-                                                val normalizedOrder = orderDateTime ?: ""
-                                                normalizedOrder.isBlank() || normalizedOrder > lastSynced
-                                            }
-                                        }
-                                        stopDate == null -> true
-                                        else -> orderDate > stopDate
-                                    }
+                                    val keep = true
 
                                     if (keep) {
                                         filteredOrders.put(obj)
                                     } else {
-                                        if (orderDate == todayDate && !lastSynced.isNullOrBlank()) {
+                                        if (!lastSynced.isNullOrBlank()) {
                                             skippedByTime += 1
                                         } else {
                                             skippedBySummaryDate += 1
