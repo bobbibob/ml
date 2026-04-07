@@ -472,8 +472,49 @@ fun refreshTimeline() {
   }
 
   private suspend fun pullRecentDailySummaries() {
-    _state.value = _state.value.copy(status = "RECENT disabled")
-    return
+    val session = PrefsSessionStorage(ctx)
+    if (session.getToken().isNullOrBlank()) {
+      _state.value = _state.value.copy(status = "RECENT no session token")
+      return
+    }
+
+    val api = ApiModule.createApi(
+      baseUrl = BuildConfig.TASKS_API_BASE_URL,
+      sessionStorage = session
+    )
+    val syncRepo = DailySummarySyncRepository(api, ctx)
+
+    val dates = mutableListOf<String>()
+    var d = java.time.LocalDate.now()
+    repeat(14) {
+      dates.add(d.toString())
+      d = d.minusDays(1)
+    }
+
+    var synced = 0
+    var totalEntries = 0
+    var lastError: String? = null
+
+    for (date in dates) {
+      when (val res = syncRepo.getDailySummaryByDate(date)) {
+        is com.ml.app.core.result.AppResult.Success -> {
+          if (res.data.isNotEmpty()) {
+            repo.applyRemoteDailySummary(date, res.data)
+            synced += 1
+            totalEntries += res.data.size
+          }
+        }
+        is com.ml.app.core.result.AppResult.Error -> {
+          lastError = res.message
+        }
+      }
+    }
+
+    _state.value = _state.value.copy(
+      status =
+        if (synced > 0) "RECENT synced days=$synced entries=$totalEntries"
+        else "RECENT no data${if (!lastError.isNullOrBlank()) ": $lastError" else ""}"
+    )
   }
 
 

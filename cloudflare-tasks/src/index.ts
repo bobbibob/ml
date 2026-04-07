@@ -984,9 +984,10 @@ function mlPickColor(article: unknown, rawColor: unknown, card: any, rawSku?: un
       const byIndex = String(colors[idx] || "").trim()
       if (byIndex) return byIndex
     }
+    return null
   }
 
-  // 6. Если пришёл номер и вообще не нашли маппинг — сохраняем номер цвета,
+  // 6. Если colors_json пустой и неоткуда взять маппинг — сохраняем номер цвета,
   // чтобы заказ не терялся из summary
   if (numericRaw) return numericRaw
 
