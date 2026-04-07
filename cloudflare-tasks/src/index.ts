@@ -1267,6 +1267,7 @@ try {
           return json({
             ok: true,
             today,
+            summary_date: today,
             last_completed_summary_date: lastCompletedSummaryDate,
             target_dates: targetDates,
             summaries,

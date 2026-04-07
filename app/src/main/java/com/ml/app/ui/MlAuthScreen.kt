@@ -743,8 +743,25 @@ fun MlAuthScreen(
                                 kotlin.runCatching {
                                     kotlinx.coroutines.runBlocking {
                                         val summaryJson = JSONObject(summaryBodyText)
-                                        val summaryDate = summaryJson.optString("summary_date").ifBlank {
-                                            java.time.LocalDate.now().toString()
+
+                                        val targetDates = mutableListOf<String>()
+                                        val targetDatesJson = summaryJson.optJSONArray("target_dates")
+                                        if (targetDatesJson != null) {
+                                            for (i in 0 until targetDatesJson.length()) {
+                                                val d = targetDatesJson.optString(i).trim()
+                                                if (d.isNotBlank()) {
+                                                    targetDates.add(d)
+                                                }
+                                            }
+                                        }
+
+                                        if (targetDates.isEmpty()) {
+                                            val fallbackDate = summaryJson.optString("summary_date").ifBlank {
+                                                java.time.LocalDate.now().toString()
+                                            }
+                                            if (fallbackDate.isNotBlank()) {
+                                                targetDates.add(fallbackDate)
+                                            }
                                         }
 
                                         val localSession = PrefsSessionStorage(context)
@@ -755,19 +772,37 @@ fun MlAuthScreen(
                                         val syncRepo = DailySummarySyncRepository(api, context)
                                         val localRepo = SQLiteRepo(context)
 
-                                        when (val byDate = syncRepo.getDailySummaryByDate(summaryDate)) {
-                                            is com.ml.app.core.result.AppResult.Success -> {
-                                                localRepo.applyRemoteDailySummary(summaryDate, byDate.data)
-                                                statusText = "Синхронизация ML завершена: ${filteredOrders.length()} заказов. local summary applied date=$summaryDate entries=${byDate.data.size}"
-                                            }
-                                            is com.ml.app.core.result.AppResult.Error -> {
-                                                statusText = "Синхронизация ML завершена, но local summary sync error: ${byDate.message}"
+                                        var syncedDates = 0
+                                        var totalEntries = 0
+                                        var lastError: String? = null
+
+                                        for (summaryDate in targetDates.distinct()) {
+                                            when (val byDate = syncRepo.getDailySummaryByDate(summaryDate)) {
+                                                is com.ml.app.core.result.AppResult.Success -> {
+                                                    localRepo.applyRemoteDailySummary(summaryDate, byDate.data)
+                                                    syncedDates += 1
+                                                    totalEntries += byDate.data.size
+                                                }
+                                                is com.ml.app.core.result.AppResult.Error -> {
+                                                    lastError = "date=$summaryDate: ${byDate.message}"
+                                                }
+                                                else -> {
+                                                    lastError = "date=$summaryDate: unknown result"
+                                                }
                                             }
                                         }
+
+                                        statusText =
+                                            if (syncedDates > 0) {
+                                                "Синхронизация ML завершена: ${filteredOrders.length()} заказов. local summary applied dates=${targetDates.distinct().joinToString(",")} syncedDates=$syncedDates entries=$totalEntries"
+                                            } else {
+                                                "Синхронизация ML завершена, но local summary sync error: ${lastError ?: "no dates synced"}"
+                                            }
                                     }
                                 }.onFailure {
                                     statusText = "Синхронизация ML завершена, но local apply error: ${it.message}"
                                 }
+
 
                                 val authStateBody = JSONObject().apply {
                                     put("source", "mercadolivre")
