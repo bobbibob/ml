@@ -611,9 +611,10 @@ fun MlAuthScreen(
                         })();
                     """.trimIndent()
 
-                    webView.evaluateJavascript(js) { result ->
-                        Thread {
-                            try {
+                    fun runParser() {
+                        webView.evaluateJavascript(js) { result ->
+                            Thread {
+                                try {
                                 val raw = result ?: ""
                                 val cleaned = if (raw.startsWith("\"") && raw.endsWith("\"")) {
                                     JSONObject("{\"v\":$raw}").getString("v")
@@ -641,9 +642,11 @@ fun MlAuthScreen(
                                 }
 
                                 if (orders.length() == 0) {
-                                    statusText = "Заказы не найдены. url=${pageUrl.take(120)} title=${pageTitle.take(80)} count=$parserCount"
+                                    statusText = "Заказы не найдены. url=${pageUrl.take(120)} title=${pageTitle.take(80)} count=$parserCount next=${json.optString("next_page_url").take(120)}"
                                     return@Thread
                                 }
+
+                                statusText = "JS parsed orders=${orders.length()} parserCount=$parserCount next=${json.optString("next_page_url").take(120)} sample=${sampleOrder.take(120)}"
 
                                 val debugItems = StringBuilder()
                                 val limit = minOf(15, orders.length())
@@ -686,6 +689,16 @@ fun MlAuthScreen(
                                 val filteredOrders = JSONArray()
                                 var skippedBySummaryDate = 0
                                 var skippedByTime = 0
+
+                                val debugIds = mutableListOf<String>()
+                                for (i in 0 until orders.length()) {
+                                    val dbg = orders.optJSONObject(i)
+                                    val dbgId = dbg?.optString("external_order_id").orEmpty()
+                                    if (dbgId.isNotBlank()) {
+                                        debugIds.add(dbgId)
+                                    }
+                                }
+                                statusText = "JS parsed orders=${orders.length()} ids=${debugIds.take(10).joinToString(",")}"
 
                                 for (i in 0 until orders.length()) {
                                     val obj = orders.optJSONObject(i) ?: continue
@@ -821,6 +834,43 @@ fun MlAuthScreen(
                                 statusText = "Ошибка синхронизации: ${t.message}"
                             }
                         }.start()
+                        }
+                    }
+
+                    webView.post {
+                        statusText = "Подготавливаем страницу заказов..."
+                        webView.scrollTo(0, 0)
+                        webView.postDelayed({
+                            webView.pageDown(false)
+                            webView.postDelayed({
+                                webView.pageDown(false)
+                                webView.postDelayed({
+                                    webView.pageDown(false)
+                                    webView.postDelayed({
+                                        webView.pageDown(false)
+                                        webView.postDelayed({
+                                            webView.pageDown(false)
+                                            webView.postDelayed({
+                                                webView.pageDown(false)
+                                                webView.postDelayed({
+                                                    webView.pageDown(false)
+                                                    webView.postDelayed({
+                                                        webView.pageDown(false)
+                                                        webView.postDelayed({
+                                                            webView.scrollTo(0, 0)
+                                                            webView.postDelayed({
+                                                                statusText = "Страница проскроллена, запускаем парсер..."
+                                                                runParser()
+                                                            }, 1200)
+                                                        }, 700)
+                                                    }, 700)
+                                                }, 700)
+                                            }, 700)
+                                        }, 700)
+                                    }, 700)
+                                }, 700)
+                            }, 700)
+                        }, 700)
                     }
                 }
             ) {
