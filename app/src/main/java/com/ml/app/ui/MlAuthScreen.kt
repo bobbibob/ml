@@ -789,7 +789,7 @@ fun MlAuthScreen(
                             next_page_url: lastNextPageUrl,
                             expanded_clicked: 0,
                             needs_retry: false,
-                            package_debug: packageDebug,
+                            
                             orders: allOrders
                           });
                         })();
@@ -829,7 +829,7 @@ fun MlAuthScreen(
                                 val pageTitle = json.optString("title")
                                 val needsRetry = json.optBoolean("needs_retry", false)
                                 val expandedClicked = json.optInt("expanded_clicked", 0)
-                                val packageDebug = json.optJSONArray("package_debug")
+                                
                                 val parserCount = json.optInt("count", safeOrders.length())
                                 val sampleOrder = if (safeOrders.length() > 0) {
                                     val first = safeOrders.optJSONObject(0)
@@ -1014,15 +1014,7 @@ fun MlAuthScreen(
                                     return@Thread
                                 }
 
-                                if (packageDebug != null && packageDebug.length() > 0) {
-                                    val firstPkg = packageDebug.optJSONObject(0)
-                                    val pkgId = firstPkg?.optString("external_order_id").orEmpty()
-                                    val nodes = firstPkg?.optJSONArray("debug_nodes")
-                                    val firstNode = nodes?.optString(0).orEmpty()
-                                    val secondNode = nodes?.optString(1).orEmpty()
-                                    statusText = "PKG DEBUG id=$pkgId nodes=${nodes?.length() ?: 0} n1=${firstNode.take(80)} n2=${secondNode.take(80)}"
-                                    return@Thread
-                                }
+                                
 
                                 if (safeOrders.length() == 0) {
                                     statusText = "Заказы не найдены. url=${pageUrl.take(120)} title=${pageTitle.take(80)} count=$parserCount next=${json.optString("next_page_url").take(120)}"
