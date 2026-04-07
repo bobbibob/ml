@@ -856,58 +856,17 @@ fun MlAuthScreen(
                                     parserRetryCount += 1
                                     statusText = "Разворачиваем комплектные заказы: $expandedClicked retry=$parserRetryCount"
 
-                                    if (parserRetryCount >= 3) {
-                                    statusText = "Комплектные заказы раскрыты, запускаем финальный парсинг..."
-                                    webView.postDelayed({
+                                    if (parserRetryCount >= 2) {
+                                        statusText = "Комплекты раскрыты. Нажми Синхро ещё раз."
                                         parserRetryCount = 0
-                                        val jsFinal = js
-                                            .replace("const skipExpand = !!window.__ml_skip_expand;\n", "")
-                                            .replace("const expandedClicked = skipExpand ? 0 : expandPackageRows(document);", "const expandedClicked = 0;")
-                                            .replace("if (!skipExpand && expandedClicked > 0) {", "if (false) {")
-                                        webView.evaluateJavascript(jsFinal) { retryResult ->
-                                            Thread {
-                                                try {
-                                                    val raw2 = retryResult ?: ""
-                                                    if (raw2.isBlank() || raw2.trim() == "null") {
-                                                        statusText = "JS финальный парсер вернул null/пусто"
-                                                        return@Thread
-                                                    }
+                                        return@Thread
+                                    }
 
-                                                    val cleaned2 = if (raw2.startsWith("\"") && raw2.endsWith("\"")) {
-                                                        JSONObject("{\"v\":$raw2}").getString("v")
-                                                    } else {
-                                                        raw2
-                                                    }
-
-                                                    val json2 = JSONObject(cleaned2)
-                                                    val orders2 = json2.optJSONArray("orders") ?: JSONArray()
-                                                    val safeOrders2 = JSONArray()
-                                                    for (j in 0 until orders2.length()) {
-                                                        val item2 = orders2.opt(j)
-                                                        if (item2 is JSONObject) safeOrders2.put(item2)
-                                                    }
-
-                                                    if (safeOrders2.length() == 0) {
-                                                        statusText = "После раскрытия комплектов заказы не найдены"
-                                                        return@Thread
-                                                    }
-
-                                                    statusText = "Финальный парсинг ok: orders=${safeOrders2.length()}"
-                                                } catch (t: Throwable) {
-                                                    statusText = "Ошибка финального парсинга комплектов: ${t.message}"
-                                                }
-                                            }.start()
-                                        }
-                                    }, 2200)
-                                } else {
                                     webView.postDelayed({
                                         runParser()
                                     }, 2200)
+                                    return@Thread
                                 }
-                                return@Thread
-                                }
-
-                                
 
                                 if (safeOrders.length() == 0) {
                                     statusText = "Заказы не найдены. url=${pageUrl.take(120)} title=${pageTitle.take(80)} count=$parserCount next=${json.optString("next_page_url").take(120)}"
