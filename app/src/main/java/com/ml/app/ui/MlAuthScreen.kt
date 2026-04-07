@@ -655,6 +655,12 @@ fun MlAuthScreen(
                             Thread {
                                 try {
                                 val raw = result ?: ""
+
+                                if (raw.isBlank() || raw.trim() == "null") {
+                                    statusText = "JS вернул null/пусто"
+                                    return@Thread
+                                }
+
                                 val cleaned = if (raw.startsWith("\"") && raw.endsWith("\"")) {
                                     JSONObject("{\"v\":$raw}").getString("v")
                                 } else {
