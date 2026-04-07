@@ -676,6 +676,8 @@ fun MlAuthScreen(
                         })();
                     """.trimIndent()
 
+                    var parserRetryCount = 0
+
                     fun runParser() {
                         webView.evaluateJavascript(js) { result ->
                             Thread {
@@ -724,10 +726,171 @@ fun MlAuthScreen(
                                 }
 
                                 if (needsRetry) {
-                                    statusText = "Разворачиваем комплектные заказы: $expandedClicked"
-                                    webView.postDelayed({
-                                        runParser()
-                                    }, 1800)
+                                    parserRetryCount += 1
+                                    statusText = "Разворачиваем комплектные заказы: $expandedClicked retry=$parserRetryCount"
+
+                                    if (parserRetryCount >= 3) {
+                                        statusText = "Комплектные заказы раскрыты, запускаем финальный парсинг..."
+                                        webView.postDelayed({
+                                            parserRetryCount = 0
+                                            val jsNoExpand = js.replace("const expandedClicked = expandPackageRows(document);", "const expandedClicked = 0;")
+                                                .replace("if (expandedClicked > 0) {", "if (false) {")
+                                            webView.evaluateJavascript(jsNoExpand) { retryResult ->
+                                                Thread {
+                                                    try {
+                                                        val raw2 = retryResult ?: ""
+                                                        if (raw2.isBlank() || raw2.trim() == "null") {
+                                                            statusText = "JS финальный парсер вернул null/пусто"
+                                                            return@Thread
+                                                        }
+
+                                                        val cleaned2 = if (raw2.startsWith("\"") && raw2.endsWith("\"")) {
+                                                            JSONObject("{\"v\":$raw2}").getString("v")
+                                                        } else {
+                                                            raw2
+                                                        }
+
+                                                        val json2 = JSONObject(cleaned2)
+                                                        val orders2 = json2.optJSONArray("orders") ?: JSONArray()
+                                                        val safeOrders2 = JSONArray()
+                                                        for (j in 0 until orders2.length()) {
+                                                            val item2 = orders2.opt(j)
+                                                            if (item2 is JSONObject) safeOrders2.put(item2)
+                                                        }
+
+                                                        if (safeOrders2.length() == 0) {
+                                                            statusText = "После раскрытия комплектов заказы не найдены"
+                                                            return@Thread
+                                                        }
+
+                                                        val client2 = OkHttpClient()
+                                                        val syncStateReq2 = Request.Builder()
+                                                            .url(BuildConfig.TASKS_API_BASE_URL + "internal/integrations/ml/sync-state")
+                                                            .addHeader("Authorization", "Bearer $token")
+                                                            .get()
+                                                            .build()
+
+                                                        val syncStateJson2 = client2.newCall(syncStateReq2).execute().use { resp ->
+                                                            val bodyText2 = resp.body?.string().orEmpty()
+                                                            if (!resp.isSuccessful) {
+                                                                statusText = "Ошибка sync-state: ${resp.code} ${bodyText2.take(500)}"
+                                                                return@Thread
+                                                            }
+                                                            if (bodyText2.isBlank() || bodyText2.trim() == "null") {
+                                                                statusText = "sync-state вернул пусто/null"
+                                                                return@Thread
+                                                            }
+                                                            JSONObject(bodyText2)
+                                                        }
+
+                                                        val minAllowed2 = syncStateJson2.optString("min_allowed_datetime").ifBlank { "2025-08-30T00:00:00" }
+                                                        val lastSynced2 = syncStateJson2.optString("last_synced_order_datetime").ifBlank { null }
+
+                                                        val filteredOrders2 = JSONArray()
+                                                        for (j in 0 until safeOrders2.length()) {
+                                                            val obj2 = safeOrders2.optJSONObject(j) ?: continue
+                                                            filteredOrders2.put(obj2)
+                                                        }
+
+                                                        if (filteredOrders2.length() == 0) {
+                                                            statusText = "Новых заказов нет после раскрытия. orders=${safeOrders2.length()} minAllowed=$minAllowed2 lastSynced=${lastSynced2 ?: "null"}"
+                                                            return@Thread
+                                                        }
+
+                                                        statusText = "Отправляем ${filteredOrders2.length()} заказов после раскрытия комплектов..."
+
+                                                        val upsertBody2 = JSONObject().apply {
+                                                            put("orders", filteredOrders2)
+                                                        }
+
+                                                        val upsertReq2 = Request.Builder()
+                                                            .url(BuildConfig.TASKS_API_BASE_URL + "internal/integrations/ml/upsert-orders")
+                                                            .addHeader("Authorization", "Bearer $token")
+                                                            .post(upsertBody2.toString().toRequestBody("application/json".toMediaType()))
+                                                            .build()
+
+                                                        client2.newCall(upsertReq2).execute().use { resp ->
+                                                            val bodyText2 = resp.body?.string().orEmpty()
+                                                            if (!resp.isSuccessful) {
+                                                                statusText = "Ошибка отправки заказов: ${resp.code} ${bodyText2.take(500)}"
+                                                                return@Thread
+                                                            }
+                                                        }
+
+                                                        statusText = "Комплектные заказы отправлены, начинаем summary..."
+                                                        val summaryReq2 = Request.Builder()
+                                                            .url(BuildConfig.TASKS_API_BASE_URL + "internal/ml/generate-orders-summary")
+                                                            .addHeader("Authorization", "Bearer $token")
+                                                            .post("{}".toRequestBody("application/json".toMediaType()))
+                                                            .build()
+
+                                                        var summaryBodyText2 = ""
+                                                        client2.newCall(summaryReq2).execute().use { resp ->
+                                                            val bodyText2 = resp.body?.string().orEmpty()
+                                                            summaryBodyText2 = bodyText2
+                                                            if (!resp.isSuccessful) {
+                                                                statusText = "Заказы отправлены, но summary не создан: ${resp.code} ${bodyText2.take(500)}"
+                                                                return@Thread
+                                                            }
+                                                        }
+
+                                                        kotlin.runCatching {
+                                                            kotlinx.coroutines.runBlocking {
+                                                                val summaryJson2 = JSONObject(summaryBodyText2)
+                                                                val targetDates2 = mutableListOf<String>()
+                                                                val targetDatesJson2 = summaryJson2.optJSONArray("target_dates")
+                                                                if (targetDatesJson2 != null) {
+                                                                    for (k in 0 until targetDatesJson2.length()) {
+                                                                        val d2 = targetDatesJson2.optString(k).trim()
+                                                                        if (d2.isNotBlank()) targetDates2.add(d2)
+                                                                    }
+                                                                }
+
+                                                                if (targetDates2.isEmpty()) {
+                                                                    val fallbackDate2 = summaryJson2.optString("summary_date").ifBlank {
+                                                                        java.time.LocalDate.now().toString()
+                                                                    }
+                                                                    if (fallbackDate2.isNotBlank()) targetDates2.add(fallbackDate2)
+                                                                }
+
+                                                                val localSession2 = PrefsSessionStorage(context)
+                                                                val api2 = ApiModule.createApi(
+                                                                    baseUrl = BuildConfig.TASKS_API_BASE_URL,
+                                                                    sessionStorage = localSession2
+                                                                )
+                                                                val syncRepo2 = DailySummarySyncRepository(api2, context)
+                                                                val localRepo2 = SQLiteRepo(context)
+
+                                                                var syncedDates2 = 0
+                                                                var totalEntries2 = 0
+
+                                                                for (summaryDate2 in targetDates2.distinct()) {
+                                                                    when (val byDate2 = syncRepo2.getDailySummaryByDate(summaryDate2)) {
+                                                                        is com.ml.app.core.result.AppResult.Success -> {
+                                                                            localRepo2.applyRemoteDailySummary(summaryDate2, byDate2.data)
+                                                                            syncedDates2 += 1
+                                                                            totalEntries2 += byDate2.data.size
+                                                                        }
+                                                                        else -> {}
+                                                                    }
+                                                                }
+
+                                                                statusText = "Синхронизация ML завершена после раскрытия комплектов: ${filteredOrders2.length()} заказов, entries=$totalEntries2 syncedDates=$syncedDates2"
+                                                            }
+                                                        }.onFailure {
+                                                            statusText = "Комплектные заказы отправлены, но local apply error: ${it.message}"
+                                                        }
+                                                    } catch (t: Throwable) {
+                                                        statusText = "Ошибка финального парсинга комплектов: ${t.message}"
+                                                    }
+                                                }.start()
+                                            }
+                                        }, 3000)
+                                    } else {
+                                        webView.postDelayed({
+                                            runParser()
+                                        }, 2200)
+                                    }
                                     return@Thread
                                 }
 
