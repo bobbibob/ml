@@ -766,7 +766,7 @@ fun MlAuthScreen(
 
                                         val localSession = PrefsSessionStorage(context)
                                         val api = ApiModule.createApi(
-                                            baseUrl = "https://ml-tasks-api.bboobb666.workers.dev/",
+                                            baseUrl = BuildConfig.TASKS_API_BASE_URL,
                                             sessionStorage = localSession
                                         )
                                         val syncRepo = DailySummarySyncRepository(api, context)

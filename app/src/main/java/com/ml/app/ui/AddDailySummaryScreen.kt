@@ -431,7 +431,7 @@ fun AddDailySummaryScreen(
 
                                 val session = PrefsSessionStorage(ctx)
                                 val api = ApiModule.createApi(
-                                    baseUrl = "https://ml-tasks-api.bboobb666.workers.dev/",
+                                    baseUrl = BuildConfig.TASKS_API_BASE_URL,
                                     sessionStorage = session
                                 )
                                 val syncRepo = DailySummarySyncRepository(api, ctx)

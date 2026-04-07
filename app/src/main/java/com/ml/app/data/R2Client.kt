@@ -27,7 +27,7 @@ class R2Client(context: Context) {
   private val secrets = Secrets.load(context)
 
   private fun workerPackUrl(): String =
-    "https://ml-tasks-api.bboobb666.workers.dev/pack_download"
+    BuildConfig.TASKS_API_BASE_URL + "pack_download"
 
   private fun stripTrailingSlashes(s: String): String {
     var x = s
