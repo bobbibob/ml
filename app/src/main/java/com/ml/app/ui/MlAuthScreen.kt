@@ -570,9 +570,12 @@ fun MlAuthScreen(
                               if (!raw) return false;
 
                               const ids = raw.match(/#?\d{10,}/g) || [];
-                              if (ids.length !== 1) return false;
+                              const normalizedIds = Array.from(new Set(
+                                ids.map(x => String(x || "").replace(/^#/, "").trim()).filter(Boolean)
+                              ));
+                              if (normalizedIds.length !== 1) return false;
 
-                              if (raw.length > 2500) return false;
+                              if (raw.length > 9000) return false;
 
                               return true;
                             });
