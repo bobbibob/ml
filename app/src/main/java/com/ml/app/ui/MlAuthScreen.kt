@@ -897,10 +897,11 @@ fun MlAuthScreen(
                     }
 
                     webView.post {
-                        statusText = "Подготавливаем страницу заказов..."
-                        webView.scrollTo(0, 0)
-                        webView.postDelayed({
-                            webView.pageDown(false)
+                        val current = webView.url.orEmpty()
+
+                        fun startPreparedParser() {
+                            statusText = "Подготавливаем страницу заказов..."
+                            webView.scrollTo(0, 0)
                             webView.postDelayed({
                                 webView.pageDown(false)
                                 webView.postDelayed({
@@ -916,11 +917,14 @@ fun MlAuthScreen(
                                                     webView.postDelayed({
                                                         webView.pageDown(false)
                                                         webView.postDelayed({
-                                                            webView.scrollTo(0, 0)
+                                                            webView.pageDown(false)
                                                             webView.postDelayed({
-                                                                statusText = "Страница проскроллена, запускаем парсер..."
-                                                                runParser()
-                                                            }, 1200)
+                                                                webView.scrollTo(0, 0)
+                                                                webView.postDelayed({
+                                                                    statusText = "Страница проскроллена, запускаем парсер..."
+                                                                    runParser()
+                                                                }, 1800)
+                                                            }, 700)
                                                         }, 700)
                                                     }, 700)
                                                 }, 700)
@@ -928,8 +932,18 @@ fun MlAuthScreen(
                                         }, 700)
                                     }, 700)
                                 }, 700)
-                            }, 700)
-                        }, 700)
+                            }, 1200)
+                        }
+
+                        if (!current.contains("mercadolivre")) {
+                            statusText = "Открываем страницу заказов..."
+                            webView.loadUrl(ML_STOCK_URL)
+                            webView.postDelayed({
+                                startPreparedParser()
+                            }, 5000)
+                        } else {
+                            startPreparedParser()
+                        }
                     }
                 }
             ) {
