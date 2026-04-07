@@ -160,8 +160,7 @@ fun MlAuthScreen(
 
                     val js = """
                         (function() {
-                          const skipExpand = !!window.__ml_skip_expand;
-
+                          
                           function txt(el) {
                             return ((el && (el.innerText || el.textContent)) || "").trim();
                           }
@@ -242,8 +241,7 @@ fun MlAuthScreen(
 
                     val js = """
                         (function() {
-                          const skipExpand = !!window.__ml_skip_expand;
-
+                          
                           function txt(el) {
                             return ((el && (el.innerText || el.textContent)) || "").trim();
                           }
@@ -384,8 +382,7 @@ fun MlAuthScreen(
 
                     val js = """
                         (function() {
-                          const skipExpand = !!window.__ml_skip_expand;
-                          function txt(el) {
+                                                    function txt(el) {
                             return ((el && (el.innerText || el.textContent)) || "").trim();
                           }
 
@@ -747,8 +744,8 @@ fun MlAuthScreen(
                             return pageOrders;
                           }
 
-                          const expandedClicked = skipExpand ? 0 : expandPackageRows(document);
-                          if (!skipExpand && expandedClicked > 0) {
+                          const expandedClicked = expandPackageRows(document);
+                          if (expandedClicked > 0) {
                             return JSON.stringify({
                               url: location.href,
                               title: document.title,
