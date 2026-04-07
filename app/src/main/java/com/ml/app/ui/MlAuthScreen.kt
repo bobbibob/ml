@@ -728,6 +728,10 @@ fun MlAuthScreen(
                                         statusText = "Ошибка sync-state: ${resp.code} ${bodyText.take(500)}"
                                         return@Thread
                                     }
+                                    if (bodyText.isBlank() || bodyText.trim() == "null") {
+                                        statusText = "sync-state вернул пусто/null"
+                                        return@Thread
+                                    }
                                     JSONObject(bodyText)
                                 }
 
