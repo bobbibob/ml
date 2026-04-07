@@ -889,7 +889,16 @@ function mlPickCardByArticle(article: unknown, cards: Array<any>) {
     ]
 
     for (const v of directFields) {
-      if (mlNorm(v) === a) return card
+      const nv = mlNorm(v)
+      if (!nv) continue
+      if (nv === a) return card
+      if (
+        nv.startsWith(a + " ") ||
+        nv.startsWith(a + ".") ||
+        nv.startsWith(a + "-") ||
+        nv.startsWith(a + "/") ||
+        nv.startsWith(a + "_")
+      ) return card
     }
 
     const skuLinks = mlJsonObject(card?.sku_links_json)
