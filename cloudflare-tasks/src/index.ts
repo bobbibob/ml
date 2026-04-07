@@ -1085,14 +1085,55 @@ try {
 
           const today = mlTodaySaoPaulo()
 
+          const lastCompletedSummaryRow = await env.DB.prepare(`
+            SELECT summary_date
+            FROM daily_summary_entries
+            WHERE deleted_at IS NULL
+              AND summary_date < ?
+            ORDER BY summary_date DESC
+            LIMIT 1
+          `).bind(today).first<{ summary_date?: string }>()
+
+          const lastCompletedSummaryDate = String(lastCompletedSummaryRow?.summary_date || "").trim() || null
+
           const ordersRows = await env.DB.prepare(`
             SELECT order_id, order_time, sku, title, quantity, price, status, raw_json, created_at, updated_at
             FROM ml_orders
-            WHERE substr(order_time, 1, 10) = ?
+            WHERE order_time IS NOT NULL
+              AND trim(order_time) != ''
             ORDER BY order_time ASC, updated_at ASC
-          `).bind(today).all<any>()
+          `).all<any>()
 
-          const orderItems = ordersRows.results || []
+          const allOrderItems = ordersRows.results || []
+
+          const targetDatesSet = new Set<string>()
+          for (const row of allOrderItems) {
+            const orderTime = String(row?.order_time || "").trim()
+            const orderDate = orderTime.length >= 10 ? orderTime.slice(0, 10) : ""
+            if (!orderDate) continue
+
+            if (orderDate === today) {
+              targetDatesSet.add(orderDate)
+              continue
+            }
+
+            if (!lastCompletedSummaryDate || orderDate > lastCompletedSummaryDate) {
+              targetDatesSet.add(orderDate)
+            }
+          }
+
+          const targetDates = Array.from(targetDatesSet.values()).sort()
+
+          if (targetDates.length === 0) {
+            return json({
+              ok: true,
+              today,
+              last_completed_summary_date: lastCompletedSummaryDate,
+              target_dates: [],
+              summaries: [],
+              total_source_orders: 0,
+            })
+          }
 
           const cardRows = await env.DB.prepare(`
             SELECT *
@@ -1101,142 +1142,135 @@ try {
           `).all<any>()
 
           const cards = cardRows.results || []
-          const grouped = new Map<string, any>()
-          const unmatched: any[] = []
+          const summaries: any[] = []
 
-          for (const row of orderItems) {
-            const raw = mlJsonObject(row?.raw_json)
-            const sku = String(row?.sku || "").trim()
-            const m = sku.match(/^(.*?)[\/-](\d{1,3})$/)
-            const article = m ? m[1] : sku
-            const colorNo = m ? m[2] : ""
-            const title = String(row?.title || raw?.title || "").trim()
-            const card = mlPickCardByArticle(article, cards)
+          for (const summaryDate of targetDates) {
+            const orderItems = allOrderItems.filter((row: any) => {
+              const orderTime = String(row?.order_time || "").trim()
+              return orderTime.slice(0, 10) === summaryDate
+            })
 
-            if (!card?.bag_id) {
-              unmatched.push({
-                order_id: row?.order_id || null,
-                reason: "bag_not_matched",
-                article: article || null,
-                title,
-              })
-              continue
+            const grouped = new Map<string, any>()
+            const unmatched: any[] = []
+
+            for (const row of orderItems) {
+              const raw = mlJsonObject(row?.raw_json)
+              const sku = String(row?.sku || "").trim()
+              const m = sku.match(/^(.*?)[\/-](\d{1,3})$/)
+              const article = m ? m[1] : sku
+              const colorNo = m ? m[2] : ""
+              const title = String(row?.title || raw?.title || "").trim()
+              const card = mlPickCardByArticle(article, cards)
+
+              if (!card?.bag_id) {
+                unmatched.push({
+                  summary_date: summaryDate,
+                  order_id: row?.order_id || null,
+                  reason: "bag_not_matched",
+                  article: article || null,
+                  title,
+                })
+                continue
+              }
+
+              const rawColorNo = colorNo
+              const rawColor =
+                rawColorNo ||
+                String(raw?.color || "").trim()
+
+              const color = mlPickColor(article, rawColor, card, row?.sku ?? row?.vendor_code ?? row?.article)
+
+              if (!color) {
+                unmatched.push({
+                  summary_date: summaryDate,
+                  order_id: row?.order_id || null,
+                  reason: "color_not_matched",
+                  title,
+                  raw_color: rawColor || null,
+                  bag_id: card.bag_id,
+                })
+                continue
+              }
+
+              const key = `${card.bag_id}|||${color}`
+              const existing = grouped.get(key)
+
+              if (existing) {
+                existing.orders += 1
+              } else {
+                grouped.set(key, {
+                  bag_id: String(card.bag_id),
+                  color: String(color),
+                  orders: 1,
+                  price: card?.price ?? null,
+                  cogs: card?.cogs ?? null,
+                  delivery_fee: card?.delivery_fee ?? null,
+                })
+              }
             }
 
-            const rawColorNo = colorNo
-            const rawColor =
-              rawColorNo ||
-              String(raw?.color || "").trim()
-
-            const color = mlPickColor(article, rawColor, card, row?.sku ?? row?.vendor_code ?? row?.article)
-
-            if (!color) {
-              unmatched.push({
-                order_id: row?.order_id || null,
-                reason: "color_not_matched",
-                title,
-                raw_color: rawColor || null,
-                bag_id: card.bag_id,
-              })
-              continue
-            }
-
-            const key = `${card.bag_id}|||${color}`
-            const existing = grouped.get(key)
-
-            if (existing) {
-              existing.orders += 1
-            } else {
-              grouped.set(key, {
-                bag_id: String(card.bag_id),
-                color: String(color),
-                orders: 1,
-                price: card?.price ?? null,
-                cogs: card?.cogs ?? null,
-                delivery_fee: card?.delivery_fee ?? null,
-              })
-            }
-          }
-
-          const entries = Array.from(grouped.values())
-          const now = nowIso()
-
-          for (const entry of entries) {
-            const existing = await env.DB.prepare(`
-              SELECT
-                entry_id,
-                created_by_user_id,
-                rk_enabled, rk_spend, rk_impressions, rk_clicks, rk_stake,
-                ig_enabled, ig_spend, ig_impressions, ig_clicks,
-                price, cogs, delivery_fee, hypothesis
-              FROM daily_summary_entries
-              WHERE summary_date = ? AND bag_id = ? AND color = ?
-              LIMIT 1
-            `).bind(today, entry.bag_id, entry.color).first<any>()
-
-            const entryId = existing?.entry_id || randomId("dse")
-            const createdBy = existing?.created_by_user_id || user.user_id
+            const entries = Array.from(grouped.values())
+            const now = nowIso()
 
             await env.DB.prepare(`
-              INSERT INTO daily_summary_entries (
-                entry_id, summary_date, bag_id, color, orders,
-                rk_enabled, rk_spend, rk_impressions, rk_clicks, rk_stake,
-                ig_enabled, ig_spend, ig_impressions, ig_clicks,
-                price, cogs, delivery_fee, hypothesis,
-                created_by_user_id, updated_by_user_id, created_at, updated_at, deleted_at
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
-              ON CONFLICT(summary_date, bag_id, color) DO UPDATE SET
-                orders=excluded.orders,
-                rk_enabled=excluded.rk_enabled,
-                rk_spend=excluded.rk_spend,
-                rk_impressions=excluded.rk_impressions,
-                rk_clicks=excluded.rk_clicks,
-                rk_stake=excluded.rk_stake,
-                ig_enabled=excluded.ig_enabled,
-                ig_spend=excluded.ig_spend,
-                ig_impressions=excluded.ig_impressions,
-                ig_clicks=excluded.ig_clicks,
-                price=excluded.price,
-                cogs=excluded.cogs,
-                delivery_fee=excluded.delivery_fee,
-                hypothesis=excluded.hypothesis,
-                updated_by_user_id=excluded.updated_by_user_id,
-                updated_at=excluded.updated_at,
-                deleted_at=NULL
-            `).bind(
-              entryId,
-              today,
-              entry.bag_id,
-              entry.color,
-              Number(entry.orders || 0),
-              Number(existing?.rk_enabled || 0),
-              existing?.rk_spend ?? null,
-              existing?.rk_impressions ?? null,
-              existing?.rk_clicks ?? null,
-              existing?.rk_stake ?? null,
-              Number(existing?.ig_enabled || 0),
-              existing?.ig_spend ?? null,
-              existing?.ig_impressions ?? null,
-              existing?.ig_clicks ?? null,
-              existing?.price ?? entry.price ?? null,
-              existing?.cogs ?? entry.cogs ?? null,
-              existing?.delivery_fee ?? entry.delivery_fee ?? null,
-              existing?.hypothesis ?? null,
-              createdBy,
-              user.user_id,
-              now,
-              now
-            ).run()
+              DELETE FROM daily_summary_entries
+              WHERE summary_date = ?
+            `).bind(summaryDate).run()
+
+            for (const entry of entries) {
+              const entryId = randomId("dse")
+
+              await env.DB.prepare(`
+                INSERT INTO daily_summary_entries (
+                  entry_id, summary_date, bag_id, color, orders,
+                  rk_enabled, rk_spend, rk_impressions, rk_clicks, rk_stake,
+                  ig_enabled, ig_spend, ig_impressions, ig_clicks,
+                  price, cogs, delivery_fee, hypothesis,
+                  created_by_user_id, updated_by_user_id, created_at, updated_at, deleted_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+              `).bind(
+                entryId,
+                summaryDate,
+                entry.bag_id,
+                entry.color,
+                Number(entry.orders || 0),
+                0,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                entry.price ?? null,
+                entry.cogs ?? null,
+                entry.delivery_fee ?? null,
+                null,
+                user.user_id,
+                user.user_id,
+                now,
+                now
+              ).run()
+            }
+
+            summaries.push({
+              summary_date: summaryDate,
+              source_orders: orderItems.length,
+              generated_entries: entries.length,
+              unmatched_count: unmatched.length,
+              unmatched: unmatched.slice(0, 20),
+              entries,
+            })
           }
 
           return json({
             ok: true,
-            summary_date: today,
-            source_orders: orderItems.length,
-            generated_entries: entries.length,
-            unmatched_count: unmatched.length,
-            unmatched: unmatched.slice(0, 20),
-            entries,
+            today,
+            last_completed_summary_date: lastCompletedSummaryDate,
+            target_dates: targetDates,
+            summaries,
+            total_source_orders: summaries.reduce((acc, x) => acc + Number(x.source_orders || 0), 0),
           })
         } catch (e) {
           return json({ ok: false, error: String(e) }, 500)
