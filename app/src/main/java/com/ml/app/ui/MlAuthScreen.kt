@@ -594,7 +594,7 @@ fun MlAuthScreen(
                               const dt = dateTimeFrom(raw);
                               const rawNorm = norm(raw);
 
-                              const productNodes = Array.from(card.querySelectorAll('li, article'))
+                              const productNodes = Array.from(card.querySelectorAll('div, li, article, section'))
                                 .filter(el => {
                                   const t = norm(txt(el));
                                   if (!t) return false;
@@ -660,7 +660,9 @@ fun MlAuthScreen(
 
                                 if (!article) continue;
 
-                                const itemExternalId = externalId;
+                                const itemExternalId = blocks.length > 1
+                                  ? externalId + "__item_" + (blockIndex + 1)
+                                  : externalId;
 
                                 if (seenIds.has(itemExternalId)) continue;
 
