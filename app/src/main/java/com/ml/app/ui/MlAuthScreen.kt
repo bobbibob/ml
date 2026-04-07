@@ -829,9 +829,32 @@ fun MlAuthScreen(
                                             }
                                         }
 
+                                        val summariesJson = summaryJson.optJSONArray("summaries")
+                                        var generatedEntries = 0
+                                        var unmatchedCount = 0
+                                        var unmatchedReason = ""
+                                        var unmatchedArticle = ""
+                                        var unmatchedTitle = ""
+
+                                        if (summariesJson != null && summariesJson.length() > 0) {
+                                            val firstSummary = summariesJson.optJSONObject(0)
+                                            if (firstSummary != null) {
+                                                generatedEntries = firstSummary.optInt("generated_entries", 0)
+                                                unmatchedCount = firstSummary.optInt("unmatched_count", 0)
+
+                                                val unmatched = firstSummary.optJSONArray("unmatched")
+                                                val firstUnmatched = unmatched?.optJSONObject(0)
+                                                if (firstUnmatched != null) {
+                                                    unmatchedReason = firstUnmatched.optString("reason").trim()
+                                                    unmatchedArticle = firstUnmatched.optString("article").trim()
+                                                    unmatchedTitle = firstUnmatched.optString("title").trim()
+                                                }
+                                            }
+                                        }
+
                                         statusText =
                                             if (syncedDates > 0) {
-                                                "Синхронизация ML завершена: ${filteredOrders.length()} заказов. local summary applied dates=${targetDates.distinct().joinToString(",")} syncedDates=$syncedDates entries=$totalEntries"
+                                                "ML ok orders=${filteredOrders.length()} entries=$totalEntries backend_entries=$generatedEntries unmatched=$unmatchedCount reason=$unmatchedReason article=${unmatchedArticle.take(20)} title=${unmatchedTitle.take(30)}"
                                             } else {
                                                 "Синхронизация ML завершена, но local summary sync error: ${lastError ?: "no dates synced"}"
                                             }
