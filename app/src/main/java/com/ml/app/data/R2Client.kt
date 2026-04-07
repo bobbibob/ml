@@ -9,6 +9,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.asRequestBody
 import java.io.File
 import java.util.concurrent.TimeUnit
+import com.ml.app.BuildConfig
 
 data class RemotePackMeta(
   val etag: String?,

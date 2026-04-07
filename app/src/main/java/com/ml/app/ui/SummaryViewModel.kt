@@ -27,6 +27,7 @@ import com.google.firebase.messaging.FirebaseMessaging
 import com.ml.app.core.network.ApiModule
 import com.ml.app.data.repository.AuthRepository
 import com.ml.app.data.session.PrefsSessionStorage
+import com.ml.app.BuildConfig
 
 sealed class ScreenMode {
   data object Timeline : ScreenMode()

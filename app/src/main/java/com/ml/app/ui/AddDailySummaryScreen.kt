@@ -47,6 +47,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
+import com.ml.app.BuildConfig
 
 private data class DailySummaryBagUi(
     val bagId: String,
