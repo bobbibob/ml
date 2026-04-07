@@ -602,43 +602,8 @@ fun MlAuthScreen(
                           }
 
                           const seen = new Set();
-                          const seenPages = new Set();
-                          const allOrders = [];
-
-                          let currentRoot = document;
-                          let currentPageUrl = location.href;
-                          let lastNextPageUrl = "";
-
-                          for (let pageIndex = 0; pageIndex < 20; pageIndex++) {
-                            const pageKey = currentPageUrl || ("page_" + pageIndex);
-                            if (seenPages.has(pageKey)) break;
-                            seenPages.add(pageKey);
-
-                            const pageOrders = collectOrdersFromRoot(currentRoot, seen);
-                            for (const item of pageOrders) allOrders.push(item);
-
-                            const nextPageUrl = nextPageFromRoot(currentRoot);
-                            lastNextPageUrl = nextPageUrl || "";
-
-                            if (!nextPageUrl || seenPages.has(nextPageUrl)) break;
-
-                            let xhr = null;
-                            try {
-                              xhr = new XMLHttpRequest();
-                              xhr.open("GET", nextPageUrl, false);
-                              xhr.withCredentials = true;
-                              xhr.send();
-                            } catch (e) {
-                              break;
-                            }
-
-                            if (!xhr || xhr.status < 200 || xhr.status >= 300 || !xhr.responseText) {
-                              break;
-                            }
-
-                            currentRoot = new DOMParser().parseFromString(xhr.responseText, "text/html");
-                            currentPageUrl = nextPageUrl;
-                          }
+                          const allOrders = collectOrdersFromRoot(document, seen);
+                          const lastNextPageUrl = nextPageFromRoot(document) || "";
 
                           return JSON.stringify({
                             url: location.href,
