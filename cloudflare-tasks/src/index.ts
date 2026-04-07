@@ -976,7 +976,17 @@ function mlPickColor(article: unknown, rawColor: unknown, card: any, rawSku?: un
     if (mlNorm(c) === want) return c
   }
 
-  // 5. Если пришёл номер и не нашли маппинг — сохраняем номер цвета,
+  // 5. Если пришёл номер цвета и sku_links_json пустой/неполный,
+  // пытаемся сопоставить по порядку в colors_json: 1 -> colors[0], 2 -> colors[1], ...
+  if (numericRaw && colors.length > 0) {
+    const idx = parseInt(numericRaw, 10) - 1
+    if (idx >= 0 && idx < colors.length) {
+      const byIndex = String(colors[idx] || "").trim()
+      if (byIndex) return byIndex
+    }
+  }
+
+  // 6. Если пришёл номер и вообще не нашли маппинг — сохраняем номер цвета,
   // чтобы заказ не терялся из summary
   if (numericRaw) return numericRaw
 
