@@ -513,13 +513,27 @@ fun MlAuthScreen(
                           }
 
                           function collectOrdersFromRoot(root, seenIds) {
-                            const cards = Array.from(root.querySelectorAll(".andes-card, li"));
+                            const candidates = Array.from(root.querySelectorAll(
+                              '[data-testid*="order"], [data-testid*="sale"], article, .andes-card, li'
+                            ));
+
+                            const cards = candidates.filter(card => {
+                              const raw = txt(card);
+                              if (!raw) return false;
+
+                              const ids = raw.match(/#?\d{10,}/g) || [];
+                              if (ids.length !== 1) return false;
+
+                              if (raw.length > 2500) return false;
+
+                              return true;
+                            });
+
                             const pageOrders = [];
 
                             for (const card of cards) {
                               const raw = txt(card);
                               if (!raw) continue;
-                              if (!/#\d{10,}|R\$|\d{1,2}\s+[a-zç]{3}\s+\d{1,2}:\d{2}\s*hs/i.test(raw)) continue;
 
                               const idMatch =
                                 raw.match(/#(\d{10,})/) ||
@@ -535,14 +549,39 @@ fun MlAuthScreen(
                               const sku = skuFrom(raw, parts);
                               const skuParts = articleColorFromSku(sku);
 
-                              if (!sku || !skuParts.article || !skuParts.color_no) continue;
+                              const title = titleFrom(parts);
+                              const rawNorm = norm(raw);
+
+                              let article = skuParts.article || "";
+                              let colorNo = skuParts.color_no || "";
+
+                              if (!article) {
+                                const articleFromTitle =
+                                  title.match(/\b(\d{1,3}[a-zа-яё]?)[.\-\s]+/i) ||
+                                  rawNorm.match(/\b(\d{1,3}[a-zа-яё]?)\b/i);
+                                if (articleFromTitle) {
+                                  article = norm(articleFromTitle[1]);
+                                }
+                              }
+
+                              if (!colorNo) {
+                                const colorFromSku =
+                                  sku.match(/[\/-](\d{1,3})\b/) ||
+                                  rawNorm.match(/\b(?:cor|color|цвет)\D{0,6}(\d{1,3})\b/i) ||
+                                  rawNorm.match(/\b(\d{1,3})\b/g);
+                                if (colorFromSku) {
+                                  colorNo = Array.isArray(colorFromSku) ? (colorFromSku[1] || "") : "";
+                                }
+                              }
+
+                              if (!article) continue;
 
                               pageOrders.push({
                                 external_order_id: externalId,
-                                sku: sku,
-                                article: skuParts.article,
-                                color_no: skuParts.color_no,
-                                title: titleFrom(parts),
+                                sku: sku || article,
+                                article: article,
+                                color_no: colorNo,
+                                title: title,
                                 buyer_name: buyerFrom(parts),
                                 status: statusFrom(raw),
                                 substatus: null,
@@ -551,9 +590,9 @@ fun MlAuthScreen(
                                 date_text: dt.date_text,
                                 time_text: dt.time_text,
                                 order_datetime_sort: dt.order_datetime_sort,
-                                color: skuParts.color_no,
+                                color: colorNo,
                                 photo_url: firstImg(card),
-                                raw_text: norm(raw).slice(0, 4000)
+                                raw_text: rawNorm.slice(0, 4000)
                               });
 
                               seenIds.add(externalId);
