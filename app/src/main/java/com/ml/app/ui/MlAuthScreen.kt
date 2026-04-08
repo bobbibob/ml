@@ -576,9 +576,9 @@ fun MlAuthScreen(
                               const normalizedIds = Array.from(new Set(
                                 ids.map(x => String(x || "").replace(/^#/, "").trim()).filter(Boolean)
                               ));
-                              if (normalizedIds.length !== 1) return false;
+                              if (normalizedIds.length == 0) return false;
 
-                              if (raw.length > 9000) return false;
+                              if (raw.length > 4000) return false;
 
                               return true;
                             });
@@ -600,29 +600,7 @@ fun MlAuthScreen(
                               const dt = dateTimeFrom(raw);
                               const rawNorm = norm(raw);
 
-                              const productNodes = Array.from(card.querySelectorAll('div, li, article, section'))
-                                .filter(el => {
-                                  const t = norm(txt(el));
-                                  if (!t) return false;
-                                  if (t === rawNorm) return false;
-                                  if (t.length < 20 || t.length > 800) return false;
-                                  if (/pacote de \d+ produtos/i.test(t)) return false;
-                                  if (!/cor\s*:|sku|seller\s*sku|material|acabamentos?:/i.test(t)) return false;
-                                  return true;
-                                });
-
-                              const uniqueBlocks = [];
-                              const seenBlocks = new Set();
-                              for (const node of productNodes) {
-                                const t = norm(txt(node));
-                                if (!t || seenBlocks.has(t)) continue;
-                                seenBlocks.add(t);
-                                uniqueBlocks.push({ node, text: t });
-                              }
-
-                              const blocks = uniqueBlocks.length > 0
-                                ? uniqueBlocks
-                                : [{ node: card, text: rawNorm }];
+                              const blocks = [{ node: card, text: rawNorm }];
 
                               let emitted = 0;
 
@@ -666,9 +644,7 @@ fun MlAuthScreen(
 
                                 if (!article) continue;
 
-                                const itemExternalId = blocks.length > 1
-                                  ? externalId + "__item_" + (blockIndex + 1)
-                                  : externalId;
+                                const itemExternalId = externalId;
 
                                 if (seenIds.has(itemExternalId)) continue;
 
@@ -752,8 +728,8 @@ fun MlAuthScreen(
                             return pageOrders;
                           }
 
-                          const expandedClicked = expandPackageRows(document);
-                          if (expandedClicked > 0) {
+                          const expandedClicked = 0;
+                          if (false) {
                             return JSON.stringify({
                               url: location.href,
                               title: document.title,
@@ -855,19 +831,7 @@ fun MlAuthScreen(
                                     ""
                                 }
 
-                                if (needsRetry) {
-                                    parserRetryCount += 1
-                                    statusText = "Разворачиваем комплектные заказы: $expandedClicked retry=$parserRetryCount"
-
-                                    if (parserRetryCount >= 2) {
-                                        statusText = "Комплекты раскрыты. Нажми Синхро ещё раз."
-                                        parserRetryCount = 0
-                                        return@Thread
-                                    }
-
-                                    webView.postDelayed({
-                                        runParser()
-                                    }, 2200)
+                                if (false) {
                                     return@Thread
                                 }
 
