@@ -515,46 +515,49 @@ fun MlAuthScreen(
                           }
 
                           function expandPackageRows(root) {
-                            const selectors = [
-                              'button[aria-expanded="false"]',
-                              '[role="button"][aria-expanded="false"]',
-                              'button[data-testid*="expand"]',
-                              'button[data-testid*="accordion"]',
-                              '[role="button"][data-testid*="expand"]',
-                              '[role="button"][data-testid*="accordion"]',
-                              'button',
-                              '[role="button"]'
-                            ];
+                            const cards = Array.from(root.querySelectorAll(
+                              '[data-testid*="order"], [data-testid*="sale"], article, .andes-card, li'
+                            ));
 
-                            const seen = new Set();
                             let clicked = 0;
 
-                            for (const selector of selectors) {
-                              const nodes = Array.from(root.querySelectorAll(selector));
-                              for (const el of nodes) {
-                                if (!el || seen.has(el)) continue;
-                                seen.add(el);
+                            for (const card of cards) {
+                              const cardText = norm(txt(card));
+                              if (!/pacote de \d+ produtos/i.test(cardText)) continue;
 
+                              const toggles = Array.from(card.querySelectorAll(
+                                'button, [role="button"], [aria-expanded]'
+                              ));
+
+                              let target = null;
+
+                              for (const el of toggles) {
                                 const raw = norm(txt(el));
                                 const aria = String(el.getAttribute("aria-label") || "").trim();
-                                const testId = String(el.getAttribute("data-testid") || "").trim();
                                 const cls = String(el.className || "").trim();
+                                const expanded = String(el.getAttribute("aria-expanded") || "").trim();
 
-                                const looksExpandable =
-                                  el.getAttribute("aria-expanded") === "false" ||
+                                const looksRight =
+                                  expanded === "false" ||
                                   /pacote de \d+ produtos/i.test(raw) ||
-                                  /ver produtos/i.test(raw) ||
-                                  /mostrar produtos/i.test(raw) ||
-                                  /expand/i.test(raw) ||
-                                  /accordion|expand|chevron|arrow/i.test(testId + " " + cls + " " + aria);
+                                  /ver produtos|mostrar produtos/i.test(raw + " " + aria) ||
+                                  /chevron|arrow|accordion|expand/i.test(cls + " " + aria);
 
-                                if (!looksExpandable) continue;
+                                if (!looksRight) continue;
 
-                                try {
-                                  el.click();
-                                  clicked += 1;
-                                } catch (e) {}
+                                const rect = el.getBoundingClientRect();
+                                if (rect.width <= 0 || rect.height <= 0) continue;
+
+                                target = el;
+                                break;
                               }
+
+                              if (!target) continue;
+
+                              try {
+                                target.click();
+                                clicked += 1;
+                              } catch (e) {}
                             }
 
                             return clicked;
